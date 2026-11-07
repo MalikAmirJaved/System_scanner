@@ -12,7 +12,7 @@
 |---|---|---|---|---|
 | `react` | `^19.1.0` | `19.3.1` | MIT | UI library |
 | `react-dom` | `^19.1.0` | `19.3.1` | MIT | DOM renderer |
-| `@tauri-apps/api` | `^2` | `2.12.4` | Apache-2.0 OR MIT | Typed IPC/event API (not yet used) |
+| `@tauri-apps/api` | `^2` | `2.12.4` | Apache-2.0 OR MIT | Typed IPC/event API — used by `src/services/ipc.ts` |
 
 Production tree: 5 packages total including transitive (`scheduler`, etc.).
 
@@ -26,6 +26,21 @@ Production tree: 5 packages total including transitive (`scheduler`, etc.).
 | `typescript` | `~6.0.3` | `6.0.3` | Apache-2.0 | Type checking |
 | `@types/react` | `^19.1.8` | `19.3.0` | MIT | React types |
 | `@types/react-dom` | `^19.1.6` | `19.3.0` | MIT | React DOM types |
+| `vitest` | `^5.1.0` | `5.1.0` | MIT | Frontend unit test runner |
+| `jsdom` | `^31.0.0` | `31.0.0` | MIT | DOM environment for tests |
+| `@testing-library/react` | `^16.3.3` | `16.3.3` | MIT | Component test rendering |
+| `@testing-library/jest-dom` | `^7.0.1` | `7.0.1` | MIT | DOM assertions (`toBeInTheDocument`) |
+| `eslint` | `^10.14.0` | `10.14.0` | MIT | Linter |
+| `@eslint/js` | `^10.0.1` | `10.0.1` | MIT | ESLint recommended rules |
+| `typescript-eslint` | `^8.72.1` | `8.72.1` | MIT | TypeScript parser + rules |
+| `eslint-plugin-react-hooks` | `^7.1.1` | `7.1.1` | MIT | Hook rules (incl. `set-state-in-effect`) |
+| `eslint-plugin-react-refresh` | `^0.5.7` | `0.5.7` | MIT | HMR-safety warnings |
+| `globals` | `^17.14.0` | `17.14.0` | MIT | Browser globals for ESLint |
+| `prettier` | `^3.9.10` | `3.9.10` | MIT | Formatter |
+
+Dev-only advisories: 10 moderate (`minimatch` ReDoS, reachable only through the
+lint toolchain). Production tree is clean under `npm audit --omit=dev`.
+See [`KNOWN_ISSUES.md`](KNOWN_ISSUES.md) KI-036.
 
 ## 3. Rust dependencies
 
@@ -33,6 +48,9 @@ Production tree: 5 packages total including transitive (`scheduler`, etc.).
 |---|---|---|---|---|
 | `tauri` | `2` | `2.12.5` | MIT OR Apache-2.0 | Desktop runtime, IPC, windowing |
 | `tauri-build` (build) | `2` | see `Cargo.lock` | MIT OR Apache-2.0 | Build-time codegen |
+| `serde` | `1.0.229` (`derive`) | `1.0.229` | MIT OR Apache-2.0 | DTO/error serialization |
+| `serde_json` | `1.0.154` | `1.0.154` | MIT OR Apache-2.0 | Envelope and DTO tests |
+| `thiserror` | `2.0.21` | `2.0.21` | MIT OR Apache-2.0 | `AppError` `Error` impl |
 
 - `Cargo.lock` currently resolves **407 packages** (full transitive tree).
 - The workspace crate `system-scanner` declares **no license field**, which means
@@ -44,7 +62,8 @@ Production tree: 5 packages total including transitive (`scheduler`, etc.).
 |---|---|---|
 | Node.js | 24.20.0 | LTS line preferred; pin in CI |
 | npm | 11.19.0 | `npm ci` in CI |
-| Rust stable | 1.99.1 (2026-10-13) | Edition 2024 |
+| Rust stable | 1.99.1 (2026-10-13) | Edition 2024; `rust-toolchain.toml` pins the channel |
+| rustfmt / clippy | 1.10.0 / 0.1.99 | `rustup` components, declared in `rust-toolchain.toml` |
 | Tauri CLI | 2.12.4 | via devDependency |
 | WebView2 | Evergreen | OS runtime dependency |
 | MSVC Build Tools | present | Windows SDK + C++ workload |
@@ -62,16 +81,13 @@ Production tree: 5 packages total including transitive (`scheduler`, etc.).
 
 | Dependency | Would be used for | Gate |
 |---|---|---|
-| `serde`, `serde_json` | DTO serialization | First IPC command |
-| `thiserror` | Typed errors | First error enum |
-| `tracing`, `tracing-subscriber`, `tracing-appender` | Logging | Release 0 diagnostics |
-| `rusqlite` **or** `sqlx` | SQLite | ADR-005 |
-| `walkdir` **or** custom traversal | Directory enumeration | Decide after prototype |
-| `sha2`, `blake3` | Hashing | Release 1 |
-| `windows` / `windows-sys` | Win32 bindings | Release 0 adapters |
-| `tempfile` (dev) | Test fixtures | First test |
-| `vitest`, `@testing-library/react`, `jsdom` | Frontend tests | Test runner |
-| `zod` (optional) | Runtime DTO validation | Only if hand-written guards prove insufficient |
+| `tracing`, `tracing-subscriber`, `tracing-appender` | Logging | Release 0 diagnostics (B-007) |
+| `rusqlite` **or** `sqlx` | SQLite | ADR-005 (B-020) |
+| `walkdir` **or** custom traversal | Directory enumeration | Decide after prototype (B-022) |
+| `sha2`, `blake3` | Hashing | Release 1 (B-028) |
+| `windows` / `windows-sys` | Win32 bindings | Release 0 adapters (B-002) |
+| `tempfile` (dev) | Test fixtures | First filesystem test |
+| `zod` (optional) | Runtime DTO validation in the renderer | Only if hand-written guards prove insufficient (B-090) |
 
 Each addition requires an entry here **in the same change**, plus a justification.
 
@@ -106,7 +122,7 @@ Major upgrades require an ADR and a migration note in [`CHANGELOG.md`](CHANGELOG
 | Control | Status |
 |---|---|
 | Lockfiles committed | ✅ |
-| npm audit | Available, not in CI |
+| npm audit | Available; `--omit=dev` clean; not yet in CI |
 | `cargo audit` | Not installed |
 | `cargo-deny` (licenses/advisories/bans) | Not configured |
 | SBOM (CycloneDX) | Not generated |
@@ -120,9 +136,9 @@ and archives checksums.
 
 | License | Packages (direct) |
 |---|---|
-| MIT | react, react-dom, vite, plugin-react, @types/* |
+| MIT | react, react-dom, vite, plugin-react, vitest, jsdom, testing-library, eslint stack, prettier, @types/* |
 | Apache-2.0 | typescript |
-| Apache-2.0 OR MIT | @tauri-apps/api, @tauri-apps/cli, tauri |
+| Apache-2.0 OR MIT | @tauri-apps/api, @tauri-apps/cli, tauri, serde, serde_json, thiserror |
 
 **This is not a legal review.** A full transitive license audit is required before
 distribution — see [`COMPLIANCE.md`](COMPLIANCE.md).

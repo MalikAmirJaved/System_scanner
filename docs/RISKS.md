@@ -51,7 +51,7 @@
 
 | ID | Risk | L | I | Mitigation | Owner | Status |
 |---|---|---|---|---|---|---|
-| R-40 | No CI means a broken build ships | High | Medium | Add Windows CI before Release 0 exit | Eng | Open |
+| R-40 | CI workflow exists but has never run or enforced anything; a broken build can still merge | High | Medium | Get the first green run and enable branch protection (B-092); treat the current file as aspirational, not a control | Eng | Open |
 | R-41 | No upgrade testing breaks user data | Medium | High | Upgrade matrix, migration backups | Eng | Open |
 | R-42 | No support channel for security reports | Medium | High | Publish contact + advisory process | Ops | Open |
 | R-43 | No rollback plan for a harmful build | Low | Critical | Release policy + stop-distribution authority | Release | Draft |

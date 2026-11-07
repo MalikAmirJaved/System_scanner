@@ -90,8 +90,9 @@ Rules:
 - New adapter → contract test behind a trait; Windows-specific behavior isolated.
 - Bug fix → a regression test that fails before the fix.
 
-No test runner exists yet; if you add one, update [`build.md`](build.md),
-[`TESTING.md`](TESTING.md), and `package.json` in the same change.
+`npm test` (Vitest + Testing Library) and `cargo test` are the existing runners;
+adding to them means updating [`build.md`](build.md), [`TESTING.md`](TESTING.md),
+and `package.json` in the same change.
 
 ## 6. Documentation obligations
 

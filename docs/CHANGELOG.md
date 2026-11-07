@@ -14,23 +14,53 @@ exists. Until then, `0.x` versions may change behavior without notice.
 ## [Unreleased]
 
 ### Added
+- **Typed IPC boundary (implemented).** `src-tauri/src/ipc.rs`
+  (`CommandResult` envelope), `src-tauri/src/error.rs` (`ErrorCode` taxonomy,
+  `AppError` with per-error correlation IDs), `src-tauri/src/dto/app_info.rs`
+  (`AppInfo`, `DTO_SCHEMA_VERSION = 1`), and the read-only command
+  `get_app_info`.
+- **Frontend IPC adapter.** `src/services/ipc.ts` (single `invoke` call site,
+  `IpcError`), `src/services/app.ts`, and `src/components/BackendStatus.tsx` with
+  loading, ready, error, and retry states wired into the welcome screen.
+- **Tooling.** Vitest 5 + jsdom + Testing Library, ESLint 10 flat config,
+  Prettier 3, and `rust-toolchain.toml` (stable channel + `rustfmt`/`clippy`).
+- **CI workflow.** `.github/workflows/ci.yml` — `frontend`, `rust`, and `package`
+  jobs on `windows-latest`. Written and verified step-by-step locally; it has
+  **not** run on GitHub yet.
+- `npm test`, `npm run test:watch`, `npm run lint`, `npm run format`,
+  `npm run format:check`.
+- ADR-011: IPC DTO fields are `camelCase` on the wire.
+
+### Changed
+- `API.md` §1–§3 now describe the implemented envelope and `get_app_info` instead
+  of a proposed contract; error codes are documented in their serialized
+  `snake_case` form.
+- `build.md` §4 no longer marks `cargo fmt`/`cargo clippy` as verified without the
+  components being installed. That claim was incorrect and is corrected, not
+  quietly removed.
+- `README.md` rewritten around the actual implementation state, with a
+  documentation map and an honest capability table.
+- `docs/plan.md`: authoritative plan moved from the repository root; `plan.md`
+  is now a pointer.
+
+### Documentation
 - Full documentation set: architecture, product, security, operations, and AI
   workflow documents (`ARCHITECTURE.md`, `PRD.md`, `TECH_STACK.md`, `DATABASE.md`,
   `API.md`, `SECURITY.md`, `CONTRIBUTING.md`, `TESTING.md`, `AGENTS.md`,
   `AI_*.md`, and `docs/*`).
-- `build.md`: verified command reference for the current toolchain.
-- `docs/plan.md`: authoritative plan moved from the repository root; `plan.md`
-  is now a pointer.
-
-### Changed
-- `README.md` rewritten around the actual implementation state, with a
-  documentation map and an honest capability table.
+- `build.md`: command reference for the current toolchain, now including the new
+  test/lint/format scripts.
 
 ### Fixed
-- Nothing yet.
+- Toolchain documentation claimed `rustfmt`/`clippy` were available and verified;
+  neither component was installed. Both are now installed and declared in
+  `rust-toolchain.toml`.
 
 ### Security
-- No change. No network capability, no telemetry, no privilege escalation.
+- No network capability, no telemetry, no privilege escalation added.
+- `get_app_info` returns no machine-identifying data.
+- 10 moderate advisories exist in the **dev-only** lint toolchain (`minimatch`
+  ReDoS). `npm audit --omit=dev` is clean; see `docs/KNOWN_ISSUES.md` KI-036.
 
 ---
 

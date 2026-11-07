@@ -1,7 +1,9 @@
 # Error Handling
 
-> **Status:** No error model is implemented. `lib.rs` contains a single `expect()`
-> on startup. Everything here is the target design.
+> **Status:** **The error model exists; the adapters that use it do not.** `AppError`,
+> the `ErrorCode` taxonomy, retryability, and correlation IDs are implemented and
+> tested (`src-tauri/src/error.rs`). No command can fail yet, so nothing constructs
+> an `AppError` in production code, and there are no `CollectorError` adapters.
 > **Last updated:** 2026-11-06
 
 ---
@@ -18,20 +20,23 @@
 
 | Code | Category | Retryable | Typical cause | User message strategy |
 |---|---|---|---|---|
-| `INVALID_INPUT` | Client | No | Bad path, out-of-range limit | State the constraint |
-| `NOT_PERMITTED` | Policy | No | Denied by capability/policy | "Not allowed for this operation" |
-| `ACCESS_DENIED` | OS | Sometimes | ACL, protected process | Explain elevation/permission |
-| `NOT_FOUND` | OS | Sometimes | File/process disappeared | Offer refresh |
-| `UNSUPPORTED` | Platform | No | API unavailable on this build | Explain limitation |
-| `TIMEOUT` | Transient | Yes | Slow device/WMI hang | Offer retry with reduced scope |
-| `BUSY` | Transient | Yes | Job already running, DB locked | Show existing job / wait |
-| `CANCELLED` | User | No | User or policy cancelled | Informational, not an error dialog |
-| `DISK_FULL` | Resource | After cleanup | DB/quarantine full | Show what to free |
-| `DB_ERROR` | Persistence | Sometimes | Corrupt/locked/migration | Recovery instructions |
-| `INTERNAL` | Unknown | No | Bug | Apology + correlation ID |
+| `invalid_input` | Client | No | Bad path, out-of-range limit | State the constraint |
+| `not_permitted` | Policy | No | Denied by capability/policy | "Not allowed for this operation" |
+| `access_denied` | OS | Yes | ACL, protected process | Explain elevation/permission |
+| `not_found` | OS | Yes | File/process disappeared | Offer refresh |
+| `unsupported` | Platform | No | API unavailable on this build | Explain limitation |
+| `timeout` | Transient | Yes | Slow device/WMI hang | Offer retry with reduced scope |
+| `busy` | Transient | Yes | Job already running, DB locked | Show existing job / wait |
+| `cancelled` | User | No | User or policy cancelled | Informational, not an error dialog |
+| `disk_full` | Resource | No | DB/quarantine full | Show what to free |
+| `db_error` | Persistence | Yes | Corrupt/locked/migration | Recovery instructions |
+| `internal` | Unknown | No | Bug | Apology + correlation ID |
 
-Codes live in one enum in Rust and one union in TypeScript. They must not be
-improvised per screen.
+Codes live in one enum in Rust (`ErrorCode`, serialized as these strings) and one
+union in TypeScript (`ErrorCode` in `src/services/ipc.ts`). They must not be
+improvised per screen. The `retryable` flag is derived in Rust by
+`ErrorCode::retryable()` and sent on the wire, so the UI never re-implements the
+table above.
 
 ## 3. Layered model
 
@@ -54,33 +59,40 @@ Rules:
 - Commands map errors exactly once, in one place.
 - The UI never string-matches messages; it switches on `code`.
 
-## 4. Rust implementation (proposed)
+## 4. Rust implementation
+
+Implemented today (`src-tauri/src/error.rs`):
 
 ```rust
-#[derive(Debug, thiserror::Error)]
-pub enum CollectorError {
-    #[error("access denied")]
-    AccessDenied,
-    #[error("not supported on this platform")]
-    Unsupported,
-    #[error("target disappeared")]
-    NotFound,
-    #[error("timed out after {0:?}")]
-    Timeout(std::time::Duration),
-    #[error("os error: {0}")]
-    Os(#[from] std::io::Error),
-}
+pub enum ErrorCode { InvalidInput, NotPermitted, AccessDenied, NotFound,
+                     Unsupported, Timeout, Busy, Cancelled, DiskFull,
+                     DbError, Internal }
 
+impl AppError {
+    pub fn new(code: ErrorCode) -> Self;              // message + retryable + correlation id
+    pub fn with_detail(self, detail: impl Into<String>) -> Self; // optional, redacted
+}
+```
+
+`AppError::new` fills the safe default message, the derived `retryable` flag, and
+a fresh correlation ID, so a caller cannot forget any of them. `detail` is
+omitted from the wire payload when `None` and is diagnostic-only.
+
+Proposed (does not exist): per-adapter `CollectorError` types with a `From` impl
+into `AppError`. When the first collector lands, the mapping should look like
+this and the adapter's error type must **not** escape the adapter module:
+
+```rust
 impl From<CollectorError> for AppError {
     fn from(e: CollectorError) -> Self {
-        match e {
-            CollectorError::AccessDenied => AppError::new(Code::AccessDenied, true),
-            CollectorError::Unsupported => AppError::new(Code::Unsupported, false),
-            CollectorError::NotFound    => AppError::new(Code::NotFound, true),
-            CollectorError::Timeout(_)  => AppError::new(Code::Timeout, true),
-            CollectorError::Os(_)       => AppError::new(Code::Internal, false),
-        }
-        .with_correlation_id(new_id())
+        let code = match e {
+            CollectorError::AccessDenied => ErrorCode::AccessDenied,
+            CollectorError::Unsupported  => ErrorCode::Unsupported,
+            CollectorError::NotFound     => ErrorCode::NotFound,
+            CollectorError::Timeout(_)   => ErrorCode::Timeout,
+            CollectorError::Os(_)        => ErrorCode::Internal,
+        };
+        AppError::new(code)   // correlation id is assigned here
     }
 }
 ```
@@ -94,9 +106,9 @@ could not be read.
 {
   "status": "ok",
   "data": {
-    "summary": { "files_seen": 100000, "denied": 120, "skipped": 8 },
+    "summary": { "filesSeen": 100000, "denied": 120, "skipped": 8 },
     "partial": true,
-    "partial_reasons": [
+    "partialReasons": [
       { "reason": "access_denied", "count": 120 },
       { "reason": "unsupported",  "count": 8 }
     ]

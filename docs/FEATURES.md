@@ -31,9 +31,9 @@
 
 | ID | Feature | Release | Status | Evidence |
 |---|---|---|---|---|
-| F-020 | Typed command/event boundary | 0 | ⏳ Not started | `lib.rs` has no handlers |
-| F-021 | Stable DTOs + schema version | 0 | ⏳ Not started | — |
-| F-022 | Error taxonomy + correlation IDs | 0 | ⏳ Not started | — |
+| F-020 | Typed command/event boundary | 0 | 🟡 Partial — commands done, events not started | `src-tauri/src/ipc.rs`, `src-tauri/src/commands/`, `src/services/ipc.ts` |
+| F-021 | Stable DTOs + schema version | 0 | ✅ Implemented | `src-tauri/src/dto/app_info.rs` (`DTO_SCHEMA_VERSION = 1`) |
+| F-022 | Error taxonomy + correlation IDs | 0 | ✅ Implemented (taxonomy only; no fallible command yet) | `src-tauri/src/error.rs`, `src/services/ipc.ts` |
 | F-023 | Job registry + lifecycle state machine | 0 | ⏳ Not started | — |
 | F-024 | Cancellation tokens per job | 0 | ⏳ Not started | — |
 | F-025 | Bounded concurrency + resource budgets | 1 | ⏳ Not started | — |
@@ -140,11 +140,14 @@
 
 | Status | Count |
 |---|---|
-| Implemented | 9 (6 features + 3 baseline properties) |
-| Not started / planned | 63 |
+| Implemented | 11 (8 features + 3 baseline properties) |
+| Partial | 1 (F-020: commands exist, event channel does not) |
+| Not started / planned | 60 |
 | Gated (requires security work) | 6 |
 | Research / proposed | 2 |
 
-Only the shell, build, installer, CSP, capability set, and welcome screen are real,
-plus the current absence of network access, telemetry, and elevation. Everything
-user-facing that inspects the machine is still ahead.
+Implemented since the scaffold: the typed IPC envelope, the error taxonomy with
+correlation IDs, the versioned `AppInfo` DTO, one read-only command
+(`get_app_info`), the frontend IPC adapter, and a backend status indicator with
+loading/error/retry states. The event channel, job registry, cancellation, and
+logging are still ahead, and everything that inspects the machine is unchanged.

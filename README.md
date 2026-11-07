@@ -43,11 +43,12 @@ and no network dependency for core functionality.
 | Production build + NSIS installer | ✅ Implemented | `src-tauri/target/release/bundle/nsis/` |
 | Strict CSP, minimal Tauri capability set | ✅ Implemented | `tauri.conf.json`, `src-tauri/capabilities/default.json` |
 | Styled welcome screen, design tokens | ✅ Implemented | `src/App.tsx`, `src/App.css` |
-| Typed IPC command surface | ⏳ Planned | `src-tauri/src/lib.rs` has no commands |
+| Typed IPC command surface | ✅ Implemented | `src-tauri/src/ipc.rs`, `commands/app.rs`, `src/services/ipc.ts` |
+| Error taxonomy + correlation IDs | ✅ Implemented | `src-tauri/src/error.rs` |
 | System / process collection | ⏳ Planned | Release 0 |
 | Storage scan engine | ⏳ Planned | Release 1 |
 | SQLite persistence + migrations | ⏳ Planned | Release 1 |
-| Tests, lint config, CI | ⏳ Planned | none configured |
+| Tests, lint config, CI | 🟡 Partial | 14 tests + ESLint/Prettier pass; CI workflow never run |
 | Network egress | 🚫 None by design | no HTTP client dependency |
 
 Full inventory: [`docs/FEATURES.md`](docs/FEATURES.md). Gaps:
@@ -109,11 +110,18 @@ Every command, flag, artifact path, and troubleshooting entry lives in
 ```text
 system-scanner/
 ├─ src/                     # React UI (rendering only, no OS access)
-│  ├─ App.tsx               # welcome screen (current entry point)
+│  ├─ App.tsx               # welcome screen + backend status indicator
 │  ├─ App.css               # design tokens + layout
-│  └─ main.tsx              # React root
+│  ├─ main.tsx              # React root
+│  ├─ services/             # typed IPC adapter (only `invoke` call site)
+│  ├─ components/           # BackendStatus with loading/error/retry states
+│  └─ test/setup.ts         # Vitest setup
 ├─ src-tauri/
-│  ├─ src/lib.rs            # Tauri builder (no commands yet)
+│  ├─ src/lib.rs            # Tauri builder + invoke_handler registration
+│  ├─ src/ipc.rs            # CommandResult envelope
+│  ├─ src/error.rs          # ErrorCode taxonomy + AppError + correlation IDs
+│  ├─ src/dto/app_info.rs   # versioned AppInfo DTO
+│  ├─ src/commands/app.rs   # `get_app_info` command
 │  ├─ src/main.rs           # binary entry point
 │  ├─ capabilities/         # Tauri permission surface (core:default only)
 │  ├─ icons/                # app + installer icons

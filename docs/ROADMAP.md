@@ -42,14 +42,16 @@ requirements.
 | Tauri 2 + React/TS/Vite scaffold | ✅ Implemented |
 | Production build + NSIS installer | ✅ Implemented |
 | Minimal capability set + CSP | ✅ Implemented |
-| Welcome screen / app shell | ✅ Implemented |
-| Typed IPC boundary + DTO + error model | ⏳ Not started |
+| Welcome screen | ✅ Implemented |
+| App shell, navigation, routing | ⏳ Not started |
+| Typed IPC boundary + DTO + error model | ✅ Implemented (`get_app_info` end to end) |
+| IPC event channel | ⏳ Not started |
 | System snapshot (OS/CPU/memory/disks/network) | ⏳ Not started |
 | Process list with stable identity | ⏳ Not started |
 | Refresh lifecycle (manual + bounded periodic) | ⏳ Not started |
 | Diagnostics view + redacted support bundle | ⏳ Not started |
-| Tests (unit/adapter/UI) | ⏳ Not started |
-| CI on Windows | ⏳ Not started |
+| Tests (unit/adapter/UI) | 🟡 Partial — IPC contract only, 14 tests |
+| CI on Windows | 🟡 Workflow committed, never run on GitHub |
 
 **Exit criteria**
 

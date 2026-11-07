@@ -14,15 +14,15 @@ not exist. Do not present planned commands as if they were available.
 
 ## 1. Toolchain
 
-| Tool | Required | Verified locally | Notes |
-|---|---|---|---|
-| Windows | 10/11 x64 | — | Primary target; not yet formally supported/tested |
-| Node.js | ≥ 20 (Tauri 2 baseline) | `v24.20.0` | LTS recommended |
-| npm | ≥ 10 | `11.19.0` | Lockfile is `package-lock.json` |
-| Rust (stable) | ≥ 1.77 (Tauri 2 baseline) | `1.99.1` (2026-10-13) | Edition 2024 requires a recent stable |
-| Tauri CLI | 2.x | `2.12.4` | Installed as a dev dependency, not globally |
-| WebView2 Runtime | Evergreen | present | Bundled by Windows 11; installer bootstraps on Windows 10 |
-| MSVC Build Tools | VS 2022 + "Desktop development with C++" + Windows SDK | present | Required to link the Rust binary |
+| Tool             | Required                                               | Verified locally        | Notes                                                     |
+| ---------------- | ------------------------------------------------------ | ----------------------- | --------------------------------------------------------- |
+| Windows          | 10/11 x64                                              | —                      | Primary target; not yet formally supported/tested         |
+| Node.js          | ≥ 20 (Tauri 2 baseline)                               | `v24.20.0`            | LTS recommended                                           |
+| npm              | ≥ 10                                                  | `11.19.0`             | Lockfile is `package-lock.json`                         |
+| Rust (stable)    | ≥ 1.77 (Tauri 2 baseline)                             | `1.99.1` (2026-10-13) | Edition 2024 requires a recent stable                     |
+| Tauri CLI        | 2.x                                                    | `2.12.4`              | Installed as a dev dependency, not globally               |
+| WebView2 Runtime | Evergreen                                              | present                 | Bundled by Windows 11; installer bootstraps on Windows 10 |
+| MSVC Build Tools | VS 2022 + "Desktop development with C++" + Windows SDK | present                 | Required to link the Rust binary                          |
 
 > The versions in the "Verified locally" column are informational. Pin exact
 > tool versions in CI (see `docs/DEVOPS.md`) before declaring a supported matrix.
@@ -65,27 +65,37 @@ Notes:
 ```powershell
 # --- Frontend ---
 npm run build               # Verified: `tsc` type-check (noEmit) + `vite build`
+npm test                    # Verified: Vitest run, 2 files / 6 tests
+npm run lint                # Verified: ESLint 10 flat config, 0 problems
+npm run format:check        # Verified: Prettier check (code only, see .prettierignore)
 npx tsc --noEmit            # Verified: type-check only
 npx tsc --noEmit -p tsconfig.node.json   # Verified: config-file type-check
 
 # --- Rust ---
 cd src-tauri
 cargo check                 # Verified
-cargo fmt --all -- --check  # Verified (no rustfmt.toml: defaults apply)
-cargo clippy --all-targets -- -D warnings   # Verified
-cargo test                  # Verified: currently 0 tests, compiles the harness
+cargo fmt --all -- --check  # Verified: 0 diffs (no rustfmt.toml: defaults apply)
+cargo clippy --all-targets -- -D warnings   # Verified: 0 warnings
+cargo test                  # Verified: 8 tests pass
 ```
 
-| Gate | Command | Status |
-|---|---|---|
-| TypeScript type-check | `npm run build` | Available |
-| Frontend unit tests | `npm test` | **Planned** — no test runner configured |
-| Frontend lint | `npm run lint` | **Planned** — no ESLint config |
-| Rust format | `cargo fmt --all -- --check` | Available |
-| Rust lint | `cargo clippy --all-targets -- -D warnings` | Available |
-| Rust tests | `cargo test` | Available (no tests yet) |
-| Dependency audit (JS) | `npm audit --omit=dev` | Available |
-| Dependency audit (Rust) | `cargo audit` | **Planned** — `cargo-audit` not installed |
+| Gate                    | Command                                       | Status                                             |
+| ----------------------- | --------------------------------------------- | -------------------------------------------------- |
+| TypeScript type-check   | `npm run build`                             | Available                                          |
+| Frontend unit tests     | `npm test`                                  | Available — Vitest 5 + jsdom                      |
+| Frontend lint           | `npm run lint`                              | Available — ESLint 10                             |
+| Frontend format         | `npm run format:check`                      | Available — Prettier 3                            |
+| Rust format             | `cargo fmt --all -- --check`                | Available                                          |
+| Rust lint               | `cargo clippy --all-targets -- -D warnings` | Available                                          |
+| Rust tests              | `cargo test`                                | Available (8 tests)                                |
+| Dependency audit (JS)   | `npm audit --omit=dev`                      | Available                                          |
+| Dependency audit (Rust) | `cargo audit`                               | **Planned** — `cargo-audit` not installed |
+
+`rustfmt` and `clippy` are `rustup` components, not part of the default toolchain
+install. `rust-toolchain.toml` now declares them, so `rustup` adds them on the
+next `cargo` invocation in this directory. Before that file existed, the two rows
+above were marked Verified without the components being installed — that was
+wrong and is corrected here.
 
 ## 5. Build the desktop app
 
@@ -105,11 +115,11 @@ npm run tauri build -- --no-bundle
 
 ### Artifacts
 
-| Artifact | Path | Verified |
-|---|---|---|
-| Executable | `src-tauri/target/release/system-scanner.exe` | Yes |
-| NSIS installer | `src-tauri/target/release/bundle/nsis/System Scanner_0.1.0_x64-setup.exe` | Yes (~1.4 MB) |
-| Frontend assets | `dist/` | Yes |
+| Artifact        | Path                                                                        | Verified      |
+| --------------- | --------------------------------------------------------------------------- | ------------- |
+| Executable      | `src-tauri/target/release/system-scanner.exe`                             | Yes           |
+| NSIS installer  | `src-tauri/target/release/bundle/nsis/System Scanner_0.1.0_x64-setup.exe` | Yes (~1.4 MB) |
+| Frontend assets | `dist/`                                                                   | Yes           |
 
 The bundle target is `nsis` only (`src-tauri/tauri.conf.json`). MSI/WiX and
 portable builds are **not configured**. The installer is **unsigned** — Windows
@@ -154,24 +164,21 @@ These are reserved names for scripts that do not exist. Adding them requires a
 change to `package.json` and an update to this file in the same commit.
 
 ```powershell
-npm test                    # Planned: Vitest unit tests
 npm run test:e2e            # Planned: Tauri/WebDriver E2E
-npm run lint                # Planned: ESLint
-npm run format              # Planned: Prettier
 npm run tauri icon <path>   # Available today via CLI, not scripted
 ```
 
 ## 9. Troubleshooting
 
-| Symptom | Cause | Fix |
-|---|---|---|
-| `Port 1420 is already in use` | Stale dev server | Stop the other process (`Get-NetTCPConnection -LocalPort 1420`) or reboot the terminal |
-| `link.exe not found` / `msvc` errors | Missing MSVC C++ workload | Install VS Build Tools with "Desktop development with C++" |
-| `error: linker link.exe not found` after Rust upgrade | Toolchain mismatch | `rustup update stable` then `cargo clean` |
-| Blank window with `tauri dev` | `frontendDist`/`devUrl` mismatch | Confirm Vite is on `1420` and `beforeDevCommand` is running |
-| Installer build fails at NSIS download | Network restriction | Pre-seed NSIS cache or build with `--no-bundle` |
-| SmartScreen warning on install | Unsigned binary | Expected until code signing is configured |
-| `cargo clippy` warnings after dependency bump | New lints | Fix or explicitly allow with a comment and justification |
+| Symptom                                                 | Cause                                | Fix                                                                                      |
+| ------------------------------------------------------- | ------------------------------------ | ---------------------------------------------------------------------------------------- |
+| `Port 1420 is already in use`                         | Stale dev server                     | Stop the other process (`Get-NetTCPConnection -LocalPort 1420`) or reboot the terminal |
+| `link.exe not found` / `msvc` errors                | Missing MSVC C++ workload            | Install VS Build Tools with "Desktop development with C++"                               |
+| `error: linker link.exe not found` after Rust upgrade | Toolchain mismatch                   | `rustup update stable` then `cargo clean`                                            |
+| Blank window with `tauri dev`                         | `frontendDist`/`devUrl` mismatch | Confirm Vite is on `1420` and `beforeDevCommand` is running                          |
+| Installer build fails at NSIS download                  | Network restriction                  | Pre-seed NSIS cache or build with `--no-bundle`                                        |
+| SmartScreen warning on install                          | Unsigned binary                      | Expected until code signing is configured                                                |
+| `cargo clippy` warnings after dependency bump         | New lints                            | Fix or explicitly allow with a comment and justification                                 |
 
 ## 10. Windows environment quirks
 
@@ -183,6 +190,7 @@ npm run tauri icon <path>   # Available today via CLI, not scripted
 
 ## 11. Change log for this document
 
-| Date | Change |
-|---|---|
-| 2026-11-06 | Initial verified command reference (scaffold state) |
+| Date       | Change                                                                                                                                                                   |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 2026-11-06 | Initial verified command reference (scaffold state)                                                                                                                      |
+| 2026-11-06 | Corrected `cargo fmt`/`clippy` status (components were not installed); added `npm test`, `npm run lint`, `npm run format:check`; noted `rust-toolchain.toml` |

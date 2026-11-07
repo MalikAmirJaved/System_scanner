@@ -1,7 +1,10 @@
 # Testing Strategy
 
-> **Status:** **No tests exist yet.** No runner is configured for either language.
-> This document defines the target strategy and the minimum bar for new work.
+> **Status:** **Runners are configured; coverage is narrow.** 8 Rust unit tests and 6
+> frontend tests cover the IPC contract (envelope, error taxonomy, DTO shape,
+> adapter unwrapping, and the backend status component). Nothing tests system
+> collection, persistence, or end-to-end flows yet, because those features do not
+> exist. This document defines the target strategy and the minimum bar for new work.
 > **Last updated:** 2026-11-06
 
 ---
@@ -10,15 +13,26 @@
 
 | Level | Tool | Configured | Tests |
 |---|---|---|---|
-| Rust unit/integration | `cargo test` | Yes (harness only) | 0 |
-| Frontend unit | Vitest (proposed) | No | 0 |
-| Frontend component | Testing Library (proposed) | No | 0 |
+| Rust unit/integration | `cargo test` | Yes | 8 (`ipc`, `error`, `dto::app_info`, `commands::app`) |
+| Frontend unit | Vitest 5 + jsdom | Yes | 3 (`src/services/ipc.test.ts`) |
+| Frontend component | Testing Library 16 | Yes | 3 (`src/components/BackendStatus.test.tsx`) |
 | E2E | tauri-driver / WebDriver (proposed) | No | 0 |
 | Performance | custom harness (proposed) | No | 0 |
 | Security | manual review + targeted tests | No | 0 |
 
-`cargo test` compiles and runs zero tests. Do not report "tests pass" as evidence
-of correctness while this table shows zero.
+What the existing tests actually establish, and nothing more:
+
+- the `CommandResult` envelope serializes as `{status:"ok"|"err", ...}`;
+- error codes serialize as `snake_case` and `detail` is omitted when `None`;
+- correlation IDs are unique per error;
+- `AppInfo` serializes with camelCase keys and `schemaVersion`;
+- the frontend adapter unwraps `ok` and throws `IpcError` on `err`;
+- the status component renders loading, ready, error, and recovers on retry.
+
+They do **not** establish that any system data is collected, because no code
+collects it. Do not generalize "tests pass" beyond this list.
+
+Commands: `npm test` (run once), `npm run test:watch`, `cd src-tauri; cargo test`.
 
 ## 2. Strategy
 
@@ -166,9 +180,10 @@ Formal support matrix is an open decision (`docs/plan.md` §12).
 When reporting test results, state exactly what ran:
 
 ```text
-cargo test            -> 0 tests, harness compiled
-npm run build         -> passed
-npm test              -> not configured
+cargo test            -> 8 tests passed (ipc, error, dto::app_info, commands::app)
+npm test              -> 6 tests passed (2 files)
+npm run build         -> passed (tsc + vite)
 ```
 
-Never summarize "all tests pass" when the suite is empty.
+Never summarize "all tests pass" without stating the counts and what they cover —
+14 tests about the IPC contract do not say anything about collecting system data.

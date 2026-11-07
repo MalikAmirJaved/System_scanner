@@ -1,8 +1,9 @@
 # API
 
-> **Status:** **Interface not implemented.** This repository exposes **no IPC
-> commands and no HTTP API** today. `src-tauri/src/lib.rs` registers no handlers.
-> Everything below is a **proposed contract** to be implemented in Release 0/1.
+> **Status:** **IPC envelope implemented; one command implemented.** The typed
+> envelope (`CommandResult`, `AppError`), the error taxonomy, and the read-only
+> command `get_app_info` exist and are covered by tests. Every other command in
+> this document is **proposed** and must not be described as available.
 >
 > **Last updated:** 2026-11-06 · **Related:** [`ARCHITECTURE.md`](ARCHITECTURE.md)
 
@@ -31,10 +32,19 @@ Consequences:
 |---|---|---|
 | Command | `snake_case` verb + noun, grouped by domain | `get_system_snapshot` |
 | Event | `<domain>:<thing>` | `scan:progress` |
-| DTO field | `snake_case` on the wire, mapped to camelCase in TS adapters | `started_at` |
-| ID | opaque string, never parsed by the UI | `job_id`, `session_id` |
+| DTO field | **`camelCase` on the wire** | `startedAt` |
+| Error code | `snake_case` string enum | `access_denied` |
+| ID | opaque string, never parsed by the UI | `jobId`, `sessionId` |
 | Timestamp | unix milliseconds UTC, integer | `1762387200000` |
 | Size | bytes, integer | `1048576` |
+
+**Deviation from the original design (recorded, not silent).** This document
+previously specified `snake_case` DTO fields mapped to camelCase in a TypeScript
+adapter. The implemented boundary serializes DTOs with
+`#[serde(rename_all = "camelCase")]` instead, so the wire format matches the
+TypeScript types one-to-one and there is no mapping layer to drift. Commands and
+error codes stay `snake_case`. Rationale and consequences:
+[`docs/DECISIONS.md`](docs/DECISIONS.md) (ADR-011).
 
 Rules:
 
@@ -43,7 +53,9 @@ Rules:
 - Every command is authorized by capabilities and by explicit input checks.
 - Commands never return partially initialized objects with hidden defaults.
 
-## 2. Result envelope (proposed)
+## 2. Result envelope (implemented)
+
+Implemented in `src-tauri/src/ipc.rs` and `src-tauri/src/error.rs`.
 
 ```rust
 #[derive(Serialize)]
@@ -54,41 +66,85 @@ pub enum CommandResult<T> {
 }
 
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct AppError {
-    pub code: ErrorCode,       // stable, documented
-    pub message: String,       // safe for display
-    pub detail: Option<String>,// diagnostic only, redacted
+    pub code: ErrorCode,        // stable, documented
+    pub message: String,        // safe for display
+    pub detail: Option<String>, // diagnostic only, redacted; omitted when None
     pub retryable: bool,
-    pub correlation_id: String,
+    pub correlation_id: String, // serialized as `correlationId`
 }
 ```
 
-The frontend adapter converts this into a discriminated union. Components never
-see a raw `unknown` error.
+Wire shapes:
 
-### Error codes (proposed taxonomy)
+```jsonc
+{ "status": "ok", "data": { /* command-specific DTO */ } }
+{ "status": "err", "error": { "code": "access_denied", "message": "…", "retryable": true, "correlationId": "18f3c2a1e40-0001" } }
+```
+
+The frontend adapter (`src/services/ipc.ts`) converts the envelope into a
+discriminated union and throws `IpcError` for failures. Components never see a
+raw `unknown` error.
+
+### Error codes (implemented taxonomy)
 
 | Code | Meaning | Retryable |
 |---|---|---|
-| `INVALID_INPUT` | Failed validation (path, size, enum) | No |
-| `NOT_PERMITTED` | Capability or policy denies the action | No |
-| `ACCESS_DENIED` | OS denied access to a resource | Sometimes |
-| `NOT_FOUND` | Target disappeared | Sometimes |
-| `UNSUPPORTED` | Not available on this Windows version/edition | No |
-| `TIMEOUT` | Bounded operation exceeded its budget | Yes |
-| `BUSY` | Conflicting job or locked resource | Yes |
-| `CANCELLED` | User or policy cancelled | No |
-| `DISK_FULL` | Storage budget exhausted | After cleanup |
-| `DB_ERROR` | Persistence failure | Sometimes |
-| `INTERNAL` | Unexpected error; correlation ID required | No |
+| `invalid_input` | Failed validation (path, size, enum) | No |
+| `not_permitted` | Capability or policy denies the action | No |
+| `access_denied` | OS denied access to a resource | Yes |
+| `not_found` | Target disappeared | Yes |
+| `unsupported` | Not available on this Windows version/edition | No |
+| `timeout` | Bounded operation exceeded its budget | Yes |
+| `busy` | Conflicting job or locked resource | Yes |
+| `cancelled` | User or policy cancelled | No |
+| `disk_full` | Storage budget exhausted | No |
+| `db_error` | Persistence failure | Yes |
+| `internal` | Unexpected error; correlation ID required | No |
+
+`retryable` is derived from the code by `ErrorCode::retryable()`; it is part of
+the payload so the UI does not re-implement the table.
 
 Full handling rules: [`docs/ERROR_HANDLING.md`](docs/ERROR_HANDLING.md).
 
-## 3. Proposed commands — Release 0
+## 3. Release 0 commands
 
-### 3.1 `get_system_snapshot`
+> Field names in the sketches below are shown exactly as they will appear on the
+> wire. Formats decided in §1 apply: `camelCase` fields, `snake_case` commands and
+> error codes.
+
+### 3.1 `get_app_info` (implemented)
+
+Read-only, takes no arguments, cannot fail today. Exists to prove the renderer →
+IPC → Rust path end to end and to power the backend status indicator.
+
+```rust
+// src-tauri/src/commands/app.rs
+#[tauri::command]
+pub fn get_app_info() -> CommandResult<AppInfo>
+```
+
+```jsonc
+// response data  (src-tauri/src/dto/app_info.rs, DTO_SCHEMA_VERSION = 1)
+{
+  "appName": "system-scanner",
+  "appVersion": "0.1.0",
+  "tauriVersion": "2.12.5",
+  "os": "windows",
+  "arch": "x86_64",
+  "debug": true,
+  "schemaVersion": 1
+}
+```
+
+No machine-identifying data. Frontend: `src/services/app.ts` →
+`getAppInfo()`; UI: `src/components/BackendStatus.tsx`.
+
+### 3.2 `get_system_snapshot` (proposed)
 
 Read-only. Returns OS, CPU, memory, disks, and adapters.
+
 
 ```jsonc
 // request
@@ -96,11 +152,11 @@ Read-only. Returns OS, CPU, memory, disks, and adapters.
 
 // response data
 {
-  "captured_at": 1762387200000,
+  "capturedAt": 1762387200000,
   "os":    { "name": "Windows 11 Pro", "version": "10.0.26100", "arch": "x86_64" },
-  "cpu":   { "model": "…", "logical_cores": 16, "physical_cores": 8 },
-  "memory":{ "total_bytes": 34359738368, "available_bytes": 12884901888 },
-  "disks": [ { "mount": "C:\\", "total_bytes": 0, "free_bytes": 0, "kind": "fixed" } ],
+  "cpu":   { "model": "…", "logicalCores": 16, "physicalCores": 8 },
+  "memory":{ "totalBytes": 34359738368, "availableBytes": 12884901888 },
+  "disks": [ { "mount": "C:\\", "totalBytes": 0, "freeBytes": 0, "kind": "fixed" } ],
   "network": [ { "name": "Ethernet", "status": "up", "addresses": ["192.0.2.10"] } ],
   "unavailable": [ { "field": "cpu.model", "reason": "access_denied" } ]
 }
@@ -109,45 +165,45 @@ Read-only. Returns OS, CPU, memory, disks, and adapters.
 `unavailable` is mandatory when any field could not be collected. A missing field
 must never be represented as `0`, `""`, or `null` without a reason.
 
-### 3.2 `list_processes`
+### 3.3 `list_processes` (proposed)
 
 ```jsonc
 // request — bounded
-{ "limit": 500, "offset": 0, "sort": { "field": "working_set_bytes", "dir": "desc" } }
+{ "limit": 500, "offset": 0, "sort": { "field": "workingSetBytes", "dir": "desc" } }
 
 // response data
 {
-  "captured_at": 1762387200000,
+  "capturedAt": 1762387200000,
   "total": 312,
   "items": [
     {
       "pid": 4242,
-      "parent_pid": 1024,
+      "parentPid": 1024,
       "identity": "4242:1762380000",
       "name": "explorer.exe",
-      "executable_path": "C:\\Windows\\explorer.exe",
-      "working_set_bytes": 104857600,
-      "access_limited": false
+      "executablePath": "C:\\Windows\\explorer.exe",
+      "workingSetBytes": 104857600,
+      "accessLimited": false
     }
   ]
 }
 ```
 
-`limit` is capped server-side (proposed max 1000). `access_limited` marks rows
+`limit` is capped server-side (proposed max 1000). `accessLimited` marks rows
 whose metadata could not be fully read.
 
-### 3.3 `get_diagnostics`
+### 3.4 `get_diagnostics` (proposed)
 
 Returns app version, OS build, log location, recent redacted log lines, and
 feature availability. Used to build a shareable support bundle.
 
-### 3.4 `refresh_status` (event-driven)
+### 3.5 Events (proposed, none emitted today)
 
 Proposed events for Release 0:
 
 | Event | Payload |
 |---|---|
-| `system:refreshed` | `{ captured_at, duration_ms, partial }` |
+| `system:refreshed` | `{ capturedAt, durationMs, partial }` |
 | `system:refresh_failed` | `{ error }` |
 | `log:record` | redacted structured record (opt-in stream) |
 
@@ -155,7 +211,7 @@ Proposed events for Release 0:
 
 | Command | Purpose | Returns |
 |---|---|---|
-| `start_scan` | Begin a scan | `{ job_id, session_id }` |
+| `start_scan` | Begin a scan | `{ jobId, sessionId }` |
 | `cancel_scan` | Cooperative cancel | `{ accepted: bool }` |
 | `get_scan_status` | Authoritative job state | status DTO |
 | `get_scan_summary` | Aggregates only | counts, sizes, top types |
@@ -178,10 +234,10 @@ Key limits:
 
 | Event | Payload |
 |---|---|
-| `scan:progress` | `{ job_id, seq, phase, files_seen, bytes_seen, skipped, elapsed_ms }` |
-| `scan:completed` | `{ job_id, summary, partial }` |
-| `scan:failed` | `{ job_id, error }` |
-| `scan:cancelled` | `{ job_id, reason, elapsed_ms }` |
+| `scan:progress` | `{ jobId, seq, phase, filesSeen, bytesSeen, skipped, elapsedMs }` |
+| `scan:completed` | `{ jobId, summary, partial }` |
+| `scan:failed` | `{ jobId, error }` |
+| `scan:cancelled` | `{ jobId, reason, elapsedMs }` |
 
 `seq` is monotonic per job; the UI discards out-of-order or stale updates.
 
@@ -198,7 +254,7 @@ flow, and recovery path exist.
 | `stop_service` | Explicit service name, confirmation, audit row |
 
 Every privileged command requires a `confirmation` object echoing the exact
-target and consequence the user approved. Without it: `INVALID_INPUT`.
+target and consequence the user approved. Without it: `invalid_input`.
 
 ## 6. Authorization model (proposed)
 
@@ -213,35 +269,40 @@ See [`docs/ACCESS_CONTROL.md`](docs/ACCESS_CONTROL.md).
 
 ## 7. Versioning and compatibility
 
-- DTOs carry `schema_version` once persisted or exported.
+- Every DTO module exports a `schema_version` constant, and every DTO that can be
+  observed by the UI carries it (`AppInfo.schemaVersion = 1` today).
 - Additive fields are safe; renames/removals require a version bump and a UI
   adapter update in the same change.
 - IPC DTOs and persisted rows evolve independently; a migration maps old rows.
 - The UI and Rust core ship together in one package, but a stale webview must
   still fail predictably (show "reload required" rather than wrong data).
 
-## 8. Frontend contract
+## 8. Frontend contract (implemented)
+
+`src/services/ipc.ts` is the **only** module that calls `invoke`:
 
 ```ts
-// src/services/system.ts  (proposed)
-import { invoke } from "@tauri-apps/api/core";
-import type { SystemSnapshot } from "./dto";
-
-export async function getSystemSnapshot(): Promise<SystemSnapshot> {
-  const res = await invoke<CommandResult<SystemSnapshot>>("get_system_snapshot", {
-    include: ["os", "cpu", "memory", "disks", "network"],
-  });
-  if (res.status === "err") throw new IpcError(res.error);
-  return res.data;
+export async function invokeCommand<T>(
+  command: string,
+  args?: Record<string, unknown>,
+): Promise<T> {
+  const result = await invoke<CommandResult<T>>(command, args);
+  if (result.status === "err") throw new IpcError(result.error);
+  return result.data;
 }
 ```
 
-Rules for `src/services`:
+Domain modules wrap it (`src/services/app.ts` → `getAppInfo()`), and components
+call the domain module. Implemented rules for `src/services`:
 
 - One module per domain; no component calls `invoke` directly.
-- Runtime-validate responses in development (`zod` or hand-written guards) so a
-  contract mismatch fails loudly instead of rendering `undefined`.
-- Own event subscription/unsubscription and cleanup.
+- The envelope is unwrapped once, so callers never handle `status` or `unknown`.
+- `IpcError` carries `code`, `retryable`, and `correlationId` for UI decisions and
+  support reports.
+
+Not yet done: runtime validation of response payloads (no `zod` or hand-written
+guards), so a contract drift would currently surface as `undefined` at render
+time rather than as a loud failure. Tracked in `docs/BACKLOG.md` (B-030).
 
 ## 9. Testing the contract
 
@@ -252,6 +313,17 @@ Required before any command ships:
 3. Test authorization: read-only capability cannot invoke a privileged command.
 4. UI adapter test with a mocked IPC layer for success and each error class.
 5. Cancellation/timeout test for long-running commands.
+
+Status today:
+
+| Check | Status |
+|---|---|
+| Envelope serialization (ok/err, camelCase, omitted `detail`) | ✅ `src-tauri/src/ipc.rs` tests |
+| Error code taxonomy + unique correlation IDs | ✅ `src-tauri/src/error.rs` tests |
+| DTO wire shape + `schemaVersion` | ✅ `src-tauri/src/dto/app_info.rs` test |
+| Adapter unwrap / `IpcError` / argument pass-through | ✅ `src/services/ipc.test.ts` |
+| UI states (loading, ready, error, retry) | ✅ `src/components/BackendStatus.test.tsx` |
+| Input validation, authorization, cancellation | ❌ No command takes input yet |
 
 See [`TESTING.md`](TESTING.md) and [`AI_TESTING_RULES.md`](AI_TESTING_RULES.md).
 

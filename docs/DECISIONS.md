@@ -221,6 +221,37 @@ prohibited for core functionality.
 
 ---
 
+## ADR-011 — IPC DTO fields are `camelCase` on the wire
+
+**Status:** Accepted · 2026-11-06
+
+**Context.** `API.md` originally specified `snake_case` DTO fields on the wire with a
+camelCase mapping in a TypeScript adapter. Implementing the first command showed
+that the mapping layer is pure duplication: every new field has to be added in
+Rust, in the adapter, and in a TS type.
+
+**Options.**
+1. `snake_case` on the wire, hand-written adapters in `src/services`.
+2. `camelCase` on the wire via `#[serde(rename_all = "camelCase")]`, types written
+   once in TypeScript.
+3. Generate TypeScript types from the Rust DTOs at build time.
+
+**Decision.** Option 2 for DTO fields and error payloads. Commands, events, and
+error *codes* stay `snake_case`, matching Windows/JSON conventions and the
+stability of the command names.
+
+**Consequences.**
+- No mapping layer and no drift between Rust and TS field names.
+- Rust field names stay idiomatic `snake_case`; only the serialized form changes.
+- A future type generator (option 3) is not blocked; it would emit camelCase too.
+- Anyone reading older notes or the original spec must be told the wire format
+  changed. `API.md` §1 records this deviation explicitly.
+
+**Revisit if:** IPC consumers outside this UI appear, or a Windows API payload must
+be forwarded verbatim.
+
+---
+
 ## Template
 
 ```text

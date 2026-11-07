@@ -15,38 +15,50 @@
 │ WebView (React 19 + TS)                      │
 │   src/main.tsx  -> React root                │
 │   src/App.tsx   -> static welcome screen     │
+│   src/services/ -> typed IPC adapter         │
 │   src/App.css   -> design tokens + styles    │
-│   No Tauri API imports, no OS access         │
+│   One invoke call site, no OS access         │
 └───────────────────────┬──────────────────────┘
-                        │ (no IPC yet — nothing crosses this boundary)
+                        │ invoke("get_app_info") -> CommandResult<AppInfo>
 ┌───────────────────────▼──────────────────────┐
 │ Tauri 2 runtime                              │
 │   src-tauri/src/main.rs -> system_scanner_lib::run() │
-│   src-tauri/src/lib.rs  -> Builder::default()        │
+│   src-tauri/src/lib.rs  -> Builder + invoke_handler  │
+│   src-tauri/src/ipc.rs  -> CommandResult envelope    │
+│   src-tauri/src/error.rs-> ErrorCode + AppError      │
+│   src-tauri/src/dto/    -> versioned DTOs            │
+│   src-tauri/src/commands/ -> thin command layer      │
 │   capabilities/default.json -> ["core:default"]      │
 │   CSP: default-src 'self'; no remote origins         │
 └───────────────────────┬──────────────────────┘
                         │
 ┌───────────────────────▼──────────────────────┐
-│ Rust std + Tauri only (tauri 2 is sole dep)  │
-│   No commands, no OS collectors, no storage  │
+│ Rust std + tauri + serde/thiserror           │
+│   One read-only command; no collectors,      │
+│   no storage, no logging, no jobs            │
 └──────────────────────────────────────────────┘
 ```
 
 **Properties that already hold**
 
 - The renderer cannot reach the OS: no shell/fs/http plugin is enabled and no
-  capability grants one.
+  capability grants one. The only OS-adjacent data it can obtain is
+  `get_app_info`, which returns build constants.
 - The capability surface is `core:default` only.
 - CSP blocks remote script/style/font/connect origins.
 - The release binary is LTO-optimized, stripped, and `panic = "abort"`.
 - The bundle is a single NSIS installer.
+- Every command returns the `CommandResult` envelope; the frontend has exactly one
+  `invoke` call site and unwraps the envelope there.
+- Errors have a stable code, a safe message, a retryability flag, and a
+  correlation ID.
 
 **Properties that do not hold yet**
 
-- No typed IPC boundary, no error model, no logging, no persistence.
+- No events, job registry, cancellation, logging, or persistence.
+- No collectors: nothing reads OS data.
 - No domain layer, so no separation to enforce or test.
-- No tests, no CI, no linters configured.
+- Tests cover the IPC contract only; CI exists as a file but has never run.
 
 ## 2. Target architecture (proposed)
 
@@ -84,18 +96,18 @@ Rust core (no Windows imports)
 
 ### Module responsibilities
 
-| Module | Owns | Must not |
-|---|---|---|
-| `commands/` | Deserialize and validate input, authorize, delegate, map errors | Contain scanning algorithms or SQL |
-| `app/` | Job registry, lifecycle, cancellation tokens, progress coalescing | Know Win32 details |
-| `domain/` | Entities, value objects, policies, use-case logic | Import `windows`, `tauri`, or SQL |
-| `ports/` | Narrow traits for OS, storage, export | Leak platform handles |
-| `adapters/windows/` | Win32/WMI/registry/Defender access, `unsafe` isolation | Leak raw handles upward |
-| `adapters/persistence/` | SQLite repositories, migrations | Contain business rules |
-| `adapters/filesystem/` | Traversal, identity checks, quarantine storage | Decide policy |
-| `reporting/` | Export formats, redaction | Read the OS directly |
-| `src/services/` (FE) | Typed `invoke()` wrappers, event subscriptions | Format data for display |
-| `src/features/` (FE) | Screens, feature state, user flows | Call `invoke()` directly |
+| Module                    | Owns                                                              | Must not                              |
+| ------------------------- | ----------------------------------------------------------------- | ------------------------------------- |
+| `commands/`             | Deserialize and validate input, authorize, delegate, map errors   | Contain scanning algorithms or SQL    |
+| `app/`                  | Job registry, lifecycle, cancellation tokens, progress coalescing | Know Win32 details                    |
+| `domain/`               | Entities, value objects, policies, use-case logic                 | Import `windows`, `tauri`, or SQL |
+| `ports/`                | Narrow traits for OS, storage, export                             | Leak platform handles                 |
+| `adapters/windows/`     | Win32/WMI/registry/Defender access, `unsafe` isolation          | Leak raw handles upward               |
+| `adapters/persistence/` | SQLite repositories, migrations                                   | Contain business rules                |
+| `adapters/filesystem/`  | Traversal, identity checks, quarantine storage                    | Decide policy                         |
+| `reporting/`            | Export formats, redaction                                         | Read the OS directly                  |
+| `src/services/` (FE)    | Typed `invoke()` wrappers, event subscriptions                  | Format data for display               |
+| `src/features/` (FE)    | Screens, feature state, user flows                                | Call `invoke()` directly            |
 
 ### Dependency direction (enforced by review)
 
@@ -113,16 +125,16 @@ Architectural exceptions require an ADR in [`docs/DECISIONS.md`](docs/DECISIONS.
 
 ## 3. Runtime and concurrency model (proposed)
 
-| Concern | Design |
-|---|---|
-| UI thread | Never blocks on I/O; renders from DTO state |
-| Rust async runtime | Tokio (via Tauri) for command handlers and coordination |
-| Blocking work | `spawn_blocking` for Win32 calls and filesystem traversal |
-| Scan workers | Bounded pool, configurable concurrency, backpressure via bounded channels |
-| Cancellation | `CancellationToken` per job, checked at enumeration/enrichment/persist/report boundaries |
-| Progress | Throttled/coalesced events keyed by job ID with monotonic sequence |
-| Persistence | Batched transactions on a dedicated write path; reads paginated |
-| Shutdown | Jobs receive cancel, flush, then mark session `interrupted` |
+| Concern            | Design                                                                                     |
+| ------------------ | ------------------------------------------------------------------------------------------ |
+| UI thread          | Never blocks on I/O; renders from DTO state                                                |
+| Rust async runtime | Tokio (via Tauri) for command handlers and coordination                                    |
+| Blocking work      | `spawn_blocking` for Win32 calls and filesystem traversal                                |
+| Scan workers       | Bounded pool, configurable concurrency, backpressure via bounded channels                  |
+| Cancellation       | `CancellationToken` per job, checked at enumeration/enrichment/persist/report boundaries |
+| Progress           | Throttled/coalesced events keyed by job ID with monotonic sequence                         |
+| Persistence        | Batched transactions on a dedicated write path; reads paginated                            |
+| Shutdown           | Jobs receive cancel, flush, then mark session `interrupted`                              |
 
 ## 4. Key boundaries
 

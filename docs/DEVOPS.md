@@ -1,7 +1,9 @@
 # DevOps
 
-> **Status:** **No CI/CD exists.** There is no workflow, no pipeline, no automated
-> checks, and no release automation. This document specifies the target pipeline.
+> **Status:** **A CI workflow exists but has never run.** `.github/workflows/ci.yml`
+> defines `frontend`, `rust`, and `package` jobs on `windows-latest`; every step was
+> executed locally and passes. There is still no branch protection, no release
+> automation, no SBOM, and no signing. Sections 3+ remain proposals.
 > **Last updated:** 2026-11-06
 
 ---
@@ -10,16 +12,16 @@
 
 | Capability | Status |
 |---|---|
-| CI provider | None |
-| Automated tests | None |
-| Automated lint/format | None |
+| CI provider | GitHub Actions workflow committed (`.github/workflows/ci.yml`); never executed |
+| Automated tests | `npm test` (6 tests), `cargo test` (8 tests) |
+| Automated lint/format | ESLint, Prettier, rustfmt, clippy — in the workflow and runnable locally |
 | Release automation | None |
-| Artifact storage | None |
+| Artifact storage | `upload-artifact@v4` for the NSIS installer, 14-day retention (untested) |
 | SBOM | None |
 | Dependency alerts | None |
 | Branch protection | None |
 
-Everything below is a proposal.
+Everything from §3 onwards is still a proposal.
 
 ## 2. Pipeline design
 
@@ -35,6 +37,8 @@ tag ──► [release] ──► signed installer + SBOM + checksums
 
 ### 2.1 Frontend job
 
+Implemented as-is in `.github/workflows/ci.yml`:
+
 ```yaml
 frontend:
   runs-on: windows-latest
@@ -46,8 +50,9 @@ frontend:
         cache: npm
     - run: npm ci
     - run: npm run build          # tsc + vite build
-    # - run: npm test             # once Vitest exists
-    # - run: npm run lint         # once ESLint exists
+    - run: npm run lint
+    - run: npm run format:check
+    - run: npm test               # Vitest, 6 tests
 ```
 
 ### 2.2 Rust job
@@ -210,5 +215,15 @@ Add a check (script or CI step) that fails when they diverge. Release tagging:
 
 ## 11. Gaps to close
 
-See [`BACKLOG.md`](BACKLOG.md): add workflows, `rust-toolchain.toml`, test runner,
-linters, SBOM, signing, version-sync check, and Dependabot.
+Done: workflow file, `rust-toolchain.toml`, test runner, linters/formatter.
+
+Open — see [`BACKLOG.md`](BACKLOG.md):
+
+| Gap | Backlog |
+|---|---|
+| First green CI run + branch protection | B-092 |
+| SBOM, `cargo-deny`, Dependabot | B-081, B-082 |
+| Signing + release automation | B-080 |
+| Version-sync check across the three version files | B-083 |
+| `npm audit` / `cargo audit` as CI gates | B-082 |
+| Migration of the `package` job from "verified locally" to "green on GitHub" | B-010, B-092 |

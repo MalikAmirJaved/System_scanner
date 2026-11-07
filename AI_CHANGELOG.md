@@ -25,6 +25,46 @@
 
 ---
 
+## 2026-11-06 — IPC vertical slice implemented (Rust boundary → React)
+
+- **Agent/tool:** OpenCode (DeepSeek V4.1 Flash Free).
+- **Scope:** `src-tauri/src/{lib.rs, ipc.rs, error.rs, dto/*, commands/*}`,
+  `src/services/*`, `src/components/BackendStatus.tsx`,
+  `package.json`, `tsconfig.node.json`, `eslint.config.js`, `vitest.config.ts`,
+  `.prettierrc.json`, `.prettierignore`, `rust-toolchain.toml`,
+  `.github/workflows/ci.yml`, `src/App.{tsx,css}`.
+- **Change:**
+  - Established the renderer → IPC → Rust path with one read-only command
+    (`get_app_info`) returning a versioned DTO through the `CommandResult`
+    envelope.
+  - Introduced the stable error taxonomy (`ErrorCode`) and `AppError` with
+    correlation IDs as the only error shape crossing the boundary.
+  - Added the single frontend `invoke` call site (`src/services/ipc.ts`) and a
+    domain module per command; components no longer touch Tauri directly.
+  - Changed the wire format of DTO fields from the originally specified
+    `snake_case` to `camelCase` (`#[serde(rename_all = "camelCase")]`), removing
+    the hand-written TypeScript mapping layer. Recorded as ADR-011.
+  - Added the test/lint/format toolchain, a `rust-toolchain.toml`, and a
+    three-job Windows CI workflow.
+- **Why:** Everything else in Release 0 (system collection, processes, jobs,
+  persistence) depends on a typed, stable, testable boundary. Building the data
+  collectors first would have locked in an untested error/shape contract.
+- **Risk:**
+  - `error.rs` is only exercised by tests, so it carries a scoped
+    `#[allow(dead_code)]` on the module. This hides dead code there until the
+    first fallible command lands (B-091) — deliberately time-boxed.
+  - The CI workflow is untested on GitHub (B-092). Local runs of every step pass,
+    but a workflow file is not a gate.
+  - `camelCase` diverges from the original `API.md` design; anyone relying on the
+    old spec would break. Documented rather than silently changed.
+- **Evidence:** `cargo fmt --all -- --check`, `cargo clippy --all-targets -- -D
+  warnings`, `cargo test` (8 passed), `npm run build`, `npm test` (6 passed),
+  `npm run lint`, `npm run format:check`.
+- **Follow-up:** B-002 (`get_system_snapshot`), B-004 (app shell), B-090 (runtime
+  DTO validation), B-091 (remove the dead-code allow), B-092 (first green CI run).
+
+---
+
 ## 2026-11-06 — Documentation system established
 
 - **Scope:** repository root and `docs/` (documentation only; no application code

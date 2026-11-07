@@ -17,19 +17,19 @@
 | UI language | TypeScript | `~6.0.3` (strict) | Implemented |
 | Bundler / dev server | Vite | `^8.0.16` | Implemented |
 | React plugin | `@vitejs/plugin-react` | `^6.0.2` | Implemented |
-| Tauri JS API | `@tauri-apps/api` | `^2` | Implemented (unused so far) |
+| Tauri JS API | `@tauri-apps/api` | `^2` | Implemented (`src/services/ipc.ts` is the only caller) |
 | Styles | Plain CSS + custom properties | — | Implemented |
 | Persistence | SQLite | — | **Proposed** |
-| DB access | `rusqlite` or `sqlx` | — | **Undecided** |
-| Serialization | `serde` / `serde_json` | — | **Proposed** (transitively present) |
-| Errors | `thiserror` | — | **Proposed** |
+| DB access | `rusqlite` or `sqlx` | — | **Undecided** (B-020) |
+| Serialization | `serde` / `serde_json` | `1.0.229` / `1.0.154` | Implemented |
+| Errors | `thiserror` | `2.0.21` | Implemented |
 | Logging | `tracing` + `tracing-subscriber` | — | **Proposed** |
 | Hashing | `sha2` / `blake3` | — | **Proposed** |
 | Windows bindings | `windows` / `windows-sys` | — | **Proposed** |
-| Frontend tests | Vitest + Testing Library | — | **Proposed** |
+| Frontend tests | Vitest + Testing Library | `5.1.0` / `16.3.3` | Implemented |
 | E2E | WebDriver / tauri-driver | — | **Proposed** |
 | Installer | NSIS (Tauri bundler) | — | Implemented |
-| CI | GitHub Actions (Windows) | — | **Proposed** |
+| CI | GitHub Actions (Windows) | — | **Workflow committed, never run** |
 
 ## 2. Reasons for the core choices
 
@@ -100,15 +100,16 @@ record in [`docs/DECISIONS.md`](docs/DECISIONS.md).
 - **Frontend runtime deps:** keep to React, React DOM, and `@tauri-apps/api` until
   a feature proves it needs more.
 
-## 5. Tooling not yet configured
+## 5. Tooling status
 
-| Tool | Purpose | Blocker |
+| Tool | Purpose | Status |
 |---|---|---|
-| ESLint + `eslint-plugin-react-hooks` | Catch hook and unused-code issues | No config |
-| Prettier | Consistent formatting | No config |
-| `rustfmt.toml` / `clippy.toml` | Explicit Rust style | Defaults are in use |
-| Vitest | Unit tests | No runner |
-| GitHub Actions | Windows CI | No workflow |
+| ESLint + `eslint-plugin-react-hooks` | Catch hook and unused-code issues | Configured; `npm run lint` passes |
+| Prettier | Consistent formatting | Configured; `npm run format:check` passes (code only, Markdown/CSS excluded by design) |
+| `rustfmt.toml` / `clippy.toml` | Explicit Rust style | Defaults are in use; `cargo fmt --check` and `clippy -D warnings` pass |
+| Vitest | Unit tests | Configured; `npm test` passes (6 tests) |
+| `rust-toolchain.toml` | Reproducible toolchain | Committed; pins `stable` + `rustfmt`/`clippy` (not an exact compiler version; B-011) |
+| GitHub Actions | Windows CI | Workflow committed (`.github/workflows/ci.yml`); never executed (B-092) |
 | `cargo-audit`, Dependabot | Advisory monitoring | Not enabled |
 | `cargo-deny` | License/advisory/allowlist gate | Not enabled |
 

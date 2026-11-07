@@ -5,6 +5,10 @@
 > Priority: **P0** blocks Release 0 / trust, **P1** needed for V1, **P2** V2+,
 > **P3** nice to have. IDs are stable; do not renumber.
 > Feature status lives in [`FEATURES.md`](FEATURES.md).
+>
+> **Legend:** `✅` complete with evidence · `🟡` partial, see the note · unmarked =
+> not started. Evidence for each completed item must also exist in
+> [`FEATURES.md`](FEATURES.md) and [`CHANGELOG.md`](CHANGELOG.md).
 
 ---
 
@@ -12,18 +16,28 @@
 
 | ID | Task | Why | Done when |
 |---|---|---|---|
-| B-001 | Add typed IPC boundary (`CommandResult`, `AppError`) | Everything depends on it | A no-op command round-trips with typed errors |
+| B-001 | ✅ Add typed IPC boundary (`CommandResult`, `AppError`) | Everything depends on it | A no-op command round-trips with typed errors |
 | B-002 | Implement `get_system_snapshot` (Win32) | Core Release 0 value | OS/CPU/memory/disks/adapters returned; unavailable fields reported |
 | B-003 | Implement `list_processes` with stable identity | Core Release 0 value | Paged, bounded, access-limited rows marked |
 | B-004 | Build the app shell + dashboard route | UI has only a welcome screen | Navigation + loading/empty/error states |
 | B-005 | Refresh lifecycle (manual, in-progress, last-updated) | Prevent stale/frozen UI | No overlapping refreshes; stale responses discarded |
 | B-006 | Diagnostics view + redacted support bundle | Support without telemetry | Bundle previews and excludes paths/PII |
 | B-007 | Structured logging with rotation | Diagnosability | `tracing` to file, 5×10 MB cap, redaction test |
-| B-008 | Add test runner + first tests | Zero tests today | `cargo test` has real tests; `npm test` exists |
-| B-009 | Add ESLint + Prettier | Consistency before the codebase grows | `npm run lint` / `format` pass |
-| B-010 | Add Windows CI (fmt, clippy, test, build) | No automation today | PRs blocked on failing checks |
-| B-011 | Add `rust-toolchain.toml` | Reproducible builds | Local and CI compilers match |
+| B-008 | ✅ Add test runner + first tests | Zero tests today | `cargo test` has real tests; `npm test` exists |
+| B-009 | ✅ Add ESLint + Prettier | Consistency before the codebase grows | `npm run lint` / `format` pass |
+| B-010 | 🟡 Add Windows CI (fmt, clippy, test, build) | No automation today | PRs blocked on failing checks |
+| B-011 | 🟡 Add `rust-toolchain.toml` | Reproducible builds | Local and CI compilers match |
 | B-012 | Fatal-startup error screen | `expect()` today | Init failure shows an actionable dialog, not a silent exit |
+
+Notes on the partial items:
+
+- **B-010** — `.github/workflows/ci.yml` exists (frontend, rust, package jobs on
+  `windows-latest`) and every step was run locally, but the workflow has **never
+  executed on GitHub**. It is not a gate until a run is green and branch
+  protection requires it. Follow-up: B-092.
+- **B-011** — The file pins `channel = "stable"` and the `rustfmt`/`clippy`
+  components. It does **not** pin an exact compiler version, so local and CI can
+  still drift within stable. Exact pinning is deliberately deferred.
 
 ## P1 — V1 (Release 1)
 
@@ -87,6 +101,9 @@
 | B-087 | Splash-free startup measurement | P2 |
 | B-088 | Remove generated `gen/schemas` ambiguity (gitignored) | P3 |
 | B-089 | Decide whether `dist/` and `target/` stay in the working tree | P3 |
+| B-090 | Runtime-validate IPC responses in `src/services` | P0 |
+| B-091 | Remove `#[allow(dead_code)]` from `error` when the first fallible command lands | P0 |
+| B-092 | Get the first green CI run and enable branch protection | P0 |
 
 ## Explicitly rejected / deferred
 
@@ -97,6 +114,14 @@
 | Cloud sync | No product need; privacy cost |
 | Electron migration | No benefit |
 | Microservices | No deployment requirement |
+
+## Done (most recent first)
+
+| ID | Item | Completed | Evidence |
+|---|---|---|---|
+| B-009 | ESLint 10 flat config + Prettier 3 | 2026-11-06 | `npm run lint`, `npm run format:check` |
+| B-008 | Vitest 5 + jsdom + Rust unit tests | 2026-11-06 | `npm test` (6), `cargo test` (8) |
+| B-001 | Typed IPC boundary + `get_app_info` | 2026-11-06 | `src-tauri/src/ipc.rs`, `src/services/ipc.ts` |
 
 ## How to pick work
 

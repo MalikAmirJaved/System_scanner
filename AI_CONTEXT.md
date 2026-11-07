@@ -31,24 +31,29 @@ Architecture: [`ARCHITECTURE.md`](ARCHITECTURE.md).
 | CSP | `default-src 'self'; img-src 'self' asset: data:; style-src 'self' 'unsafe-inline'; font-src 'self' data:` | `tauri.conf.json` |
 | Capabilities | `core:default` only, window `main` | `capabilities/default.json` |
 | Runtime JS deps | `react`, `react-dom`, `@tauri-apps/api` | `package.json` |
-| Rust deps | `tauri 2` only | `Cargo.toml` |
+| Rust deps | `tauri 2`, `serde`, `serde_json`, `thiserror` | `Cargo.toml` |
 | Release profile | LTO, `codegen-units=1`, `opt-level=3`, `panic=abort`, `strip` | `Cargo.toml` |
-| Rust files | `main.rs` (entry), `lib.rs` (builder) | `src-tauri/src/` |
-| IPC commands | **none** | `lib.rs` |
+| Rust files | `main.rs` (entry), `lib.rs` (builder), `ipc.rs`, `error.rs`, `dto/`, `commands/` | `src-tauri/src/` |
+| IPC commands | `get_app_info` (read-only) | `src-tauri/src/commands/app.rs` |
+| Wire format | envelope `{status, data|error}`; DTO fields camelCase; codes snake_case | `API.md` §1–§2 |
+| Frontend IPC | `src/services/ipc.ts` is the only `invoke` call site | `src/services/` |
 | Database | **none** | — |
-| Tests | **none** | — |
-| CI | **none** | — |
-| Frontend | single static welcome screen | `src/App.tsx` |
+| Tests | 8 Rust + 6 frontend (`npm test`, `cargo test`) | `src/**/*.test.ts(x)`, `#[cfg(test)]` |
+| CI | `.github/workflows/ci.yml` (**never run on GitHub**) | `.github/` |
+| Frontend | single static welcome screen + backend status indicator | `src/App.tsx` |
 
 If any of these change, update this table in the same commit.
 
 ## 3. What does not exist (do not assume it does)
 
-- No `invoke()` calls, handlers, or DTOs.
+- No command that returns system data. `get_app_info` returns build/runtime facts
+  only, and cannot fail.
+- No IPC events, job registry, cancellation, or concurrency budgets.
 - No collectors, adapters, domain layer, or job orchestrator.
 - No SQLite, migrations, repositories, or data directory.
 - No logging, tracing, or diagnostics export.
-- No tests, linters, formatters, or CI workflows.
+- No app shell, navigation, routing, or data views — only the welcome screen.
+- No runtime validation of IPC response payloads in the frontend.
 - No auto-updater, code signing, or telemetry.
 - No network access of any kind.
 
