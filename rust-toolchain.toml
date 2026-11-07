@@ -1,0 +1,6 @@
+[toolchain]
+# Pin to the stable channel and guarantee the components CI expects.
+# Exact-version pinning is deferred until release engineering (Backlog B-011).
+channel = "stable"
+components = ["rustfmt", "clippy"]
+profile = "minimal"

@@ -1,0 +1,9 @@
+node_modules/
+dist/
+src-tauri/target/
+src-tauri/gen/
+package-lock.json
+# CSS is hand-authored with the welcome-screen design; keep it byte-stable.
+*.css
+# Documentation is hand-authored prose with intentional line breaks.
+*.md
