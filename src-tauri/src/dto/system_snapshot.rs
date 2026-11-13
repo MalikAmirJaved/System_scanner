@@ -1,7 +1,7 @@
 use serde::Serialize;
 
 use crate::domain::system as domain;
-use crate::domain::system::Availability;
+use crate::dto::unavailable::{UnavailableFieldDto, take, take_group};
 
 /// Bump when a breaking field change is made to this DTO.
 pub const SNAPSHOT_SCHEMA_VERSION: u32 = 1;
@@ -83,14 +83,6 @@ pub struct NetworkAdapterDto {
     pub description: Option<String>,
     pub is_up: bool,
     pub addresses: Vec<String>,
-}
-
-/// One field path that could not be collected, with a stable reason code.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct UnavailableFieldDto {
-    pub field: String,
-    pub reason: &'static str,
 }
 
 impl From<&domain::SystemSnapshot> for SystemSnapshotDto {
@@ -196,40 +188,6 @@ fn adapter_from(
     };
 
     (item, gaps)
-}
-
-fn take_group<'a, T>(
-    field: &str,
-    group: &'a Availability<T>,
-    unavailable: &mut Vec<UnavailableFieldDto>,
-) -> Option<&'a T> {
-    match group {
-        Availability::Available(value) => Some(value),
-        Availability::Unavailable(reason) => {
-            unavailable.push(UnavailableFieldDto {
-                field: field.to_owned(),
-                reason: reason.as_str(),
-            });
-            None
-        }
-    }
-}
-
-fn take<T: Clone>(
-    field: &str,
-    value: &Availability<T>,
-    unavailable: &mut Vec<UnavailableFieldDto>,
-) -> Option<T> {
-    match value {
-        Availability::Available(value) => Some(value.clone()),
-        Availability::Unavailable(reason) => {
-            unavailable.push(UnavailableFieldDto {
-                field: field.to_owned(),
-                reason: reason.as_str(),
-            });
-            None
-        }
-    }
 }
 
 #[cfg(test)]

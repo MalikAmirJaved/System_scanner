@@ -11,6 +11,7 @@ pub fn run() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
             commands::app::get_app_info,
+            commands::processes::list_processes,
             commands::system::get_system_snapshot
         ])
         .run(tauri::generate_context!())

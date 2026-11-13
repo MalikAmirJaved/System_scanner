@@ -1,5 +1,6 @@
 import "./App.css";
 import { BackendStatus } from "./components/BackendStatus";
+import { ProcessList } from "./components/ProcessList";
 import { SystemOverview } from "./components/SystemOverview";
 
 function App() {
@@ -53,6 +54,7 @@ function App() {
         <p className="welcome-note">Your system is ready to be explored.</p>
         <BackendStatus />
         <SystemOverview />
+        <ProcessList />
       </section>
 
       <footer className="footer">

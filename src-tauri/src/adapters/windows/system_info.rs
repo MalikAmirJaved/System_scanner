@@ -45,7 +45,8 @@ use crate::domain::system::{
     Availability, CpuInfo, MemoryInfo, NetworkAdapterInfo, OsInfo, UnavailableReason, VolumeInfo,
     VolumeKind,
 };
-use crate::ports::system_info::{ProbeError, SystemInfoPort};
+use crate::ports::ProbeError;
+use crate::ports::system_info::SystemInfoPort;
 
 const CURRENT_VERSION_KEY: &str = r"SOFTWARE\Microsoft\Windows NT\CurrentVersion";
 const CPU_KEY: &str = r"HARDWARE\DESCRIPTION\System\CentralProcessor\0";

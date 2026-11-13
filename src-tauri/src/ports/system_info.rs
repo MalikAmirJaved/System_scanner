@@ -4,17 +4,7 @@
 //! with Win32 calls. Domain code depends on this trait, never on the adapter.
 
 use crate::domain::system::{CpuInfo, MemoryInfo, NetworkAdapterInfo, OsInfo, VolumeInfo};
-
-/// Group-level probe failure.
-///
-/// Field-level gaps inside a successful group are represented by
-/// [`crate::domain::system::Availability`]; this type is only for the case where
-/// the whole group could not be read.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ProbeError {
-    AccessDenied,
-    Failed,
-}
+use crate::ports::ProbeError;
 
 /// Reads static and semi-static facts about the local machine.
 ///

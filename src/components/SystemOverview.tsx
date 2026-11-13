@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { IpcError } from "../services/ipc";
+import { summarizeError } from "../lib/errors";
+import { formatBytes, formatTime } from "../lib/format";
 import { getSystemSnapshot, type SystemSnapshot } from "../services/system";
 
 type OverviewState =
@@ -8,37 +9,8 @@ type OverviewState =
   | { status: "error"; code: string; message: string };
 
 function toErrorState(error: unknown): OverviewState {
-  if (error instanceof IpcError) {
-    return { status: "error", code: error.code, message: error.message };
-  }
-
-  // Running `npm run dev` in a browser has no Tauri runtime; report honestly.
-  return {
-    status: "error",
-    code: "unavailable",
-    message: "The desktop backend is not reachable.",
-  };
-}
-
-function formatBytes(bytes: number): string {
-  const units = ["B", "KB", "MB", "GB", "TB"];
-  let value = bytes;
-  let unit = 0;
-
-  while (value >= 1024 && unit < units.length - 1) {
-    value /= 1024;
-    unit += 1;
-  }
-
-  return `${value.toFixed(unit === 0 ? 0 : 1)} ${units[unit]}`;
-}
-
-function formatTime(milliseconds: number): string {
-  return new Date(milliseconds).toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  });
+  const { code, message } = summarizeError(error);
+  return { status: "error", code, message };
 }
 
 function reasonFor(snapshot: SystemSnapshot, field: string): string {

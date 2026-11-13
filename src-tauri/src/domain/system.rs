@@ -4,7 +4,8 @@
 //! Tauri, or SQL. Windows probes arrive through
 //! [`crate::ports::system_info::SystemInfoPort`].
 
-use crate::ports::system_info::{ProbeError, SystemInfoPort};
+use crate::ports::ProbeError;
+use crate::ports::system_info::SystemInfoPort;
 
 /// Why a field could not be collected. Serialized as a stable `snake_case` code.
 ///

@@ -23,7 +23,7 @@ fn collect_platform() -> Result<SystemSnapshotDto, AppError> {
     use crate::adapters::windows::system_info::WindowsSystemInfo;
     use crate::domain::system::collect_snapshot;
 
-    let captured_at = now_ms()?;
+    let captured_at = super::now_ms()?;
     let snapshot = collect_snapshot(&WindowsSystemInfo, captured_at);
     Ok(SystemSnapshotDto::from(&snapshot))
 }
@@ -31,13 +31,6 @@ fn collect_platform() -> Result<SystemSnapshotDto, AppError> {
 #[cfg(not(windows))]
 fn collect_platform() -> Result<SystemSnapshotDto, AppError> {
     Err(AppError::new(ErrorCode::Unsupported))
-}
-
-fn now_ms() -> Result<u64, AppError> {
-    let elapsed = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map_err(|_| AppError::new(ErrorCode::Internal))?;
-    u64::try_from(elapsed.as_millis()).map_err(|_| AppError::new(ErrorCode::Internal))
 }
 
 #[cfg(test)]
