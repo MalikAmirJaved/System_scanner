@@ -30,11 +30,25 @@ exists. Until then, `0.x` versions may change behavior without notice.
 - `npm test`, `npm run test:watch`, `npm run lint`, `npm run format`,
   `npm run format:check`.
 - ADR-011: IPC DTO fields are `camelCase` on the wire.
+- **System snapshot (implemented).** `get_system_snapshot` returns OS, CPU,
+  memory, disks, and network adapters through a new `ports/` trait,
+  platform-neutral `domain/` model, and `adapters/windows/` Win32 implementation
+  (`windows-sys` 0.61.2). Unavailable groups and leaf fields are reported with
+  `access_denied` / `unsupported` / `failed`, never as zero or empty values.
+- **System overview UI.** `src/services/system.ts` and
+  `src/components/SystemOverview.tsx` render the snapshot with loading, error,
+  refresh, last-updated time, and per-field unavailable reasons.
+- ADR-012: Win32 bindings are confined to an adapter behind a narrow port, and
+  network-drive size/label queries are skipped to keep the snapshot bounded.
 
 ### Changed
-- `API.md` §1–§3 now describe the implemented envelope and `get_app_info` instead
-  of a proposed contract; error codes are documented in their serialized
-  `snake_case` form.
+- `API.md` §1–§3 now describe the implemented envelope, `get_app_info`, and
+  `get_system_snapshot` instead of a proposed contract; error codes are
+  documented in their serialized `snake_case` form. The proposed `include`
+  request for the snapshot was dropped, and the document says so.
+- `error.rs`: the module-level `#[allow(dead_code)]` is gone. The allowance is
+  now scoped to the published `ErrorCode` taxonomy, which still contains variants
+  no feature constructs yet.
 - `build.md` §4 no longer marks `cargo fmt`/`cargo clippy` as verified without the
   components being installed. That claim was incorrect and is corrected, not
   quietly removed.

@@ -1,11 +1,11 @@
 # API
 
-> **Status:** **IPC envelope implemented; one command implemented.** The typed
-> envelope (`CommandResult`, `AppError`), the error taxonomy, and the read-only
-> command `get_app_info` exist and are covered by tests. Every other command in
-> this document is **proposed** and must not be described as available.
+> **Status:** **IPC envelope implemented; two commands implemented.** The typed
+> envelope (`CommandResult`, `AppError`), the error taxonomy, `get_app_info`, and
+> the read-only `get_system_snapshot` exist and are covered by tests. Every other
+> command in this document is **proposed** and must not be described as available.
 >
-> **Last updated:** 2026-11-06 · **Related:** [`ARCHITECTURE.md`](ARCHITECTURE.md)
+> **Last updated:** 2026-11-13 · **Related:** [`ARCHITECTURE.md`](ARCHITECTURE.md)
 
 ---
 
@@ -110,9 +110,8 @@ Full handling rules: [`docs/ERROR_HANDLING.md`](docs/ERROR_HANDLING.md).
 
 ## 3. Release 0 commands
 
-> Field names in the sketches below are shown exactly as they will appear on the
-> wire. Formats decided in §1 apply: `camelCase` fields, `snake_case` commands and
-> error codes.
+> Field names below are shown exactly as they appear on the wire. Formats decided
+> in §1 apply: `camelCase` fields, `snake_case` commands and error codes.
 
 ### 3.1 `get_app_info` (implemented)
 
@@ -141,29 +140,75 @@ pub fn get_app_info() -> CommandResult<AppInfo>
 No machine-identifying data. Frontend: `src/services/app.ts` →
 `getAppInfo()`; UI: `src/components/BackendStatus.tsx`.
 
-### 3.2 `get_system_snapshot` (proposed)
+### 3.2 `get_system_snapshot` (implemented)
 
-Read-only. Returns OS, CPU, memory, disks, and adapters.
+Read-only, takes no arguments, requires no elevation. Returns OS, CPU, memory,
+disks, and network adapters in one bounded call.
 
+```rust
+// src-tauri/src/commands/system.rs
+#[tauri::command]
+pub async fn get_system_snapshot() -> CommandResult<SystemSnapshotDto>
+```
+
+The blocking Win32 work runs on a blocking thread, not the async reactor.
 
 ```jsonc
-// request
-{ "include": ["os", "cpu", "memory", "disks", "network"] }
-
-// response data
+// response data  (src-tauri/src/dto/system_snapshot.rs, SNAPSHOT_SCHEMA_VERSION = 1)
 {
   "capturedAt": 1762387200000,
-  "os":    { "name": "Windows 11 Pro", "version": "10.0.26100", "arch": "x86_64" },
-  "cpu":   { "model": "…", "logicalCores": 16, "physicalCores": 8 },
-  "memory":{ "totalBytes": 34359738368, "availableBytes": 12884901888 },
-  "disks": [ { "mount": "C:\\", "totalBytes": 0, "freeBytes": 0, "kind": "fixed" } ],
-  "network": [ { "name": "Ethernet", "status": "up", "addresses": ["192.0.2.10"] } ],
-  "unavailable": [ { "field": "cpu.model", "reason": "access_denied" } ]
+  "schemaVersion": 1,
+  "os": {
+    "name": "Windows 11 Pro",
+    "edition": "Professional",
+    "version": "10.0.26100",
+    "build": "26100",
+    "arch": "x64"
+  },
+  "cpu": { "model": "…", "logicalCores": 16, "physicalCores": 8 },
+  "memory": { "totalBytes": 34359738368, "availableBytes": 12884901888 },
+  "disks": [
+    {
+      "mount": "C:\\",
+      "kind": "fixed",
+      "label": "System",
+      "filesystem": "NTFS",
+      "totalBytes": 0,
+      "freeBytes": 0
+    }
+  ],
+  "network": [
+    { "name": "Ethernet", "description": "…", "isUp": true, "addresses": ["192.0.2.10"] }
+  ],
+  "unavailable": [
+    { "field": "disks[1].totalBytes", "reason": "failed" }
+  ]
 }
 ```
 
-`unavailable` is mandatory when any field could not be collected. A missing field
-must never be represented as `0`, `""`, or `null` without a reason.
+Rules, implemented:
+
+- **No request payload.** The earlier `include` sketch was dropped: every group
+  is cheap to collect once network drives are excluded. There is no untrusted IPC
+  input on this command.
+- **Unavailable is mandatory.** A group that cannot be read is omitted from the
+  payload (not sent as `null` with empty fields) and named in `unavailable`. A
+  missing leaf field keeps its group and is named by path, for example
+  `cpu.physicalCores` or `disks[0].freeBytes`.
+- **Reasons** are stable values: `access_denied`, `unsupported`, `failed`.
+- **Missing is never zero.** A size of `0` is reported only if the OS reports an
+  actual zero; an unreadable size is omitted with a reason.
+- **Network drives are not queried for label or size.** `GetDiskFreeSpaceExW`
+  and `GetVolumeInformationW` can block for tens of seconds on a dead mapping, so
+  those fields are reported as `unsupported` and the call stays bounded.
+- `capturedAt` is unix milliseconds UTC at collection time.
+
+Frontend: `src/services/system.ts` → `getSystemSnapshot()`; UI:
+`src/components/SystemOverview.tsx` (loading, ready, error, refresh, per-field
+reason display). Tests: `src-tauri/src/domain/system.rs` (fake port),
+`src-tauri/src/dto/system_snapshot.rs` (wire shape),
+`src-tauri/src/adapters/windows/system_info.rs` (native structural smoke test),
+`src/components/SystemOverview.test.tsx`.
 
 ### 3.3 `list_processes` (proposed)
 
@@ -302,7 +347,7 @@ call the domain module. Implemented rules for `src/services`:
 
 Not yet done: runtime validation of response payloads (no `zod` or hand-written
 guards), so a contract drift would currently surface as `undefined` at render
-time rather than as a loud failure. Tracked in `docs/BACKLOG.md` (B-030).
+time rather than as a loud failure. Tracked in `docs/BACKLOG.md` (B-090).
 
 ## 9. Testing the contract
 
@@ -320,10 +365,12 @@ Status today:
 |---|---|
 | Envelope serialization (ok/err, camelCase, omitted `detail`) | ✅ `src-tauri/src/ipc.rs` tests |
 | Error code taxonomy + unique correlation IDs | ✅ `src-tauri/src/error.rs` tests |
-| DTO wire shape + `schemaVersion` | ✅ `src-tauri/src/dto/app_info.rs` test |
+| DTO wire shape + `schemaVersion` | ✅ `src-tauri/src/dto/app_info.rs`, `system_snapshot.rs` tests |
 | Adapter unwrap / `IpcError` / argument pass-through | ✅ `src/services/ipc.test.ts` |
-| UI states (loading, ready, error, retry) | ✅ `src/components/BackendStatus.test.tsx` |
-| Input validation, authorization, cancellation | ❌ No command takes input yet |
+| UI states (loading, ready, error, retry) | ✅ `BackendStatus.test.tsx`, `SystemOverview.test.tsx` |
+| Unavailable-field reporting (group and leaf) | ✅ domain + DTO tests; native smoke test |
+| Native adapter structural invariants | ✅ `adapters/windows/system_info.rs` (Windows-only test) |
+| Input validation, authorization, cancellation | ❌ `get_system_snapshot` takes no input; no long-running command yet |
 
 See [`TESTING.md`](TESTING.md) and [`AI_TESTING_RULES.md`](AI_TESTING_RULES.md).
 

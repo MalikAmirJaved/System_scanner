@@ -252,6 +252,45 @@ be forwarded verbatim.
 
 ---
 
+## ADR-012 — Win32 access via `windows-sys` behind a narrow port
+
+**Status:** Accepted · 2026-11-13
+
+**Context.** `get_system_snapshot` (B-002) is the first feature that reads the
+machine. Invariant 3 forbids `domain/` from importing Windows APIs, and
+`AI_SECURITY_RULES.md` §9 confines `unsafe` to `adapters/windows`.
+
+**Options.**
+1. `windows-sys` — raw, Microsoft-maintained bindings, no abstraction layer.
+2. `windows` — generated safe-ish wrappers, larger API surface and compile cost.
+3. `sysinfo` — cross-platform convenience crate that owns collection decisions.
+4. WMI — powerful but slow, string-typed, and heavier to bound.
+
+**Decision.** Option 1 for the first adapter. `domain/system.rs` defines the
+platform-neutral model (including `Availability` and reason codes),
+`ports/system_info.rs` declares one narrow trait, and
+`adapters/windows/system_info.rs` is the only module that imports `windows-sys`.
+The dependency is target-scoped (`cfg(windows)`), so the domain and its tests
+build on non-Windows hosts. Network drives are deliberately not queried for
+label or size because those calls can block on a dead mapping; the fields are
+reported as `unsupported` and the snapshot stays bounded.
+
+**Consequences.**
+- All `unsafe` and all handle/registry details stay in one auditable file.
+- Domain, DTO, and UI tests need no Windows APIs; one structural smoke test runs
+  on Windows for the adapter.
+- We own the FFI error mapping and the field-availability logic.
+- Nine `windows-sys` feature flags are enabled; adding a feature is a dependency
+  change and must be recorded in `docs/DEPENDENCIES.md`.
+- Collection is intentionally narrower than `sysinfo` would provide: no
+  temperature, GPU, or process data, and no background enumeration.
+
+**Revisit if:** a second and third domain need a broad Win32 surface, a maintained
+safe wrapper covers the required subset, or WMI becomes the better source for a
+specific field.
+
+---
+
 ## Template
 
 ```text

@@ -1,6 +1,6 @@
 # Known Issues & Limitations
 
-> **Status:** Active · **Last updated:** 2026-11-06
+> **Status:** Active · **Last updated:** 2026-11-13
 >
 > This is a list of **real** limitations, not a wish list. Severity reflects user
 > impact. Each item should link to a backlog ID where one exists.
@@ -11,12 +11,12 @@
 
 | ID | Issue | Impact | Workaround | Tracked |
 |---|---|---|---|---|
-| KI-001 | No system data collection exists | The app cannot perform its core purpose | None | B-002, B-003 |
-| KI-002 | Only one IPC command exists, and it returns no system data | UI cannot request what it needs to display | None | B-002, B-003 |
+| KI-001 | No process, startup, or service collection exists | The snapshot shows static hardware/OS facts only; the app cannot explain what is running | None | B-003, B-041–B-043 |
+| KI-002 | Only two read-only IPC commands exist | The UI cannot drive scans or process views | None | B-003, B-004 |
 | KI-003 | No persistence | No history, no scan sessions | None | B-020, B-021 |
 | KI-004 | No code signing | SmartScreen warns; tampering undetectable | Install anyway, verify hash manually | B-080 |
 | KI-005 | No license selected | Cannot be legally redistributed | Internal use only | B-084 |
-| KI-006 | Tests cover the IPC contract only | System collection, persistence, and UI flows are untested | Manual checks only | B-002, B-008 |
+| KI-006 | Tests cover IPC, the snapshot contract, and two UI panels | Traversal, persistence, and process collection are untested because they do not exist | Manual checks only | B-002, B-008 |
 | KI-007 | CI has never run on GitHub | A workflow file is not a gate; broken builds can still merge | Run the gates locally per `build.md` | B-010, B-092 |
 
 ## 2. High
@@ -44,7 +44,6 @@
 | KI-027 | `rust-toolchain.toml` pins `stable`, not an exact compiler version | Local and CI can drift within stable | B-011 |
 | KI-028 | Version is duplicated in 3 files | Drift risk | B-083 |
 | KI-029 | No `.editorconfig` | Line-ending/style drift on Windows | Optional |
-| KI-035 | `error` module carries `#[allow(dead_code)]` | Dead-code warnings are suppressed there until the first fallible command exists | B-091; comment in `lib.rs` |
 | KI-036 | 10 moderate advisories in the dev dependency tree (`minimatch` ReDoS via ESLint/`typescript-eslint`) | Affects lint tooling only, not the shipped binary; `npm audit --omit=dev` is clean | Accept until upstream releases; do not force-downgrade ESLint |
 
 ## 4. Low
@@ -57,6 +56,8 @@
 | KI-033 | `dist/` and `src-tauri/target/` exist in the working tree | Disk usage; ignored by git | `gitignore` covers them |
 | KI-034 | Default window size 960×720 may be small for tables | UX issue once tables exist | Revisit with features |
 | KI-037 | Prettier does not check Markdown or CSS | Prose and hand-authored CSS can drift in style | Intentional: `.prettierignore` keeps authored files byte-stable |
+| KI-038 | Network drives report `unsupported` size/label/filesystem | Network volumes show no capacity; deliberate to avoid multi-second blocking on dead mappings | ADR-012; query the volume manually in Explorer |
+| KI-039 | The native snapshot adapter is verified on one machine | Edition-, architecture-, and media-specific behavior is not covered by CI hardware | Add a manual step to the release checklist; revisit with the B-032 baseline |
 
 ## 5. Known non-issues (documented to prevent "fixes")
 

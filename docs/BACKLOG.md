@@ -1,6 +1,6 @@
 # Backlog
 
-> **Status:** Active · **Last updated:** 2026-11-06
+> **Status:** Active · **Last updated:** 2026-11-13
 >
 > Priority: **P0** blocks Release 0 / trust, **P1** needed for V1, **P2** V2+,
 > **P3** nice to have. IDs are stable; do not renumber.
@@ -17,10 +17,10 @@
 | ID | Task | Why | Done when |
 |---|---|---|---|
 | B-001 | ✅ Add typed IPC boundary (`CommandResult`, `AppError`) | Everything depends on it | A no-op command round-trips with typed errors |
-| B-002 | Implement `get_system_snapshot` (Win32) | Core Release 0 value | OS/CPU/memory/disks/adapters returned; unavailable fields reported |
+| B-002 | ✅ Implement `get_system_snapshot` (Win32) | Core Release 0 value | OS/CPU/memory/disks/adapters returned; unavailable fields reported |
 | B-003 | Implement `list_processes` with stable identity | Core Release 0 value | Paged, bounded, access-limited rows marked |
 | B-004 | Build the app shell + dashboard route | UI has only a welcome screen | Navigation + loading/empty/error states |
-| B-005 | Refresh lifecycle (manual, in-progress, last-updated) | Prevent stale/frozen UI | No overlapping refreshes; stale responses discarded |
+| B-005 | ✅ Refresh lifecycle (manual, in-progress, last-updated) | Prevent stale/frozen UI | No overlapping refreshes; stale responses discarded |
 | B-006 | Diagnostics view + redacted support bundle | Support without telemetry | Bundle previews and excludes paths/PII |
 | B-007 | Structured logging with rotation | Diagnosability | `tracing` to file, 5×10 MB cap, redaction test |
 | B-008 | ✅ Add test runner + first tests | Zero tests today | `cargo test` has real tests; `npm test` exists |
@@ -102,7 +102,7 @@ Notes on the partial items:
 | B-088 | Remove generated `gen/schemas` ambiguity (gitignored) | P3 |
 | B-089 | Decide whether `dist/` and `target/` stay in the working tree | P3 |
 | B-090 | Runtime-validate IPC responses in `src/services` | P0 |
-| B-091 | Remove `#[allow(dead_code)]` from `error` when the first fallible command lands | P0 |
+| B-091 | ✅ Scope the `error` dead-code allowance to `ErrorCode` | P0 |
 | B-092 | Get the first green CI run and enable branch protection | P0 |
 
 ## Explicitly rejected / deferred
@@ -119,6 +119,9 @@ Notes on the partial items:
 
 | ID | Item | Completed | Evidence |
 |---|---|---|---|
+| B-091 | Module-level `#[allow(dead_code)]` removed; allowance scoped to the `ErrorCode` contract enum | 2026-11-13 | `src-tauri/src/error.rs` (clippy clean) |
+| B-005 | Manual refresh, in-progress state, last-updated time, stale-response guard | 2026-11-13 | `src/components/SystemOverview.tsx`, `SystemOverview.test.tsx` |
+| B-002 | `get_system_snapshot` via port + Windows adapter, explicit unavailable fields | 2026-11-13 | `src-tauri/src/{ports,domain,adapters,dto,commands}`, 18 Rust + 9 frontend tests |
 | B-009 | ESLint 10 flat config + Prettier 3 | 2026-11-06 | `npm run lint`, `npm run format:check` |
 | B-008 | Vitest 5 + jsdom + Rust unit tests | 2026-11-06 | `npm test` (6), `cargo test` (8) |
 | B-001 | Typed IPC boundary + `get_app_info` | 2026-11-06 | `src-tauri/src/ipc.rs`, `src/services/ipc.ts` |

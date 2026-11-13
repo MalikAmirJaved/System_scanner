@@ -4,7 +4,7 @@
 > (some code, incomplete or unverified), `Planned` (designed, not built),
 > `Proposed` (an idea), `Not started`.
 >
-> **Last updated:** 2026-11-06
+> **Last updated:** 2026-11-13
 >
 > This inventory is the ground truth for "does this exist?". If code and this
 > table disagree, the code wins for behavior and this table must be corrected.
@@ -33,7 +33,7 @@
 |---|---|---|---|---|
 | F-020 | Typed command/event boundary | 0 | 🟡 Partial — commands done, events not started | `src-tauri/src/ipc.rs`, `src-tauri/src/commands/`, `src/services/ipc.ts` |
 | F-021 | Stable DTOs + schema version | 0 | ✅ Implemented | `src-tauri/src/dto/app_info.rs` (`DTO_SCHEMA_VERSION = 1`) |
-| F-022 | Error taxonomy + correlation IDs | 0 | ✅ Implemented (taxonomy only; no fallible command yet) | `src-tauri/src/error.rs`, `src/services/ipc.ts` |
+| F-022 | Error taxonomy + correlation IDs | 0 | ✅ Implemented (envelope-level; `unsupported` and `internal` are reachable from the snapshot command) | `src-tauri/src/error.rs`, `src/services/ipc.ts` |
 | F-023 | Job registry + lifecycle state machine | 0 | ⏳ Not started | — |
 | F-024 | Cancellation tokens per job | 0 | ⏳ Not started | — |
 | F-025 | Bounded concurrency + resource budgets | 1 | ⏳ Not started | — |
@@ -45,15 +45,15 @@
 
 | ID | Feature | Status | Notes |
 |---|---|---|---|
-| F-030 | OS version, edition, build, architecture | ⏳ Not started | Needs `RtlGetVersion` or equivalent |
-| F-031 | CPU model, physical/logical cores | ⏳ Not started | — |
-| F-032 | Memory total/available | ⏳ Not started | — |
-| F-033 | Disk volumes, capacity, free space, type | ⏳ Not started | — |
-| F-034 | Network adapters + addresses | ⏳ Not started | No connectivity test |
-| F-035 | Unavailable-field reporting | ⏳ Not started | Required, not optional |
-| F-036 | Manual refresh + last-updated time | ⏳ Not started | — |
+| F-030 | OS version, edition, build, architecture | ✅ Implemented | Registry `CurrentVersion` + `GetNativeSystemInfo`; `adapters/windows/system_info.rs` |
+| F-031 | CPU model, physical/logical cores | ✅ Implemented | Registry `ProcessorNameString`, `GetActiveProcessorCount`, `GetLogicalProcessorInformationEx` |
+| F-032 | Memory total/available | ✅ Implemented | `GlobalMemoryStatusEx` |
+| F-033 | Disk volumes, capacity, free space, type | ✅ Implemented | Network drives report `unsupported` sizes to stay bounded |
+| F-034 | Network adapters + addresses | ✅ Implemented | `GetAdaptersAddresses`; no connectivity test |
+| F-035 | Unavailable-field reporting | ✅ Implemented | `unavailable[]` with `access_denied` / `unsupported` / `failed` |
+| F-036 | Manual refresh + last-updated time | ✅ Implemented | `SystemOverview.tsx` |
 | F-037 | Bounded periodic refresh + pause | ⏳ Not started | — |
-| F-038 | Stale-response protection | ⏳ Not started | — |
+| F-038 | Stale-response protection | ✅ Implemented | One in-flight refresh; superseded responses are discarded |
 
 ## 4. Processes, startup, services (Release 2)
 
@@ -140,14 +140,17 @@
 
 | Status | Count |
 |---|---|
-| Implemented | 11 (8 features + 3 baseline properties) |
+| Implemented | 19 (16 features + 3 baseline properties) |
 | Partial | 1 (F-020: commands exist, event channel does not) |
-| Not started / planned | 60 |
-| Gated (requires security work) | 6 |
+| Not started / planned | 48 |
+| Gated (requires security work) | 5 |
 | Research / proposed | 2 |
 
 Implemented since the scaffold: the typed IPC envelope, the error taxonomy with
-correlation IDs, the versioned `AppInfo` DTO, one read-only command
-(`get_app_info`), the frontend IPC adapter, and a backend status indicator with
-loading/error/retry states. The event channel, job registry, cancellation, and
-logging are still ahead, and everything that inspects the machine is unchanged.
+correlation IDs, two versioned DTOs, two read-only commands (`get_app_info`,
+`get_system_snapshot`), the port/domain/Windows-adapter split for system
+information, and UI views for backend status and the system snapshot with
+loading, error, retry, refresh, and per-field unavailable reasons.
+
+The event channel, job registry, cancellation, logging, process inventory, and
+everything that touches storage are still ahead.

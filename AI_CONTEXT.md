@@ -2,7 +2,7 @@
 
 > **Purpose:** the minimum context an AI agent needs to work correctly in this
 > repository. Read this before touching code.
-> **Last updated:** 2026-11-06
+> **Last updated:** 2026-11-13
 
 ---
 
@@ -19,7 +19,7 @@ Authoritative plan: [`docs/plan.md`](docs/plan.md).
 Product intent: [`PRD.md`](PRD.md).
 Architecture: [`ARCHITECTURE.md`](ARCHITECTURE.md).
 
-## 2. Verified current state (2026-11-06)
+## 2. Verified current state (2026-11-13)
 
 | Fact | Value | Source |
 |---|---|---|
@@ -31,28 +31,28 @@ Architecture: [`ARCHITECTURE.md`](ARCHITECTURE.md).
 | CSP | `default-src 'self'; img-src 'self' asset: data:; style-src 'self' 'unsafe-inline'; font-src 'self' data:` | `tauri.conf.json` |
 | Capabilities | `core:default` only, window `main` | `capabilities/default.json` |
 | Runtime JS deps | `react`, `react-dom`, `@tauri-apps/api` | `package.json` |
-| Rust deps | `tauri 2`, `serde`, `serde_json`, `thiserror` | `Cargo.toml` |
+| Rust deps | `tauri 2`, `serde`, `serde_json`, `thiserror`, `windows-sys 0.61` (Windows target) | `Cargo.toml` |
 | Release profile | LTO, `codegen-units=1`, `opt-level=3`, `panic=abort`, `strip` | `Cargo.toml` |
-| Rust files | `main.rs` (entry), `lib.rs` (builder), `ipc.rs`, `error.rs`, `dto/`, `commands/` | `src-tauri/src/` |
-| IPC commands | `get_app_info` (read-only) | `src-tauri/src/commands/app.rs` |
+| Rust files | `main.rs`, `lib.rs`, `ipc.rs`, `error.rs`, `dto/`, `commands/`, `domain/`, `ports/`, `adapters/windows/` | `src-tauri/src/` |
+| IPC commands | `get_app_info`, `get_system_snapshot` (both read-only) | `src-tauri/src/commands/` |
 | Wire format | envelope `{status, data|error}`; DTO fields camelCase; codes snake_case | `API.md` §1–§2 |
 | Frontend IPC | `src/services/ipc.ts` is the only `invoke` call site | `src/services/` |
 | Database | **none** | — |
-| Tests | 8 Rust + 6 frontend (`npm test`, `cargo test`) | `src/**/*.test.ts(x)`, `#[cfg(test)]` |
+| Tests | 18 Rust + 9 frontend (`npm test`, `cargo test`) | `src/**/*.test.ts(x)`, `#[cfg(test)]` |
 | CI | `.github/workflows/ci.yml` (**never run on GitHub**) | `.github/` |
-| Frontend | single static welcome screen + backend status indicator | `src/App.tsx` |
+| Frontend | welcome screen + backend status + system snapshot panel | `src/App.tsx`, `src/components/` |
 
 If any of these change, update this table in the same commit.
 
 ## 3. What does not exist (do not assume it does)
 
-- No command that returns system data. `get_app_info` returns build/runtime facts
-  only, and cannot fail.
+- `get_system_snapshot` reads OS, CPU, memory, disks, and network adapters. It
+  does not read processes, services, startup entries, files, or event logs.
 - No IPC events, job registry, cancellation, or concurrency budgets.
-- No collectors, adapters, domain layer, or job orchestrator.
+- No process/startup/service collectors, and no storage traversal.
 - No SQLite, migrations, repositories, or data directory.
 - No logging, tracing, or diagnostics export.
-- No app shell, navigation, routing, or data views — only the welcome screen.
+- No app shell, navigation, or routing — one welcome screen with two data panels.
 - No runtime validation of IPC response payloads in the frontend.
 - No auto-updater, code signing, or telemetry.
 - No network access of any kind.
@@ -78,19 +78,20 @@ Avoid: "clean", "infected", "optimize", "fix" for anything that is not verified.
 
 | I want to… | Put it in |
 |---|---|
-| Render a screen | `src/features/<domain>/` (planned) |
-| Share a presentational component | `src/components/` (planned) |
-| Call Rust from the UI | `src/services/` (planned) — never in a component |
-| Define an IPC command | `src-tauri/src/commands/` (planned) |
+| Render a screen | `src/features/<domain>/` (planned); presentational pieces in `src/components/` |
+| Share a presentational component | `src/components/` (implemented) |
+| Call Rust from the UI | `src/services/` (implemented) — never in a component |
+| Define an IPC command | `src-tauri/src/commands/` (implemented) |
 | Orchestrate jobs/cancellation | `src-tauri/src/app/` (planned) |
-| Business rules, policies | `src-tauri/src/domain/` (planned) — no Windows, no SQL |
-| Declare a capability trait | `src-tauri/src/ports/` (planned) |
-| Call Win32/WMI/registry | `src-tauri/src/adapters/windows/` (planned) |
+| Business rules, policies | `src-tauri/src/domain/` (implemented for system snapshot) — no Windows, no SQL |
+| Declare a capability trait | `src-tauri/src/ports/` (implemented) |
+| Call Win32/WMI/registry | `src-tauri/src/adapters/windows/` (implemented) |
 | Query SQLite | `src-tauri/src/adapters/persistence/` (planned) |
 | Export a report | `src-tauri/src/reporting/` (planned) |
 
-Right now only `src/` and `src-tauri/src/{main,lib}.rs` exist. Create directories
-when the first feature needs them; do not scaffold empty modules.
+`src/`, `commands/`, `dto/`, `domain/`, `ports/`, and `adapters/windows/` exist.
+Create the remaining directories when the first feature needs them; do not
+scaffold empty modules.
 
 ## 6. Non-negotiable invariants
 

@@ -44,13 +44,13 @@ requirements.
 | Minimal capability set + CSP | ✅ Implemented |
 | Welcome screen | ✅ Implemented |
 | App shell, navigation, routing | ⏳ Not started |
-| Typed IPC boundary + DTO + error model | ✅ Implemented (`get_app_info` end to end) |
+| Typed IPC boundary + DTO + error model | ✅ Implemented (`get_app_info`, `get_system_snapshot`) |
 | IPC event channel | ⏳ Not started |
-| System snapshot (OS/CPU/memory/disks/network) | ⏳ Not started |
+| System snapshot (OS/CPU/memory/disks/network) | ✅ Implemented — unavailable fields reported |
 | Process list with stable identity | ⏳ Not started |
-| Refresh lifecycle (manual + bounded periodic) | ⏳ Not started |
+| Refresh lifecycle (manual + bounded periodic) | 🟡 Manual refresh implemented; periodic refresh not |
 | Diagnostics view + redacted support bundle | ⏳ Not started |
-| Tests (unit/adapter/UI) | 🟡 Partial — IPC contract only, 14 tests |
+| Tests (unit/adapter/UI) | 🟡 Partial — IPC, snapshot contract/adapter/usecase, 2 UI panels; 27 tests |
 | CI on Windows | 🟡 Workflow committed, never run on GitHub |
 
 **Exit criteria**

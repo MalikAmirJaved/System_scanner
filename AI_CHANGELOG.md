@@ -6,7 +6,7 @@
 >
 > Only record changes that affect structure, boundaries, contracts, or process.
 > Routine edits do not belong here.
-> **Last updated:** 2026-11-06
+> **Last updated:** 2026-11-13
 
 ---
 
@@ -22,6 +22,47 @@
 - Evidence: <commands run / tests / review>
 - Follow-up: <tracked items>
 ```
+
+---
+
+## 2026-11-13 — System snapshot vertical slice (port → adapter → DTO → UI)
+
+- **Agent/tool:** OpenCode (DeepSeek V4.1 Flash Free).
+- **Scope:** `src-tauri/src/{ports/*, domain/*, adapters/windows/*,
+  dto/system_snapshot.rs, commands/system.rs, error.rs, lib.rs}`,
+  `src-tauri/Cargo.toml`, `src/services/system.ts`,
+  `src/components/SystemOverview.{tsx,test.tsx}`, `src/App.{tsx,css}`.
+- **Change:**
+  - Created the layering the architecture rules already described: a
+    platform-neutral `domain/` model with explicit availability reasons, a
+    one-capability `ports/` trait, and a `windows-sys` adapter containing every
+    `unsafe` block.
+  - Added `get_system_snapshot` (no input, read-only, blocking work on a
+    blocking thread) returning a versioned `SystemSnapshotDto`. Wholly
+    unavailable groups are omitted and named in `unavailable[]`; leaf gaps keep
+    their group and carry a field path and reason.
+  - Added `SystemOverview` with loading, error, refresh, last-updated, and
+    per-field unavailable display. A single in-flight refresh plus an `active`
+    guard prevents stale responses from winning.
+  - Removed the module-level `#[allow(dead_code)]` from `error.rs`; the
+    allowance is now scoped to the published `ErrorCode` taxonomy (B-091).
+  - Added `windows-sys` 0.61.2 as a `cfg(windows)` dependency (ADR-012).
+- **Why:** B-002 is the first Release 0 value and the first real test of the
+  domain/OS boundary. Building it before the app shell proves the contract
+  without locking in navigation or feature state.
+- **Risk:**
+  - Win32 collection is verified on one machine (KI-039); edition- and
+    architecture-specific behavior is not covered.
+  - Network drives deliberately report `unsupported` sizes/labels (KI-038); a
+    user may read that as missing data.
+  - Nine `windows-sys` feature flags are enabled; each addition expands the
+    audited surface.
+  - CI still has not run on GitHub (B-092), so none of this is gated remotely.
+- **Evidence:** `cargo fmt --all -- --check`, `cargo clippy --all-targets -- -D
+  warnings`, `cargo test` (18 passed), `npm run build`, `npm test` (9 passed),
+  `npm run lint`, `npm run format:check`.
+- **Follow-up:** B-004 (app shell/dashboard), B-005 completion at app-shell level,
+  B-090 (runtime DTO validation), B-092 (first green CI run), B-003 (processes).
 
 ---
 

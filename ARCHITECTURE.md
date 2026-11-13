@@ -1,10 +1,11 @@
 # Architecture
 
-> **Status:** Current state + target design · **Last updated:** 2026-11-06
+> **Status:** Current state + target design · **Last updated:** 2026-11-13
 >
-> The current implementation is a three-file Tauri scaffold. The target design
-> below is **proposed** and must be adopted incrementally, feature by feature.
-> Neither section is a claim that the target exists.
+> The current implementation is a Tauri scaffold with one vertical slice: a
+> read-only system snapshot. The target design below is **proposed** and must be
+> adopted incrementally, feature by feature. Neither section is a claim that the
+> target exists.
 
 ---
 
@@ -14,36 +15,37 @@
 ┌──────────────────────────────────────────────┐
 │ WebView (React 19 + TS)                      │
 │   src/main.tsx  -> React root                │
-│   src/App.tsx   -> static welcome screen     │
-│   src/services/ -> typed IPC adapter         │
+│   src/App.tsx   -> welcome screen            │
+│   src/components/ -> BackendStatus, SystemOverview │
+│   src/services/ -> typed IPC adapters        │
 │   src/App.css   -> design tokens + styles    │
 │   One invoke call site, no OS access         │
 └───────────────────────┬──────────────────────┘
-                        │ invoke("get_app_info") -> CommandResult<AppInfo>
+                        │ invoke("get_app_info" | "get_system_snapshot")
 ┌───────────────────────▼──────────────────────┐
 │ Tauri 2 runtime                              │
-│   src-tauri/src/main.rs -> system_scanner_lib::run() │
-│   src-tauri/src/lib.rs  -> Builder + invoke_handler  │
-│   src-tauri/src/ipc.rs  -> CommandResult envelope    │
-│   src-tauri/src/error.rs-> ErrorCode + AppError      │
-│   src-tauri/src/dto/    -> versioned DTOs            │
-│   src-tauri/src/commands/ -> thin command layer      │
-│   capabilities/default.json -> ["core:default"]      │
-│   CSP: default-src 'self'; no remote origins         │
+│   src-tauri/src/lib.rs  -> Builder + handler │
+│   commands/            -> validate + delegate│
+│   dto/                 -> versioned wire DTOs│
+│   domain/              -> platform-neutral   │
+│   ports/               -> narrow capabilities│
+│   adapters/windows/    -> windows-sys only   │
+│   ipc.rs / error.rs    -> envelope + taxonomy│
+│   capabilities/default.json -> ["core:default"] │
+│   CSP: default-src 'self'; no remote origins │
 └───────────────────────┬──────────────────────┘
                         │
 ┌───────────────────────▼──────────────────────┐
-│ Rust std + tauri + serde/thiserror           │
-│   One read-only command; no collectors,      │
-│   no storage, no logging, no jobs            │
+│ Rust std + tauri + serde/thiserror + windows-sys │
+│   Two read-only commands; no storage,        │
+│   no logging, no jobs, no events             │
 └──────────────────────────────────────────────┘
 ```
 
 **Properties that already hold**
 
 - The renderer cannot reach the OS: no shell/fs/http plugin is enabled and no
-  capability grants one. The only OS-adjacent data it can obtain is
-  `get_app_info`, which returns build constants.
+  capability grants one. It can only invoke the two read-only commands.
 - The capability surface is `core:default` only.
 - CSP blocks remote script/style/font/connect origins.
 - The release binary is LTO-optimized, stripped, and `panic = "abort"`.
@@ -52,13 +54,20 @@
   `invoke` call site and unwraps the envelope there.
 - Errors have a stable code, a safe message, a retryability flag, and a
   correlation ID.
+- Win32 calls exist only in `adapters/windows/`. `domain/` compiles and is tested
+  without `windows-sys`; the snapshot is reached through a `ports/` trait.
+- The snapshot reports unavailable groups and leaf fields with a reason instead
+  of fabricating zero or empty values.
 
 **Properties that do not hold yet**
 
 - No events, job registry, cancellation, logging, or persistence.
-- No collectors: nothing reads OS data.
-- No domain layer, so no separation to enforce or test.
-- Tests cover the IPC contract only; CI exists as a file but has never run.
+- No process, startup, service, storage, or security collectors.
+- No app shell, navigation, or routing.
+- Tests cover the IPC contract, the snapshot domain/DTO, the Windows adapter's
+  structural invariants, and the two UI panels. Traversal, persistence, and
+  process collection are untested because they do not exist.
+- CI exists as a file but has never run on GitHub.
 
 ## 2. Target architecture (proposed)
 

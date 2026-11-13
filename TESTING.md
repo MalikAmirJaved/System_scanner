@@ -180,10 +180,13 @@ Formal support matrix is an open decision (`docs/plan.md` §12).
 When reporting test results, state exactly what ran:
 
 ```text
-cargo test            -> 8 tests passed (ipc, error, dto::app_info, commands::app)
-npm test              -> 6 tests passed (2 files)
+cargo test            -> 18 tests passed (ipc, error, dto::app_info,
+                         dto::system_snapshot, domain::system,
+                         adapters::windows::system_info, commands::{app,system})
+npm test              -> 9 tests passed (3 files: ipc, BackendStatus, SystemOverview)
 npm run build         -> passed (tsc + vite)
 ```
 
 Never summarize "all tests pass" without stating the counts and what they cover —
-14 tests about the IPC contract do not say anything about collecting system data.
+twenty-seven tests about the IPC contract do not say anything about collecting
+system data.

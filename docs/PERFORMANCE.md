@@ -47,6 +47,11 @@ therefore product requirements, not optimizations.
 
 These are starting points for discussion, not commitments.
 
+**Implemented today:** `get_system_snapshot` runs on a blocking thread, performs
+only local registry/Win32 reads, and deliberately skips size/label queries on
+network drives, whose calls can block for seconds. Its duration has not been
+measured on the baseline machines above (KI-039).
+
 ## 4. Measurement methodology
 
 ### 4.1 Baseline machines (proposed)
