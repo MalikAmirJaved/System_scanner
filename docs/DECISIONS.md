@@ -291,6 +291,58 @@ specific field.
 
 ---
 
+## ADR-013 — Process identity, server-side paging, and field scope
+
+**Status:** Accepted · 2026-11-13
+
+**Context.** `list_processes` (B-003) is the first command with untrusted input.
+It must page through a list Windows can change under it, and it must not imply
+that a PID is an identity — Windows reuses PIDs.
+
+**Options.**
+
+1. **Identity:** PID alone; a GUID per row; PID + process start time.
+2. **Paging:** send the whole table and page in the UI; page in Rust; stream
+   events with a job id.
+3. **Fields:** everything `PROCESSENTRY32W` and `OpenProcess` can reach (paths,
+   command lines, session IDs) versus a narrow, always-honest subset.
+
+**Decision.**
+
+- Identity is **PID + start time**: `key` is `"<pid>-<startedAtMs>"`. When the
+  start time cannot be read, the key is `"pid:<pid>"`, which is explicitly
+  snapshot-local. A fabricated GUID would look stable and be worse.
+- Paging happens **in Rust** (`offset` / `limit`), sorted by PID, with `limit`
+  capped at 500 and `offset` at 1,000,000. Rejected input returns
+  `invalid_input` before the process table is touched. No `sort` parameter yet:
+  an unvalidated sort enum would be input surface with no test.
+- Fields are limited to what is cheap and honest: PID, parent PID, name, thread
+  count, start time, working set. **Image paths, command lines, CPU usage, and
+  session IDs are excluded.** Paths and command lines are a privacy decision;
+  CPU usage needs sampling; `ProcessIdToSessionId` is not bound by
+  `windows-sys` 0.61, and a hand-written DLL import is not worth it for one
+  column.
+- A row Windows refuses to open is **kept** with identifiers and a per-field
+  `unavailable` reason. The inventory is capped at 8192 processes and reports
+  `truncated` instead of pretending the list is complete.
+
+**Consequences.**
+
+- Refreshes keep row keys stable, so the UI can highlight the same process later
+  without PID-reuse mistakes.
+- Deep offsets still cost one full enumeration; acceptable at desktop scale
+  (~300 processes) and bounded by the cap.
+- Two Win32 features were added (`Win32_System_Diagnostics_ToolHelp`,
+  `Win32_System_ProcessStatus`); further fields need their own dependency change.
+- Without paths, the process view cannot answer "which executable is this?".
+  That is a known gap (KI-040), not an accident.
+
+**Revisit if:** a Rust-side search/sort is needed (B-042), image paths become
+necessary for evidence in a later release, or CPU sampling is designed with a
+bounded interval.
+
+---
+
 ## Template
 
 ```text

@@ -51,14 +51,15 @@ See [`KNOWN_ISSUES.md`](KNOWN_ISSUES.md) KI-036.
 | `serde` | `1.0.229` (`derive`) | `1.0.229` | MIT OR Apache-2.0 | DTO/error serialization |
 | `serde_json` | `1.0.154` | `1.0.154` | MIT OR Apache-2.0 | Envelope and DTO tests |
 | `thiserror` | `2.0.21` | `2.0.21` | MIT OR Apache-2.0 | `AppError` `Error` impl |
-| `windows-sys` (Windows target only) | `0.61.2` | `0.61.2` | MIT OR Apache-2.0 | Win32 registry, memory, volume, and adapter bindings for `adapters/windows` (B-002) |
+| `windows-sys` (Windows target only) | `0.61.2` | `0.61.2` | MIT OR Apache-2.0 | Win32 registry, memory, volume, adapter, and process bindings for `adapters/windows` (B-002, B-003) |
 
 `windows-sys` features enabled: `Win32_Foundation`,
 `Win32_NetworkManagement_IpHelper`, `Win32_NetworkManagement_Ndis`,
-`Win32_Networking_WinSock`, `Win32_Storage_FileSystem`, `Win32_System_Registry`,
-`Win32_System_SystemInformation`, `Win32_System_Threading`,
-`Win32_System_WindowsProgramming`. It is target-scoped so `domain/` and its tests
-still build on non-Windows hosts.
+`Win32_Networking_WinSock`, `Win32_Storage_FileSystem`,
+`Win32_System_Diagnostics_ToolHelp`, `Win32_System_ProcessStatus`,
+`Win32_System_Registry`, `Win32_System_SystemInformation`,
+`Win32_System_Threading`, `Win32_System_WindowsProgramming`. It is target-scoped
+so `domain/` and its tests still build on non-Windows hosts.
 
 - `Cargo.lock` currently resolves **407 packages** (full transitive tree).
 - The workspace crate `system-scanner` declares **no license field**, which means

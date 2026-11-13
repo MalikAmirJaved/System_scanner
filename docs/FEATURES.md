@@ -59,15 +59,19 @@
 
 | ID | Feature | Status |
 |---|---|---|
-| F-040 | Process list (PID, name, path, memory, CPU) | ⏳ Not started |
-| F-041 | Stable process identity (PID + start time) | ⏳ Not started |
-| F-042 | Process hierarchy | ⏳ Not started |
-| F-043 | Access-limited indicator per process | ⏳ Not started |
-| F-044 | Startup entries inventory | ⏳ Not started |
-| F-045 | Service inventory (read-only) | ⏳ Not started |
-| F-046 | Explanation of source/privilege/limits | ⏳ Not started |
-| F-047 | Terminate process (gated, confirmed, audited) | 🚫 Not planned until gated |
+| F-040 | Process list (PID, name, path, memory, CPU) | 🟡 Partial — PID, parent PID, name, threads, working set, and start time implemented; image path and CPU usage are not collected |
+| F-041 | Stable process identity (PID + start time) | ✅ Implemented — `key` is `pid-startTime`, or an explicit `pid:<pid>` when the start time is denied |
+| F-042 | Process hierarchy | 🟡 Partial — parent PID is exposed per row; no tree view |
+| F-043 | Access-limited indicator per process | ✅ Implemented — per-row `unavailable[]` with `access_denied` / `failed` |
+| F-044 | Startup entries inventory | ⏳ Not started | |
+| F-045 | Service inventory (read-only) | ⏳ Not started | |
+| F-046 | Explanation of source/privilege/limits | ⏳ Not started | |
+| F-047 | Terminate process (gated, confirmed, audited) | 🚫 Not planned until gated | |
 | F-048 | Start/stop service (gated, confirmed, audited) | 🚫 Not planned until gated |
+
+Evidence for the partial and implemented rows: `src-tauri/src/{domain/process.rs,
+ports/processes.rs, adapters/windows/processes.rs, dto/process_list.rs,
+commands/processes.rs}`, `src/components/ProcessList.tsx`, `API.md` §3.3.
 
 ## 5. Storage (Release 1)
 
@@ -140,17 +144,18 @@
 
 | Status | Count |
 |---|---|
-| Implemented | 19 (16 features + 3 baseline properties) |
-| Partial | 1 (F-020: commands exist, event channel does not) |
-| Not started / planned | 48 |
+| Implemented | 21 (18 features + 3 baseline properties) |
+| Partial | 3 (F-020 event channel; F-040 process fields; F-042 hierarchy view) |
+| Not started / planned | 44 |
 | Gated (requires security work) | 5 |
 | Research / proposed | 2 |
 
 Implemented since the scaffold: the typed IPC envelope, the error taxonomy with
-correlation IDs, two versioned DTOs, two read-only commands (`get_app_info`,
-`get_system_snapshot`), the port/domain/Windows-adapter split for system
-information, and UI views for backend status and the system snapshot with
-loading, error, retry, refresh, and per-field unavailable reasons.
+correlation IDs, three versioned DTOs, three read-only commands (`get_app_info`,
+`get_system_snapshot`, `list_processes`), the port/domain/Windows-adapter split
+for system information and processes, and UI views for backend status, the system
+snapshot, and the paged process inventory, with loading, error, retry, refresh,
+paging, and per-field unavailable reasons.
 
-The event channel, job registry, cancellation, logging, process inventory, and
+The event channel, job registry, cancellation, logging, image paths, and
 everything that touches storage are still ahead.

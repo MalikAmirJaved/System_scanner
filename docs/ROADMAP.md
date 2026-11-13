@@ -47,10 +47,10 @@ requirements.
 | Typed IPC boundary + DTO + error model | ✅ Implemented (`get_app_info`, `get_system_snapshot`) |
 | IPC event channel | ⏳ Not started |
 | System snapshot (OS/CPU/memory/disks/network) | ✅ Implemented — unavailable fields reported |
-| Process list with stable identity | ⏳ Not started |
+| Process list with stable identity | ✅ Implemented — paged, per-row unavailable fields |
 | Refresh lifecycle (manual + bounded periodic) | 🟡 Manual refresh implemented; periodic refresh not |
 | Diagnostics view + redacted support bundle | ⏳ Not started |
-| Tests (unit/adapter/UI) | 🟡 Partial — IPC, snapshot contract/adapter/usecase, 2 UI panels; 27 tests |
+| Tests (unit/adapter/UI) | 🟡 Partial — IPC, snapshot + process contracts/adapters/usecases, 3 UI panels; 45 tests |
 | CI on Windows | 🟡 Workflow committed, never run on GitHub |
 
 **Exit criteria**

@@ -1,11 +1,12 @@
 # Testing Strategy
 
-> **Status:** **Runners are configured; coverage is narrow.** 8 Rust unit tests and 6
-> frontend tests cover the IPC contract (envelope, error taxonomy, DTO shape,
-> adapter unwrapping, and the backend status component). Nothing tests system
-> collection, persistence, or end-to-end flows yet, because those features do not
-> exist. This document defines the target strategy and the minimum bar for new work.
-> **Last updated:** 2026-11-06
+> **Status:** **Runners are configured; coverage is still narrow.** 32 Rust tests
+> and 13 frontend tests cover the IPC contract (envelope, error taxonomy, DTO
+> shapes), the snapshot and process domain rules, both native adapters'
+> structural invariants, and three UI panels. Nothing tests traversal,
+> persistence, or end-to-end flows yet, because those features do not exist. This
+> document defines the target strategy and the minimum bar for new work.
+> **Last updated:** 2026-11-13
 
 ---
 
@@ -13,9 +14,9 @@
 
 | Level | Tool | Configured | Tests |
 |---|---|---|---|
-| Rust unit/integration | `cargo test` | Yes | 8 (`ipc`, `error`, `dto::app_info`, `commands::app`) |
-| Frontend unit | Vitest 5 + jsdom | Yes | 3 (`src/services/ipc.test.ts`) |
-| Frontend component | Testing Library 16 | Yes | 3 (`src/components/BackendStatus.test.tsx`) |
+| Rust unit/integration | `cargo test` | Yes | 32 (`ipc`, `error`, `dto::*`, `domain::*`, `adapters::windows::*`, `commands::*`) |
+| Frontend unit | Vitest 5 + jsdom | Yes | 3 (`services/ipc.test.ts`) |
+| Frontend component | Testing Library 16 | Yes | 10 (`BackendStatus`, `SystemOverview`, `ProcessList`) |
 | E2E | tauri-driver / WebDriver (proposed) | No | 0 |
 | Performance | custom harness (proposed) | No | 0 |
 | Security | manual review + targeted tests | No | 0 |
@@ -180,13 +181,16 @@ Formal support matrix is an open decision (`docs/plan.md` §12).
 When reporting test results, state exactly what ran:
 
 ```text
-cargo test            -> 18 tests passed (ipc, error, dto::app_info,
-                         dto::system_snapshot, domain::system,
-                         adapters::windows::system_info, commands::{app,system})
-npm test              -> 9 tests passed (3 files: ipc, BackendStatus, SystemOverview)
+cargo test            -> 32 tests passed (ipc, error, dto::app_info,
+                         dto::system_snapshot, dto::process_list,
+                         domain::system, domain::process,
+                         adapters::windows::{system_info, processes},
+                         commands::{app, system, processes})
+npm test              -> 13 tests passed (4 files: ipc, BackendStatus,
+                         SystemOverview, ProcessList)
 npm run build         -> passed (tsc + vite)
 ```
 
 Never summarize "all tests pass" without stating the counts and what they cover —
-twenty-seven tests about the IPC contract do not say anything about collecting
-system data.
+forty-five tests that mostly assert read-only contracts say nothing about
+traversal, persistence, or crash recovery.

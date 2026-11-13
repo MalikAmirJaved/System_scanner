@@ -478,9 +478,8 @@ Use this checklist as the project’s execution tracker. Check an item only when
 - [x] Confirm the UI never performs native OS collection directly.
 - [x] Implement a read-only system snapshot through a narrow Rust command and documented Windows adapter.
 - [x] Report unavailable or permission-restricted fields explicitly instead of fabricating defaults.
-- [ ] Implement a read-only process list with stable identity handling and clearly defined refresh semantics.
-- [ ] Avoid treating process names or paths as security verdicts.
-- [x] Add user-triggered refresh, refresh-in-progress state, last-updated time, and recoverable error state.
+- [x] Implement a read-only process list with stable identity handling and clearly defined refresh semantics.
+- [ ] Avoid treating process names or paths as security verdicts.- [x] Add user-triggered refresh, refresh-in-progress state, last-updated time, and recoverable error state.
 - [ ] Add bounded periodic refresh only with visible interval and pause/disable control.
 - [x] Prevent overlapping refreshes or define and test their ordering/cancellation behavior.
 - [ ] Verify refresh does not block rendering or allow stale responses to overwrite newer results.

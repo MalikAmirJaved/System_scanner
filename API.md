@@ -1,9 +1,10 @@
 # API
 
-> **Status:** **IPC envelope implemented; two commands implemented.** The typed
-> envelope (`CommandResult`, `AppError`), the error taxonomy, `get_app_info`, and
-> the read-only `get_system_snapshot` exist and are covered by tests. Every other
-> command in this document is **proposed** and must not be described as available.
+> **Status:** **IPC envelope implemented; three commands implemented.** The typed
+> envelope (`CommandResult`, `AppError`), the error taxonomy, `get_app_info`,
+> `get_system_snapshot`, and `list_processes` exist and are covered by tests. Every
+> other command in this document is **proposed** and must not be described as
+> available.
 >
 > **Last updated:** 2026-11-13 · **Related:** [`ARCHITECTURE.md`](ARCHITECTURE.md)
 
@@ -210,32 +211,92 @@ reason display). Tests: `src-tauri/src/domain/system.rs` (fake port),
 `src-tauri/src/adapters/windows/system_info.rs` (native structural smoke test),
 `src/components/SystemOverview.test.tsx`.
 
-### 3.3 `list_processes` (proposed)
+### 3.3 `list_processes` (implemented)
+
+Read-only, no elevation. Returns one page of the processes visible to the current
+user. The paging arguments are untrusted input and are validated in Rust before
+any OS work happens.
+
+```rust
+// src-tauri/src/commands/processes.rs
+#[tauri::command]
+pub async fn list_processes(
+    offset: Option<u32>,
+    limit: Option<u32>,
+) -> CommandResult<ProcessListDto>
+```
 
 ```jsonc
-// request — bounded
-{ "limit": 500, "offset": 0, "sort": { "field": "workingSetBytes", "dir": "desc" } }
+// request (both optional)
+{ "offset": 0, "limit": 100 }
 
-// response data
+// response data  (src-tauri/src/dto/process_list.rs, PROCESS_LIST_SCHEMA_VERSION = 1)
 {
   "capturedAt": 1762387200000,
+  "schemaVersion": 1,
   "total": 312,
+  "offset": 0,
+  "limit": 100,
+  "truncated": false,
   "items": [
     {
+      "key": "4242-1762380000000",
       "pid": 4242,
       "parentPid": 1024,
-      "identity": "4242:1762380000",
       "name": "explorer.exe",
-      "executablePath": "C:\\Windows\\explorer.exe",
+      "threadCount": 84,
+      "startTime": 1762380000000,
       "workingSetBytes": 104857600,
-      "accessLimited": false
+      "unavailable": []
+    },
+    {
+      "key": "pid:4",
+      "pid": 4,
+      "parentPid": 0,
+      "name": "System",
+      "threadCount": 210,
+      "unavailable": [
+        { "field": "items[1].startTime", "reason": "access_denied" },
+        { "field": "items[1].workingSetBytes", "reason": "access_denied" }
+      ]
     }
   ]
 }
 ```
 
-`limit` is capped server-side (proposed max 1000). `accessLimited` marks rows
-whose metadata could not be fully read.
+Rules, implemented:
+
+- **Defaults and caps.** `offset` defaults to `0`, `limit` to `100`. `limit` must
+  be 1–500 and `offset` at most 1,000,000; anything else returns `invalid_input`
+  without touching the process table. The UI never sends a limit Rust has not
+  already accepted.
+- **Order is fixed.** Results are sorted by PID ascending, then start time, so a
+  page boundary stays stable across refreshes. There is no `sort` argument yet:
+  the earlier sketch proposed one, and it was dropped rather than shipping an
+  unvalidated enum surface.
+- **`key` is the row identity.** It is `"<pid>-<startTime>"` when the start time
+  is readable, because Windows reuses PIDs. When it is not, the key is
+  `"pid:<pid>"` — unique within that snapshot only, and deliberately explicit
+  about it.
+- **Per-row gaps.** A field Windows refused to read is omitted and named by path
+  (`items[1].startTime`) in that row's own `unavailable` list. The row is never
+  dropped, and no field is reported as `0`.
+- **Not collected.** Image paths, command lines, CPU usage, and session IDs are
+  absent from this response. Paths and command lines are a privacy decision; CPU
+  usage needs sampling; `windows-sys` 0.61 does not bind `ProcessIdToSessionId`,
+  so a session ID would need a hand-written DLL import (ADR-013).
+- **`truncated`** is `true` when the adapter hit its 8192-process safety cap;
+  `total` is then a lower bound.
+- **Enumeration failure is an error.** A failed snapshot returns `access_denied`
+  or `internal`, never an empty list.
+
+Frontend: `src/services/processes.ts` → `listProcesses({ offset, limit })`; UI:
+`src/components/ProcessList.tsx` (loading, error, refresh, paging, per-field
+reason display). Tests: `src-tauri/src/domain/process.rs` (paging + fake port),
+`src-tauri/src/dto/process_list.rs` (wire shape),
+`src-tauri/src/adapters/windows/processes.rs` (native structural smoke test),
+`src-tauri/src/commands/processes.rs` (limit and ordering),
+`src/components/ProcessList.test.tsx`.
 
 ### 3.4 `get_diagnostics` (proposed)
 
@@ -337,8 +398,9 @@ export async function invokeCommand<T>(
 }
 ```
 
-Domain modules wrap it (`src/services/app.ts` → `getAppInfo()`), and components
-call the domain module. Implemented rules for `src/services`:
+Domain modules wrap it (`src/services/app.ts` → `getAppInfo()`,
+`processes.ts` → `listProcesses()`), and components call the domain module.
+Implemented rules for `src/services`:
 
 - One module per domain; no component calls `invoke` directly.
 - The envelope is unwrapped once, so callers never handle `status` or `unknown`.
@@ -365,12 +427,14 @@ Status today:
 |---|---|
 | Envelope serialization (ok/err, camelCase, omitted `detail`) | ✅ `src-tauri/src/ipc.rs` tests |
 | Error code taxonomy + unique correlation IDs | ✅ `src-tauri/src/error.rs` tests |
-| DTO wire shape + `schemaVersion` | ✅ `src-tauri/src/dto/app_info.rs`, `system_snapshot.rs` tests |
+| DTO wire shape + `schemaVersion` | ✅ `src-tauri/src/dto/{app_info,system_snapshot,process_list}.rs` tests |
 | Adapter unwrap / `IpcError` / argument pass-through | ✅ `src/services/ipc.test.ts` |
-| UI states (loading, ready, error, retry) | ✅ `BackendStatus.test.tsx`, `SystemOverview.test.tsx` |
-| Unavailable-field reporting (group and leaf) | ✅ domain + DTO tests; native smoke test |
-| Native adapter structural invariants | ✅ `adapters/windows/system_info.rs` (Windows-only test) |
-| Input validation, authorization, cancellation | ❌ `get_system_snapshot` takes no input; no long-running command yet |
+| UI states (loading, ready, error, retry) | ✅ `BackendStatus.test.tsx`, `SystemOverview.test.tsx`, `ProcessList.test.tsx` |
+| Unavailable-field reporting (group, leaf, per row) | ✅ domain + DTO tests; two native smoke tests |
+| Native adapter structural invariants | ✅ `adapters/windows/{system_info,processes}.rs` (Windows-only tests) |
+| Paging input validation (boundaries, oversized values) | ✅ `domain/process.rs`, `commands/processes.rs` tests |
+| Paging stability across refreshes | ✅ `commands/processes.rs` ordering test |
+| Authorization and cancellation | ❌ No privileged or long-running command exists yet |
 
 See [`TESTING.md`](TESTING.md) and [`AI_TESTING_RULES.md`](AI_TESTING_RULES.md).
 

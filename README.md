@@ -16,11 +16,11 @@ machine without an account, a cloud, or a verdict you can't verify.
 
 > **Honest status — read this first.** This repository is at **Release 0
 > (foundation)**. The desktop shell, build pipeline, installer, a styled welcome
-> screen, a typed IPC boundary, and a read-only system snapshot exist. Process
-> collection, storage scanning, persistence, and logging **do not exist yet**.
-> The CI workflow file exists but has never run on GitHub. Everything else in
-> this repository is a documented plan, not a shipped feature. The authoritative
-> plan is [`docs/plan.md`](docs/plan.md).
+> screen, a typed IPC boundary, a read-only system snapshot, and a paged process
+> list exist. Storage scanning, persistence, logging, and periodic refresh **do
+> not exist yet**. The CI workflow file exists but has never run on GitHub.
+> Everything else in this repository is a documented plan, not a shipped feature.
+> The authoritative plan is [`docs/plan.md`](docs/plan.md).
 
 ---
 
@@ -47,10 +47,11 @@ and no network dependency for core functionality.
 | Typed IPC command surface | ✅ Implemented | `src-tauri/src/ipc.rs`, `commands/`, `src/services/ipc.ts` |
 | Error taxonomy + correlation IDs | ✅ Implemented | `src-tauri/src/error.rs` |
 | Read-only system snapshot (OS/CPU/memory/disks/adapters) | ✅ Implemented | `domain/`, `ports/`, `adapters/windows/`, `SystemOverview.tsx` |
-| Process, startup, service collection | ⏳ Planned | Release 0 |
+| Paged process list with stable keys and per-row gaps | ✅ Implemented | `domain/process.rs`, `adapters/windows/processes.rs`, `ProcessList.tsx` |
+| Startup and service collection | ⏳ Planned | `docs/BACKLOG.md` B-043 |
 | Storage scan engine | ⏳ Planned | Release 1 |
 | SQLite persistence + migrations | ⏳ Planned | Release 1 |
-| Tests, lint config, CI | 🟡 Partial | 27 tests + ESLint/Prettier pass; CI workflow never run |
+| Tests, lint config, CI | 🟡 Partial | 45 tests + ESLint/Prettier pass; CI workflow never run |
 | Network egress | 🚫 None by design | no HTTP client dependency |
 
 Full inventory: [`docs/FEATURES.md`](docs/FEATURES.md). Gaps:
@@ -116,15 +117,15 @@ system-scanner/
 │  ├─ App.css               # design tokens + layout
 │  ├─ main.tsx              # React root
 │  ├─ services/             # typed IPC adapters (only `invoke` call site)
-│  ├─ components/           # BackendStatus + SystemOverview
+│  ├─ components/           # BackendStatus + SystemOverview + ProcessList
 │  └─ test/setup.ts         # Vitest setup
 ├─ src-tauri/
 │  ├─ src/lib.rs            # Tauri builder + invoke_handler registration
 │  ├─ src/ipc.rs            # CommandResult envelope
 │  ├─ src/error.rs          # ErrorCode taxonomy + AppError + correlation IDs
-│  ├─ src/dto/              # versioned AppInfo + SystemSnapshot DTOs
-│  ├─ src/commands/         # thin command layer (get_app_info, get_system_snapshot)
-│  ├─ src/domain/           # platform-neutral models + snapshot use case
+│  ├─ src/dto/              # versioned AppInfo + SystemSnapshot + ProcessList DTOs
+│  ├─ src/commands/         # thin command layer (three read-only commands)
+│  ├─ src/domain/           # platform-neutral models + use cases (no Windows)
 │  ├─ src/ports/            # narrow capability traits
 │  ├─ src/adapters/windows/ # all Win32 access (windows-sys)
 │  ├─ src/main.rs           # binary entry point

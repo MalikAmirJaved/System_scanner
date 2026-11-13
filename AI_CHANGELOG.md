@@ -25,6 +25,48 @@
 
 ---
 
+## 2026-11-13 — Process inventory vertical slice (paged port → adapter → DTO → UI)
+
+- **Agent/tool:** OpenCode (DeepSeek V4.1 Flash Free).
+- **Scope:** `src-tauri/src/{ports/probe.rs, ports/processes.rs,
+  domain/process.rs, adapters/windows/processes.rs, dto/process_list.rs,
+  dto/unavailable.rs, commands/processes.rs, commands/mod.rs, lib.rs}`,
+  `src-tauri/Cargo.toml`, `src/services/processes.ts`, `src/lib/*`,
+  `src/components/ProcessList.{tsx,test.tsx}`, `src/App.{tsx,css}`.
+- **Change:**
+  - Added the second vertical slice: `ProcessInfoPort` → `domain/process.rs` →
+    Windows adapter → `ProcessListDto` → `list_processes` → `ProcessList`.
+  - Paging is a domain rule (`PageRequest::new`), so `limit`/`offset` are
+    rejected before any OS work; the command only maps the rejection to
+    `invalid_input`.
+  - Identity is `pid-startTime`, or `pid:<pid>` when the start time is denied,
+    and the difference is visible on the wire (ADR-013).
+  - Moved `ProbeError` to `ports/probe.rs` and the shared
+    `UnavailableFieldDto`/`take` helpers to `dto/unavailable.rs`, because both
+    features now need them. `now_ms` moved to `commands/mod.rs` for the same
+    reason.
+  - Extracted `formatBytes`/`formatTime`/`formatDateTime` and
+    `summarizeError` into `src/lib/` so the two panels share them instead of
+    keeping copies.
+- **Why:** B-003 is the next P0 and the first command with untrusted input. It
+  also establishes that a partially readable row is still a row, which every
+  later process view depends on.
+- **Risk:**
+  - Verified on one machine (KI-039); edition- and account-specific access
+    behaviour is untested.
+  - No image paths, command lines, CPU usage, or session IDs (KI-040), and no
+    sort/search (KI-042). A user may expect those from a process list.
+  - Working set is denied for processes owned by other accounts (KI-041).
+  - Two `windows-sys` features were added to the audited surface.
+- **Evidence:** `cargo fmt --all -- --check`, `cargo clippy --all-targets -- -D
+  warnings`, `cargo test` (32 passed), `npm test -- --run` (13 passed),
+  `npm run lint`, `npm run format:check`, `npm run build`.
+- **Follow-up:** B-004 (app shell), B-006/B-007 (diagnostics + logging),
+  B-090 (runtime DTO validation), B-092 (first green CI run), B-042 (hierarchy
+  and Rust-side search).
+
+---
+
 ## 2026-11-13 — System snapshot vertical slice (port → adapter → DTO → UI)
 
 - **Agent/tool:** OpenCode (DeepSeek V4.1 Flash Free).

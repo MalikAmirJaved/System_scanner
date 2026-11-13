@@ -49,7 +49,9 @@ These are starting points for discussion, not commitments.
 
 **Implemented today:** `get_system_snapshot` runs on a blocking thread, performs
 only local registry/Win32 reads, and deliberately skips size/label queries on
-network drives, whose calls can block for seconds. Its duration has not been
+network drives, whose calls can block for seconds. `list_processes` enumerates a
+Toolhelp snapshot once (capped at 8192 entries) and opens each process only
+long enough to read its start time and working set. Neither duration has been
 measured on the baseline machines above (KI-039).
 
 ## 4. Measurement methodology

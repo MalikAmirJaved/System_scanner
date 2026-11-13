@@ -18,7 +18,7 @@
 |---|---|---|---|
 | B-001 | ✅ Add typed IPC boundary (`CommandResult`, `AppError`) | Everything depends on it | A no-op command round-trips with typed errors |
 | B-002 | ✅ Implement `get_system_snapshot` (Win32) | Core Release 0 value | OS/CPU/memory/disks/adapters returned; unavailable fields reported |
-| B-003 | Implement `list_processes` with stable identity | Core Release 0 value | Paged, bounded, access-limited rows marked |
+| B-003 | ✅ Implement `list_processes` with stable identity | Core Release 0 value | Paged, bounded, access-limited rows marked |
 | B-004 | Build the app shell + dashboard route | UI has only a welcome screen | Navigation + loading/empty/error states |
 | B-005 | ✅ Refresh lifecycle (manual, in-progress, last-updated) | Prevent stale/frozen UI | No overlapping refreshes; stale responses discarded |
 | B-006 | Diagnostics view + redacted support bundle | Support without telemetry | Bundle previews and excludes paths/PII |
@@ -119,6 +119,7 @@ Notes on the partial items:
 
 | ID | Item | Completed | Evidence |
 |---|---|---|---|
+| B-003 | `list_processes` via port + Win32 adapter, Rust-validated paging, stable per-row identity, per-row unavailable fields | 2026-11-13 | `src-tauri/src/{domain,ports,adapters/windows,dto,commands}/process*.rs`, `ProcessList.tsx`; 32 Rust + 13 frontend tests |
 | B-091 | Module-level `#[allow(dead_code)]` removed; allowance scoped to the `ErrorCode` contract enum | 2026-11-13 | `src-tauri/src/error.rs` (clippy clean) |
 | B-005 | Manual refresh, in-progress state, last-updated time, stale-response guard | 2026-11-13 | `src/components/SystemOverview.tsx`, `SystemOverview.test.tsx` |
 | B-002 | `get_system_snapshot` via port + Windows adapter, explicit unavailable fields | 2026-11-13 | `src-tauri/src/{ports,domain,adapters,dto,commands}`, 18 Rust + 9 frontend tests |

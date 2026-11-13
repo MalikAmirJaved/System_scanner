@@ -100,7 +100,7 @@ reversible maintenance workflows, explainable health summary.
 |---|---|---|---|
 | FR-001 | App launches on clean Windows 10/11 x64 install | P0 | Partial (builds; not VM-tested) |
 | FR-002 | Read-only system snapshot via typed Rust command | P0 | Implemented |
-| FR-003 | Process list with stable identity + refresh semantics | P0 | Not started |
+| FR-003 | Process list with stable identity + refresh semantics | P0 | Partial (paged list, stable key, manual refresh; no periodic refresh or search) |
 | FR-004 | Manual refresh with in-progress state and last-updated time | P0 | Implemented (snapshot panel) |
 | FR-005 | Bounded periodic refresh with visible interval + pause | P1 | Not started |
 | FR-006 | Explicit unavailable/permission-restricted field states | P0 | Implemented |

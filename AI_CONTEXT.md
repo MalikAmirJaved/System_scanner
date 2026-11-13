@@ -34,22 +34,25 @@ Architecture: [`ARCHITECTURE.md`](ARCHITECTURE.md).
 | Rust deps | `tauri 2`, `serde`, `serde_json`, `thiserror`, `windows-sys 0.61` (Windows target) | `Cargo.toml` |
 | Release profile | LTO, `codegen-units=1`, `opt-level=3`, `panic=abort`, `strip` | `Cargo.toml` |
 | Rust files | `main.rs`, `lib.rs`, `ipc.rs`, `error.rs`, `dto/`, `commands/`, `domain/`, `ports/`, `adapters/windows/` | `src-tauri/src/` |
-| IPC commands | `get_app_info`, `get_system_snapshot` (both read-only) | `src-tauri/src/commands/` |
+| IPC commands | `get_app_info`, `get_system_snapshot`, `list_processes` (all read-only) | `src-tauri/src/commands/` |
 | Wire format | envelope `{status, data|error}`; DTO fields camelCase; codes snake_case | `API.md` §1–§2 |
 | Frontend IPC | `src/services/ipc.ts` is the only `invoke` call site | `src/services/` |
 | Database | **none** | — |
-| Tests | 18 Rust + 9 frontend (`npm test`, `cargo test`) | `src/**/*.test.ts(x)`, `#[cfg(test)]` |
+| Tests | 32 Rust + 13 frontend (`npm test`, `cargo test`) | `src/**/*.test.ts(x)`, `#[cfg(test)]` |
 | CI | `.github/workflows/ci.yml` (**never run on GitHub**) | `.github/` |
-| Frontend | welcome screen + backend status + system snapshot panel | `src/App.tsx`, `src/components/` |
+| Frontend | welcome screen + backend status + system snapshot + paged process list | `src/App.tsx`, `src/components/` |
 
 If any of these change, update this table in the same commit.
 
 ## 3. What does not exist (do not assume it does)
 
-- `get_system_snapshot` reads OS, CPU, memory, disks, and network adapters. It
-  does not read processes, services, startup entries, files, or event logs.
+- `get_system_snapshot` reads OS, CPU, memory, disks, and network adapters.
+- `list_processes` reads PID, parent PID, name, thread count, start time, and
+  working set. It does **not** read image paths, command lines, CPU usage, or
+  session IDs (ADR-013), and it is not sortable or searchable.
+- Neither command reads services, startup entries, files, or event logs.
 - No IPC events, job registry, cancellation, or concurrency budgets.
-- No process/startup/service collectors, and no storage traversal.
+- No startup/service collectors, and no storage traversal.
 - No SQLite, migrations, repositories, or data directory.
 - No logging, tracing, or diagnostics export.
 - No app shell, navigation, or routing — one welcome screen with two data panels.
@@ -83,7 +86,7 @@ Avoid: "clean", "infected", "optimize", "fix" for anything that is not verified.
 | Call Rust from the UI | `src/services/` (implemented) — never in a component |
 | Define an IPC command | `src-tauri/src/commands/` (implemented) |
 | Orchestrate jobs/cancellation | `src-tauri/src/app/` (planned) |
-| Business rules, policies | `src-tauri/src/domain/` (implemented for system snapshot) — no Windows, no SQL |
+| Business rules, policies | `src-tauri/src/domain/` (implemented for the snapshot and process paging) — no Windows, no SQL |
 | Declare a capability trait | `src-tauri/src/ports/` (implemented) |
 | Call Win32/WMI/registry | `src-tauri/src/adapters/windows/` (implemented) |
 | Query SQLite | `src-tauri/src/adapters/persistence/` (planned) |

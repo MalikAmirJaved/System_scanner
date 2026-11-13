@@ -12,40 +12,42 @@
 ## 1. Current architecture (implemented)
 
 ```text
-┌──────────────────────────────────────────────┐
-│ WebView (React 19 + TS)                      │
-│   src/main.tsx  -> React root                │
-│   src/App.tsx   -> welcome screen            │
-│   src/components/ -> BackendStatus, SystemOverview │
-│   src/services/ -> typed IPC adapters        │
-│   src/App.css   -> design tokens + styles    │
-│   One invoke call site, no OS access         │
-└───────────────────────┬──────────────────────┘
-                        │ invoke("get_app_info" | "get_system_snapshot")
-┌───────────────────────▼──────────────────────┐
-│ Tauri 2 runtime                              │
-│   src-tauri/src/lib.rs  -> Builder + handler │
-│   commands/            -> validate + delegate│
-│   dto/                 -> versioned wire DTOs│
-│   domain/              -> platform-neutral   │
-│   ports/               -> narrow capabilities│
-│   adapters/windows/    -> windows-sys only   │
-│   ipc.rs / error.rs    -> envelope + taxonomy│
-│   capabilities/default.json -> ["core:default"] │
-│   CSP: default-src 'self'; no remote origins │
-└───────────────────────┬──────────────────────┘
+┌────────────────────────────────────────────────────────┐
+│ WebView (React 19 + TS)                                │
+│   src/main.tsx  -> React root                          │
+│   src/App.tsx   -> welcome screen + data panels        │
+│   src/components/ -> BackendStatus, SystemOverview,    │
+│                      ProcessList                       │
+│   src/services/ -> typed IPC adapters                  │
+│   src/App.css   -> design tokens + styles              │
+│   One invoke call site, no OS access                   │
+└───────────────────────┬────────────────────────────────┘
+                        │ invoke(get_app_info |
+                        │   get_system_snapshot | list_processes)
+┌───────────────────────▼────────────────────────────────┐
+│ Tauri 2 runtime                                        │
+│   src-tauri/src/lib.rs  -> Builder + handler           │
+│   commands/            -> validate + delegate          │
+│   dto/                 -> versioned wire DTOs          │
+│   domain/              -> platform-neutral             │
+│   ports/               -> narrow capabilities          │
+│   adapters/windows/    -> windows-sys only             │
+│   ipc.rs / error.rs    -> envelope + taxonomy          │
+│   capabilities/default.json -> ["core:default"]        │
+│   CSP: default-src 'self'; no remote origins           │
+└───────────────────────┬────────────────────────────────┘
                         │
-┌───────────────────────▼──────────────────────┐
-│ Rust std + tauri + serde/thiserror + windows-sys │
-│   Two read-only commands; no storage,        │
-│   no logging, no jobs, no events             │
-└──────────────────────────────────────────────┘
+┌───────────────────────▼────────────────────────────────┐
+│ Rust std + tauri + serde/thiserror + windows-sys       │
+│   Three read-only commands; no storage,                │
+│   no logging, no jobs, no events                       │
+└────────────────────────────────────────────────────────┘
 ```
 
 **Properties that already hold**
 
 - The renderer cannot reach the OS: no shell/fs/http plugin is enabled and no
-  capability grants one. It can only invoke the two read-only commands.
+  capability grants one. It can only invoke the three read-only commands.
 - The capability surface is `core:default` only.
 - CSP blocks remote script/style/font/connect origins.
 - The release binary is LTO-optimized, stripped, and `panic = "abort"`.
@@ -55,18 +57,21 @@
 - Errors have a stable code, a safe message, a retryability flag, and a
   correlation ID.
 - Win32 calls exist only in `adapters/windows/`. `domain/` compiles and is tested
-  without `windows-sys`; the snapshot is reached through a `ports/` trait.
+  without `windows-sys`; the snapshot and process inventory are reached through
+  narrow `ports/` traits.
 - The snapshot reports unavailable groups and leaf fields with a reason instead
   of fabricating zero or empty values.
+- `list_processes` validates `offset`/`limit` in Rust, orders by PID so pages are
+  stable, and keeps rows Windows refused to open with a per-field reason.
 
 **Properties that do not hold yet**
 
 - No events, job registry, cancellation, logging, or persistence.
-- No process, startup, service, storage, or security collectors.
+- No startup, service, storage, or security collectors.
 - No app shell, navigation, or routing.
-- Tests cover the IPC contract, the snapshot domain/DTO, the Windows adapter's
-  structural invariants, and the two UI panels. Traversal, persistence, and
-  process collection are untested because they do not exist.
+- Tests cover the IPC contract, the snapshot and process domain/DTOs, both
+  Windows adapters' structural invariants, paging boundaries, and the three UI
+  panels. Traversal and persistence are untested because they do not exist.
 - CI exists as a file but has never run on GitHub.
 
 ## 2. Target architecture (proposed)

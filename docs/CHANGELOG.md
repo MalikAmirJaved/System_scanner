@@ -40,12 +40,26 @@ exists. Until then, `0.x` versions may change behavior without notice.
   refresh, last-updated time, and per-field unavailable reasons.
 - ADR-012: Win32 bindings are confined to an adapter behind a narrow port, and
   network-drive size/label queries are skipped to keep the snapshot bounded.
+- **Process inventory (implemented).** `list_processes` returns one page of
+  processes through `ports/processes.rs`, `domain/process.rs`, and
+  `adapters/windows/processes.rs` (Toolhelp snapshot + per-process query
+  handles). Paging is validated in Rust (`limit` 1–500, `offset` ≤ 1,000,000),
+  results are ordered by PID, and each row carries a `key` of
+  `pid-startTime` or an explicit `pid:<pid>`.
+- **Process list UI.** `src/services/processes.ts` and
+  `src/components/ProcessList.tsx` render the page with loading, error, refresh,
+  previous/next paging, a truncation note, and per-row unavailable reasons.
+- ADR-013: process identity is PID plus start time, paging is server-side and
+  fixed-order, and image paths, command lines, CPU usage, and session IDs are
+  deliberately not collected in this slice.
 
 ### Changed
-- `API.md` §1–§3 now describe the implemented envelope, `get_app_info`, and
-  `get_system_snapshot` instead of a proposed contract; error codes are
-  documented in their serialized `snake_case` form. The proposed `include`
-  request for the snapshot was dropped, and the document says so.
+- `API.md` §1–§3 now describe the implemented envelope, `get_app_info`,
+  `get_system_snapshot`, and `list_processes` instead of a proposed contract;
+  error codes are documented in their serialized `snake_case` form. The proposed
+  `include` request for the snapshot and the proposed `sort` request,
+  `executablePath`, and `accessLimited` fields for the process list were dropped,
+  and the document says so.
 - `error.rs`: the module-level `#[allow(dead_code)]` is gone. The allowance is
   now scoped to the published `ErrorCode` taxonomy, which still contains variants
   no feature constructs yet.

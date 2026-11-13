@@ -54,10 +54,13 @@
 | KI-031 | `src/assets/react.svg`, `public/vite.svg` are template leftovers | Minor clutter | Safe to remove when branding is final |
 | KI-032 | No favicon branding | Cosmetic | — |
 | KI-033 | `dist/` and `src-tauri/target/` exist in the working tree | Disk usage; ignored by git | `gitignore` covers them |
-| KI-034 | Default window size 960×720 may be small for tables | UX issue once tables exist | Revisit with features |
+| KI-034 | Default window size 960×720 may be small for tables | Now applicable: the process table scrolls horizontally below 540 px | Revisit with the app shell (B-004) |
 | KI-037 | Prettier does not check Markdown or CSS | Prose and hand-authored CSS can drift in style | Intentional: `.prettierignore` keeps authored files byte-stable |
 | KI-038 | Network drives report `unsupported` size/label/filesystem | Network volumes show no capacity; deliberate to avoid multi-second blocking on dead mappings | ADR-012; query the volume manually in Explorer |
-| KI-039 | The native snapshot adapter is verified on one machine | Edition-, architecture-, and media-specific behavior is not covered by CI hardware | Add a manual step to the release checklist; revisit with the B-032 baseline |
+| KI-039 | The native adapters are verified on one machine | Edition-, architecture-, and media-specific behavior is not covered by CI hardware | Add a manual step to the release checklist; revisit with the B-032 baseline |
+| KI-040 | The process list has no image paths, command lines, CPU usage, or session IDs | Rows cannot be attributed to an executable path, and CPU hogs are not visible | Deliberate for this slice (ADR-013); extend with B-042 and the app shell |
+| KI-041 | Working set is `access_denied` for processes owned by another account | SYSTEM and other-user rows show no memory figure | Expected without elevation; the app will not request elevation for a read-only view |
+| KI-042 | The process list is sorted by PID and has no search or filter | Locating a process by name means paging through the list | Deliberate: no unvalidated sort enum. A client-side filter over the current page would be misleading, so it waits for a Rust-side query |
 
 ## 5. Known non-issues (documented to prevent "fixes")
 

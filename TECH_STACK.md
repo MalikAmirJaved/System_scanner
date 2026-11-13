@@ -107,7 +107,7 @@ record in [`docs/DECISIONS.md`](docs/DECISIONS.md).
 | ESLint + `eslint-plugin-react-hooks` | Catch hook and unused-code issues | Configured; `npm run lint` passes |
 | Prettier | Consistent formatting | Configured; `npm run format:check` passes (code only, Markdown/CSS excluded by design) |
 | `rustfmt.toml` / `clippy.toml` | Explicit Rust style | Defaults are in use; `cargo fmt --check` and `clippy -D warnings` pass |
-| Vitest | Unit tests | Configured; `npm test` passes (9 tests) |
+| Vitest | Unit tests | Configured; `npm test` passes (13 tests) |
 | `rust-toolchain.toml` | Reproducible toolchain | Committed; pins `stable` + `rustfmt`/`clippy` (not an exact compiler version; B-011) |
 | GitHub Actions | Windows CI | Workflow committed (`.github/workflows/ci.yml`); never executed (B-092) |
 | `cargo-audit`, Dependabot | Advisory monitoring | Not enabled |
