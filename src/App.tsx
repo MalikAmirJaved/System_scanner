@@ -1,5 +1,6 @@
 import "./App.css";
 import { BackendStatus } from "./components/BackendStatus";
+import { SystemOverview } from "./components/SystemOverview";
 
 function App() {
   return (
@@ -51,6 +52,7 @@ function App() {
         </div>
         <p className="welcome-note">Your system is ready to be explored.</p>
         <BackendStatus />
+        <SystemOverview />
       </section>
 
       <footer className="footer">

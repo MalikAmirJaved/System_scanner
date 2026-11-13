@@ -9,7 +9,12 @@ static CORRELATION_SEQ: AtomicU64 = AtomicU64::new(1);
 ///
 /// Changing a variant's serialized name is a breaking IPC change and must be
 /// documented in `API.md`.
+///
+/// The whole taxonomy is the published contract even though several variants are
+/// not constructed until the features that raise them land. The allowance is
+/// scoped to this enum on purpose; it is not a module-wide suppression.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[allow(dead_code)]
 #[serde(rename_all = "snake_case")]
 pub enum ErrorCode {
     InvalidInput,

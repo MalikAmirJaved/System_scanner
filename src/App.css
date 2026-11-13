@@ -150,6 +150,46 @@ h1 { margin: 0; color: #f0f5f1; font-size: clamp(46px, 7vw, 70px); font-weight: 
 .backend-retry:hover { color: #d5f7e4; }
 .backend-retry:focus-visible { outline: 2px solid #8fdab2; outline-offset: 3px; border-radius: 2px; }
 
+.system-panel {
+  width: 100%;
+  margin-top: 31px;
+  padding: 18px 20px 20px;
+  border: 1px solid rgba(180, 218, 203, .1);
+  border-radius: 16px;
+  background: rgba(18, 30, 26, .55);
+  text-align: left;
+}
+
+.system-panel-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.system-panel h2 { margin: 0; color: #e4efe9; font-size: 13px; font-weight: 600; letter-spacing: .02em; }
+.system-caption { margin: 4px 0 0; color: #73857c; font-family: "DM Mono", Consolas, monospace; font-size: 10px; letter-spacing: .04em; }
+
+.system-refresh {
+  padding: 5px 11px;
+  border: 1px solid rgba(143, 218, 178, .3);
+  border-radius: 999px;
+  background: rgba(143, 218, 178, .06);
+  color: #b1edca;
+  font-size: 10px;
+  letter-spacing: .06em;
+  cursor: pointer;
+}
+.system-refresh:disabled { opacity: .55; cursor: default; }
+.system-refresh:focus-visible { outline: 2px solid #8fdab2; outline-offset: 2px; }
+
+.system-message { margin: 14px 0 0; color: #8b9d94; font-size: 12px; }
+.system-message--error { color: #c9a49b; }
+
+.system-grid { display: flex; margin: 14px 0 0; flex-direction: column; gap: 10px; }
+.system-row { display: grid; grid-template-columns: 118px 1fr; gap: 12px; padding-top: 10px; border-top: 1px solid rgba(206, 231, 220, .07); }
+.system-row:first-child { padding-top: 0; border-top: 0; }
+.system-row dt { color: #73857c; font-size: 10px; letter-spacing: .1em; text-transform: uppercase; }
+.system-row dd { margin: 0; color: #c8d6ce; font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
+.system-muted { color: #7d8f86; }
+.system-mono { font-family: "DM Mono", Consolas, monospace; font-size: 11px; }
+.system-gap { color: #c9a49b; }
+.system-list { display: flex; margin: 0; padding: 0; flex-direction: column; gap: 3px; list-style: none; }
+
 .footer { min-height: 65px; border-top: 1px solid rgba(206, 231, 220, .08); font-size: 9px; }
 .footer-separator { padding-inline: 7px; color: #52615b; }
 .version span { margin-left: 7px; color: #b4c2bb; }
@@ -162,6 +202,7 @@ h1 { margin: 0; color: #f0f5f1; font-size: clamp(46px, 7vw, 70px); font-weight: 
   .topbar { height: 72px; }
   .welcome { padding-block: 44px; }
   .welcome-icon { margin-top: 37px; }
+  .system-row { grid-template-columns: 1fr; gap: 3px; }
   .footer { min-height: 58px; font-size: 8px; }
 }
 
