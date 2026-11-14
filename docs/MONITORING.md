@@ -1,7 +1,8 @@
 # Monitoring & Observability
 
-> **Status:** Local structured logging exists (file, bounded, redacted). Metrics,
-> an in-app diagnostics view, and support bundles do not exist yet.
+> **Status:** Local structured logging and an in-app diagnostics preview exist
+> (redacted, bounded, on request). Metrics, a saved-file support bundle, and a
+> log viewer/filter do not exist yet.
 > **Last updated:** 2026-11-14
 
 ---
@@ -76,16 +77,22 @@ Errors surfaced to the UI use a correlation ID; the detailed cause stays local.
 | Max total | 50 MB |
 | Level in release | `info` (no runtime toggle yet) |
 
-## 3. Diagnostics view (Release 0 requirement — not implemented)
+## 3. Diagnostics view (implemented, Release 0 subset)
 
-A read-only screen showing:
+The dashboard has an on-request diagnostics panel
+(`src/components/Diagnostics.tsx`). It shows:
 
-- app version, Tauri version, engine/policy version;
-- Windows version/build, architecture, elevation state;
-- feature availability (what this machine/edition supports);
-- DB path, schema version, DB size (once persistence exists);
-- recent redacted log entries with a level filter;
-- "Create support bundle" with a **preview** and redaction toggles.
+- app and Tauri versions, plus the DTO schema version;
+- Windows name/version/build, architecture, and elevation state;
+- log file name, aggregate size, file count, and last write time;
+- unavailable fields with their stable reason codes;
+- a redacted support-bundle preview with an explicit copy action.
+
+It does **not** show feature availability, DB statistics (no database exists), a
+log-level filter, or redaction toggles. It never writes a file, and loading it is
+a user action, so browsing the dashboard does not read the log.
+
+The command is `get_diagnostics`; see [`API.md`](../API.md) §3.4.
 
 ## 4. Metrics (local)
 
@@ -132,12 +139,31 @@ Command outcomes are logged as events today. Job spans are not implemented:
 - A local crash log with the panic message and correlation ID is acceptable and
   should be included in the support bundle.
 
-## 8. Support bundle (planned)
+## 8. Support bundle (preview implemented, file export planned)
+
+The current bundle is plain text. It contains app/Tauri versions, OS details,
+elevation, log size, and at most 256 KiB of the log tail, starting on a whole
+line. It is previewed in the app before the user copies it; nothing is uploaded
+or written to disk by the command.
+
+Redaction is best-effort and runs over the finished text. It replaces
+user-profile and other absolute paths, UNC paths, e-mail addresses, IPv4/IPv6
+addresses, MAC addresses, SIDs, and the current account and machine names. See
+`src-tauri/src/redact.rs`; the limits are recorded as KI-043.
+
+Not implemented:
+
+- a saved `.zip` or `.txt` export with a file-picker flow;
+- a `manifest.json` / `diagnostics.json` split;
+- DB statistics and job outcomes (no persistence yet);
+- a redaction toggle or rule preview.
+
+The target shape remains:
 
 ```text
 support-bundle-YYYYMMDD-HHMMSS.zip
   manifest.json        versions, OS build, feature flags, schema version
-  logs/app.log         last N lines, redacted
+  logs/system-scanner.log  last N bytes, redacted
   diagnostics.json     availability, DB stats, job outcomes
   NOT INCLUDED: file contents, full paths, quarantine objects, the raw DB
 ```

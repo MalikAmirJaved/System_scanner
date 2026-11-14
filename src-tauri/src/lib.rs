@@ -6,6 +6,7 @@ mod error;
 mod ipc;
 mod logging;
 mod ports;
+mod redact;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -29,6 +30,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::app::get_app_info,
+            commands::diagnostics::get_diagnostics,
             commands::processes::list_processes,
             commands::system::get_system_snapshot
         ])

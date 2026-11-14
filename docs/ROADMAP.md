@@ -50,8 +50,8 @@ requirements.
 | Process list with stable identity | ✅ Implemented — paged, per-row unavailable fields |
 | Refresh lifecycle (manual + bounded periodic) | 🟡 Manual refresh implemented; periodic refresh not |
 | Structured logging + rotation | ✅ Implemented — 10 MB × 5 files in the app log directory; redaction test |
-| Diagnostics view + redacted support bundle | ⏳ Not started |
-| Tests (unit/adapter/UI) | 🟡 Partial — IPC, snapshot + process contracts/adapters/usecases, logging, 3 UI panels + theme toggle; 52 tests |
+| Diagnostics view + redacted support bundle | ✅ Implemented — on-request panel and preview/copy; saved-file export not implemented |
+| Tests (unit/adapter/UI) | 🟡 Partial — IPC, snapshot + process + diagnostics contracts, adapters, use cases, logging, redaction, 4 UI panels + theme toggle; 70 tests |
 | CI on Windows | 🟡 Workflow committed, never run on GitHub |
 
 **Exit criteria**

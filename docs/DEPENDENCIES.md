@@ -61,19 +61,22 @@ See [`KNOWN_ISSUES.md`](KNOWN_ISSUES.md) KI-036.
 | `thiserror` | `2.0.21` | `2.0.21` | MIT OR Apache-2.0 | `AppError` `Error` impl |
 | `tracing` | `0.1` | `0.1.44` | MIT | Structured events (already transitive via Tauri; now declared directly) |
 | `tracing-subscriber` | `0.3` (`default-features = false`, `fmt`, `std`) | `0.3.23` | MIT | File subscriber for `tracing` |
-| `windows-sys` (Windows target only) | `0.61.2` | `0.61.2` | MIT OR Apache-2.0 | Win32 registry, memory, volume, adapter, and process bindings for `adapters/windows` (B-002, B-003) |
+| `windows-sys` (Windows target only) | `0.61.2` | `0.61.2` | MIT OR Apache-2.0 | Win32 registry, memory, volume, adapter, process, and diagnostics bindings for `adapters/windows` (B-002, B-003, B-006) |
 
 `windows-sys` features enabled: `Win32_Foundation`,
 `Win32_NetworkManagement_IpHelper`, `Win32_NetworkManagement_Ndis`,
-`Win32_Networking_WinSock`, `Win32_Storage_FileSystem`,
+`Win32_Networking_WinSock`, `Win32_Security`, `Win32_Storage_FileSystem`,
 `Win32_System_Diagnostics_ToolHelp`, `Win32_System_ProcessStatus`,
 `Win32_System_Registry`, `Win32_System_SystemInformation`,
-`Win32_System_Threading`, `Win32_System_WindowsProgramming`. It is target-scoped
+`Win32_System_Threading`, `Win32_System_WindowsProgramming`. The security feature
+adds token-elevation reads for diagnostics; it adds no crate. It is target-scoped
 so `domain/` and its tests still build on non-Windows hosts.
 
 - `Cargo.lock` currently resolves **412 packages** (full transitive tree).
 - Logging adds `tracing-subscriber` plus four small transitive crates; `tracing`
   itself was already in the tree through Tauri.
+- Diagnostics added no package: token elevation and identity reads reuse
+  `windows-sys`, and timestamp formatting/redaction are in-process.
 - The workspace crate `system-scanner` declares **no license field**, which means
   all rights reserved by default. This must be fixed before distribution.
 

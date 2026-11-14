@@ -25,6 +25,44 @@
 
 ---
 
+## 2026-11-14 — Diagnostics view + redacted support bundle (B-006)
+
+- **Agent/tool:** OpenCode (DeepSeek V4.1 Flash Free).
+- **Scope:** `src-tauri/src/{redact.rs,logging.rs,dto,domain,ports,adapters/windows,commands}`, `Cargo.toml`; renderer `Diagnostics` panel, service, tests; docs.
+- **Change:**
+  - Added a pure `redact.rs` module: user-profile and other drive-rooted paths,
+    UNC paths, e-mail addresses, IPv4/IPv6, MAC addresses, SIDs, and literal
+    account/machine names are replaced. `logging::redact_detail` now delegates to
+    it, so error details and support bundles share one policy.
+  - Added `domain/diagnostics.rs` (bundle text and a dependency-free UTC
+    timestamp) and `dto/diagnostics.rs` (`DIAGNOSTICS_SCHEMA_VERSION = 1`).
+  - Added `ports/diagnostics.rs` and a Windows adapter using `GetUserNameW`,
+    `GetComputerNameW`, and token elevation (`Win32_Security` feature on the
+    existing `windows-sys` dependency).
+  - `logging.rs` gained bounded `summary` and `tail` readers; the tail starts on a
+    whole line.
+  - `get_diagnostics` builds the report on a blocking thread and logs only its
+    outcome. It returns no absolute path and writes no file.
+  - The renderer gained an on-request `Diagnostics` panel with environment facts,
+    unavailable fields, a read-only preview, and copy-to-clipboard. It is a
+    fourth panel in the existing shell; no router or navigation was added.
+- **Why:** B-006 closes the Release 0 support requirement without telemetry. The
+  preview is the only way a user shares diagnostics, and it is inspectable before
+  copying.
+- **Risk:**
+  - Redaction is best-effort and pattern-based (KI-043); a bare personal name or
+    an unrecognized path form can survive. The preview stays user-initiated and
+    reviewable.
+  - There is no saved-file export yet, so support receives pasted text.
+  - The elevation probe reads the process token; it does not request elevation.
+- **Evidence:** `cargo fmt --all -- --check`, `cargo clippy --all-targets -- -D
+  warnings`, `cargo test` (52 passed), `npm test` (18 passed), `npm run build`,
+  `npm run lint`, `npm run format:check`, `npm audit --omit=dev` (0).
+- **Follow-up:** saved-file bundle export (F-092/B-064), a log level filter, and
+  DB statistics once persistence exists.
+
+---
+
 ## 2026-11-14 — Local structured logging with size-based rotation (B-007)
 
 - **Agent/tool:** OpenCode (DeepSeek V4.1 Flash Free).

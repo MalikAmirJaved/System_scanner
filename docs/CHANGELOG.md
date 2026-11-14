@@ -14,6 +14,13 @@ exists. Until then, `0.x` versions may change behavior without notice.
 ## [Unreleased]
 
 ### Added
+- **Local diagnostics + redacted support bundle (implemented).**
+  `get_diagnostics` returns app/Tauri versions, OS build and architecture,
+  elevation, log size, and a bounded (256 KiB) log tail. `redact.rs` replaces
+  profile/absolute/UNC paths, e-mail addresses, IPv4/IPv6, MAC addresses, SIDs,
+  and the current account and machine names before the preview is returned. The
+  Diagnostics panel loads only on request and supports copy; it writes no file
+  and uploads nothing.
 - **Typed IPC boundary (implemented).** `src-tauri/src/ipc.rs`
   (`CommandResult` envelope), `src-tauri/src/error.rs` (`ErrorCode` taxonomy,
   `AppError` with per-error correlation IDs), `src-tauri/src/dto/app_info.rs`

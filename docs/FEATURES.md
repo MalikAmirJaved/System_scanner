@@ -109,14 +109,17 @@ commands/processes.rs}`, `src/components/ProcessList.tsx`, `API.md` §3.3.
 
 | ID | Feature | Status |
 |---|---|---|
-| F-080 | Diagnostics view (versions, availability) | ⏳ Not started |
-| F-081 | Redacted support bundle | ⏳ Not started |
+| F-080 | Diagnostics view (versions, availability) | ✅ Implemented — in-shell panel (`Diagnostics.tsx`, `get_diagnostics`): app/Tauri versions, OS build/arch, elevation, log size, unavailable fields. No feature-availability probe and no routing |
+| F-081 | Redacted support bundle | ✅ Implemented — on-request preview and copy (`domain/diagnostics.rs`, `redact.rs`), path/identity/network-address redaction, 256 KiB log tail. Saved-file export is not implemented |
 | F-082 | Event Log summaries | ⏳ Not started |
 | F-083 | Crash/application-error correlation | ⏳ Not started |
 | F-084 | Active connections + listening ports | ⏳ Not started |
 | F-085 | Process ownership of connections | ⏳ Not started |
 | F-086 | DNS configuration view | ⏳ Not started |
 | F-087 | Historical resource trends | ⏳ Not started |
+
+F-080 and F-081 ship the Release 0 subset (versions, environment, log preview).
+Event Log summaries, crash correlation, and connection features remain Release 4.
 
 ## 8. Maintenance and automation (Release 5)
 
@@ -145,21 +148,23 @@ commands/processes.rs}`, `src/components/ProcessList.tsx`, `API.md` §3.3.
 
 | Status | Count |
 |---|---|
-| Implemented | 23 (20 features + 3 baseline properties) |
+| Implemented | 25 (22 features + 3 baseline properties) |
 | Partial | 4 (F-009 OS-follow theming; F-020 event channel; F-040 process fields; F-042 hierarchy view) |
-| Not started / planned | 42 |
+| Not started / planned | 40 |
 | Gated (requires security work) | 5 |
 | Research / proposed | 2 |
 
 Implemented since the scaffold: the typed IPC envelope, the error taxonomy with
-correlation IDs, three versioned DTOs, three read-only commands (`get_app_info`,
-`get_system_snapshot`, `list_processes`), the port/domain/Windows-adapter split
-for system information and processes, and UI views for backend status, the system
-snapshot, and the paged process inventory, with loading, error, retry, refresh,
-paging, and per-field unavailable reasons. The renderer uses Tailwind CSS v4
-design tokens, a responsive panel grid that reflows from one to three columns,
-and a persisted light/dark toggle. The backend writes bounded, redacted local
-logs for command outcomes and startup.
+correlation IDs, four versioned DTOs, four read-only commands (`get_app_info`,
+`get_system_snapshot`, `list_processes`, `get_diagnostics`), the
+port/domain/Windows-adapter split for system information, processes, and
+diagnostics, and UI views for backend status, the system snapshot, the paged
+process inventory, and on-request diagnostics with a redacted support-bundle
+preview. Panels have loading, error, retry, refresh, paging, and per-field
+unavailable reasons. The renderer uses Tailwind CSS v4 design tokens, a
+responsive panel grid that reflows from one to three columns, and a persisted
+light/dark toggle. The backend writes bounded, redacted local logs for command
+outcomes and startup, and redacts the preview before returning it.
 
-The event channel, job registry, cancellation, logging, image paths, and
-everything that touches storage are still ahead.
+The event channel, job registry, cancellation, saved-file bundle export, image
+paths, and everything that touches storage are still ahead.

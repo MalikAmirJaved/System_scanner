@@ -2,6 +2,7 @@ use crate::error::{AppError, ErrorCode};
 use crate::ports::ProbeError;
 
 pub mod app;
+pub mod diagnostics;
 pub mod processes;
 pub mod system;
 

@@ -34,21 +34,25 @@
 │   adapters/windows/    -> windows-sys only             │
 │   ipc.rs / error.rs    -> envelope + taxonomy          │
 │   logging.rs           -> bounded, redacted file logs  │
+│   redact.rs            -> path/identity scrubbing      │
 │   capabilities/default.json -> ["core:default"]        │
 │   CSP: default-src 'self'; no remote origins           │
 └───────────────────────┬────────────────────────────────┘
                         │
 ┌───────────────────────▼────────────────────────────────┐
 │ Rust std + tauri + serde/thiserror + tracing + windows-sys │
-│   Three read-only commands, bounded local logs;           │
-│   no storage, jobs, or events                             │
+│   Four read-only commands, bounded local logs,             │
+│   on-request redacted diagnostics; no storage, jobs,       │
+│   or events                                               │
 └────────────────────────────────────────────────────────┘
 ```
 
 **Properties that already hold**
 
 - The renderer cannot reach the OS: no shell/fs/http plugin is enabled and no
-  capability grants one. It can only invoke the three read-only commands.
+  capability grants one. It can only invoke the four read-only commands.
+- Diagnostics are generated on request, stay local, and return a redacted preview
+  rather than a path or an uploaded payload.
 - The capability surface is `core:default` only.
 - CSP blocks remote script/style/font/connect origins.
 - The release binary is LTO-optimized, stripped, and `panic = "abort"`.
@@ -67,12 +71,13 @@
 
 **Properties that do not hold yet**
 
-- No events, job registry, cancellation, logging, or persistence.
+- No events, job registry, cancellation, or persistence.
 - No startup, service, storage, or security collectors.
-- No app shell, navigation, or routing.
-- Tests cover the IPC contract, the snapshot and process domain/DTOs, both
-  Windows adapters' structural invariants, paging boundaries, and the three UI
-  panels. Traversal and persistence are untested because they do not exist.
+- No navigation, routing, or app-level error screen.
+- Tests cover the IPC contract, the snapshot/process/diagnostics domain and DTOs,
+  both Windows adapters' structural invariants, paging boundaries, logging and
+  redaction, and the four UI panels. Traversal and persistence are untested
+  because they do not exist.
 - CI exists as a file but has never run on GitHub.
 
 ## 2. Target architecture (proposed)

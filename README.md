@@ -49,10 +49,11 @@ and no network dependency for core functionality.
 | Read-only system snapshot (OS/CPU/memory/disks/adapters) | ✅ Implemented | `domain/`, `ports/`, `adapters/windows/`, `SystemOverview.tsx` |
 | Paged process list with stable keys and per-row gaps | ✅ Implemented | `domain/process.rs`, `adapters/windows/processes.rs`, `ProcessList.tsx` |
 | Bounded, redacted local logs | ✅ Implemented | `src-tauri/src/logging.rs` |
+| On-request diagnostics + redacted bundle preview | ✅ Implemented (preview/copy; no saved-file export) | `src-tauri/src/commands/diagnostics.rs`, `src/components/Diagnostics.tsx` |
 | Startup and service collection | ⏳ Planned | `docs/BACKLOG.md` B-043 |
 | Storage scan engine | ⏳ Planned | Release 1 |
 | SQLite persistence + migrations | ⏳ Planned | Release 1 |
-| Tests, lint config, CI | 🟡 Partial | 52 tests + ESLint/Prettier pass; CI workflow never run |
+| Tests, lint config, CI | 🟡 Partial | 70 tests + ESLint/Prettier pass; CI workflow never run |
 | Network egress | 🚫 None by design | no HTTP client dependency |
 
 Full inventory: [`docs/FEATURES.md`](docs/FEATURES.md). Gaps:
@@ -127,7 +128,7 @@ system-scanner/
 │  ├─ src/ipc.rs            # CommandResult envelope
 │  ├─ src/error.rs          # ErrorCode taxonomy + AppError + correlation IDs
 │  ├─ src/dto/              # versioned AppInfo + SystemSnapshot + ProcessList DTOs
-│  ├─ src/commands/         # thin command layer (three read-only commands)
+│  ├─ src/commands/         # thin command layer (four read-only commands)
 │  ├─ src/domain/           # platform-neutral models + use cases (no Windows)
 │  ├─ src/ports/            # narrow capability traits
 │  ├─ src/adapters/windows/ # all Win32 access (windows-sys)

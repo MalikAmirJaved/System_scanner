@@ -1,8 +1,9 @@
 use std::fmt;
 use std::fs::{self, File, OpenOptions};
-use std::io::{self, Write};
+use std::io::{self, Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
+use std::time::UNIX_EPOCH;
 
 use tracing_subscriber::fmt::MakeWriter;
 
@@ -207,43 +208,108 @@ pub fn init(dir: &Path) -> Result<PathBuf, LoggingError> {
 /// Best-effort path redaction for diagnostic strings.
 ///
 /// Full paths are never logged on purpose; this is the guard for text that
-/// reaches the log through an error detail. A user-profile path keeps its
-/// suffix but loses the account name; any other drive-rooted token becomes
-/// `<path>`.
+/// reaches the log through an error detail. See [`crate::redact`] for the rules.
 pub fn redact_detail(input: &str) -> String {
-    input
-        .split(' ')
-        .map(redact_token)
-        .collect::<Vec<_>>()
-        .join(" ")
+    crate::redact::redact_text(input)
 }
 
-fn redact_token(token: &str) -> String {
-    if !is_absolute_windows_path(token) {
-        return token.to_owned();
+/// Aggregate size of the log directory, for the diagnostics view.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LogSummary {
+    pub size_bytes: u64,
+    pub file_count: usize,
+    pub modified_ms: Option<u64>,
+}
+
+/// Bounded tail of the active log file.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LogTail {
+    pub text: String,
+    pub truncated: bool,
+    pub bytes: usize,
+}
+
+/// Summarises the active log and its archives.
+///
+/// Returns `None` when the directory does not exist yet. That is different from
+/// an empty directory: a first run has no logs, a failed setup has no directory.
+pub fn summary(dir: &Path) -> io::Result<Option<LogSummary>> {
+    let entries = match fs::read_dir(dir) {
+        Ok(entries) => entries,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(error),
+    };
+
+    let mut size_bytes = 0;
+    let mut file_count = 0;
+
+    for entry in entries {
+        let entry = entry?;
+        let name = entry.file_name();
+        let name = name.to_string_lossy();
+
+        if !(name.starts_with("system-scanner") && name.ends_with(".log")) {
+            continue;
+        }
+
+        let metadata = entry.metadata()?;
+        if metadata.is_file() {
+            file_count += 1;
+            size_bytes += metadata.len();
+        }
     }
 
-    if let Some(rest) = after_user_segment(token) {
-        return format!("%USERPROFILE%\\{rest}");
+    let modified_ms = fs::metadata(dir.join(LOG_FILE_NAME))
+        .and_then(|metadata| metadata.modified())
+        .ok()
+        .and_then(|modified| modified.duration_since(UNIX_EPOCH).ok())
+        .map(|elapsed| u64::try_from(elapsed.as_millis()).unwrap_or(u64::MAX));
+
+    Ok(Some(LogSummary {
+        size_bytes,
+        file_count,
+        modified_ms,
+    }))
+}
+
+/// Reads at most `max_bytes` from the end of the active log.
+///
+/// A tail that starts in the middle of a line drops that partial line so the
+/// preview never begins with a broken record.
+pub fn tail(dir: &Path, max_bytes: usize) -> io::Result<Option<LogTail>> {
+    let mut file = match File::open(dir.join(LOG_FILE_NAME)) {
+        Ok(file) => file,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(error),
+    };
+
+    let length = file.metadata()?.len();
+    let limit = max_bytes.max(1) as u64;
+    let start = length.saturating_sub(limit);
+    let truncated = start > 0;
+
+    if truncated {
+        file.seek(SeekFrom::Start(start))?;
     }
 
-    "<path>".to_owned()
-}
+    let mut buffer = Vec::with_capacity((length - start) as usize);
+    file.take(limit).read_to_end(&mut buffer)?;
 
-fn is_absolute_windows_path(token: &str) -> bool {
-    let bytes = token.as_bytes();
-    (bytes.len() >= 3
-        && bytes[0].is_ascii_alphabetic()
-        && bytes[1] == b':'
-        && matches!(bytes[2], b'\\' | b'/'))
-        || token.starts_with("\\\\")
-}
+    let mut text = String::from_utf8_lossy(&buffer).into_owned();
+    if truncated {
+        match text.find('\n') {
+            Some(index) => {
+                text.drain(..=index);
+            }
+            None => text.clear(),
+        }
+    }
 
-fn after_user_segment(token: &str) -> Option<&str> {
-    let marker = token.find("\\Users\\")?;
-    let rest = &token[marker + "\\Users\\".len()..];
-    let separator = rest.find('\\')?;
-    Some(&rest[separator + 1..])
+    Ok(Some(LogTail {
+        bytes: text.len(),
+        text,
+        truncated,
+    }))
 }
 
 impl fmt::Debug for RotatingWriter {
@@ -355,15 +421,52 @@ mod tests {
     }
 
     #[test]
-    fn redacts_profile_names_and_other_absolute_paths() {
-        assert_eq!(
-            redact_detail("failed to open C:\\Users\\ada\\AppData\\Local\\x.txt"),
-            "failed to open %USERPROFILE%\\AppData\\Local\\x.txt"
-        );
-        assert_eq!(
-            redact_detail("scanned D:\\data\\secret.txt"),
-            "scanned <path>"
-        );
-        assert_eq!(redact_detail("no path here"), "no path here");
+    fn summary_counts_active_and_rotated_files() {
+        let dir = TempDir::new("summary");
+        fs::write(dir.0.join(LOG_FILE_NAME), b"12345").unwrap();
+        fs::write(dir.0.join(archive_name(1)), b"678").unwrap();
+        fs::write(dir.0.join("unrelated.txt"), b"ignored").unwrap();
+
+        let summary = summary(&dir.0).unwrap().unwrap();
+
+        assert_eq!(summary.file_count, 2);
+        assert_eq!(summary.size_bytes, 8);
+        assert!(summary.modified_ms.is_some());
+    }
+
+    #[test]
+    fn tail_is_bounded_and_drops_the_partial_first_line() {
+        let dir = TempDir::new("tail");
+        fs::write(
+            dir.0.join(LOG_FILE_NAME),
+            b"old line\nnew line\nlast line\n",
+        )
+        .unwrap();
+
+        let tail = tail(&dir.0, 16).unwrap().unwrap();
+
+        assert!(tail.truncated);
+        assert!(tail.text.contains("last line"), "{}", tail.text);
+        assert!(tail.bytes <= 16);
+    }
+
+    #[test]
+    fn tail_of_a_small_file_is_complete() {
+        let dir = TempDir::new("small-tail");
+        fs::write(dir.0.join(LOG_FILE_NAME), b"one\ntwo\n").unwrap();
+
+        let tail = tail(&dir.0, 1024).unwrap().unwrap();
+
+        assert!(!tail.truncated);
+        assert_eq!(tail.text, "one\ntwo\n");
+    }
+
+    #[test]
+    fn a_missing_log_directory_is_reported_as_absent() {
+        let dir = TempDir::new("missing");
+        fs::remove_dir_all(&dir.0).unwrap();
+
+        assert!(summary(&dir.0).unwrap().is_none());
+        assert!(tail(&dir.0, 64).unwrap().is_none());
     }
 }

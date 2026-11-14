@@ -19,7 +19,7 @@ Authoritative plan: [`docs/plan.md`](docs/plan.md).
 Product intent: [`PRD.md`](PRD.md).
 Architecture: [`ARCHITECTURE.md`](ARCHITECTURE.md).
 
-## 2. Verified current state (2026-11-13)
+## 2. Verified current state (2026-11-14)
 
 | Fact | Value | Source |
 |---|---|---|
@@ -34,14 +34,14 @@ Architecture: [`ARCHITECTURE.md`](ARCHITECTURE.md).
 | Styles | Tailwind CSS v4 via `@tailwindcss/vite`; tokens in `src/styles/globals.css` | `vite.config.ts` |
 | Rust deps | `tauri 2`, `serde`, `serde_json`, `thiserror`, `tracing`/`tracing-subscriber`, `windows-sys 0.61` (Windows target) | `Cargo.toml` |
 | Release profile | LTO, `codegen-units=1`, `opt-level=3`, `panic=abort`, `strip` | `Cargo.toml` |
-| Rust files | `main.rs`, `lib.rs`, `ipc.rs`, `error.rs`, `dto/`, `commands/`, `domain/`, `ports/`, `adapters/windows/` | `src-tauri/src/` |
-| IPC commands | `get_app_info`, `get_system_snapshot`, `list_processes` (all read-only) | `src-tauri/src/commands/` |
+| Rust files | `main.rs`, `lib.rs`, `ipc.rs`, `error.rs`, `logging.rs`, `redact.rs`, `dto/`, `commands/`, `domain/`, `ports/`, `adapters/windows/` | `src-tauri/src/` |
+| IPC commands | `get_app_info`, `get_system_snapshot`, `list_processes`, `get_diagnostics` (all read-only) | `src-tauri/src/commands/` |
 | Wire format | envelope `{status, data|error}`; DTO fields camelCase; codes snake_case | `API.md` §1–§2 |
 | Frontend IPC | `src/services/ipc.ts` is the only `invoke` call site | `src/services/` |
 | Database | **none** | — |
-| Tests | 37 Rust + 15 frontend (`npm test`, `cargo test`) | `src/**/*.test.ts(x)`, `#[cfg(test)]` |
+| Tests | 52 Rust + 18 frontend (`npm test`, `cargo test`) | `src/**/*.test.ts(x)`, `#[cfg(test)]` |
 | CI | `.github/workflows/ci.yml` (**never run on GitHub**) | `.github/` |
-| Frontend | shell header + backend status + system snapshot + paged process list in a responsive 1/2/3-column grid | `src/App.tsx`, `src/components/`, `src/components/ui/button.tsx` |
+| Frontend | shell header + backend status + system snapshot + paged process list + on-request diagnostics in a responsive 1/2/3-column grid | `src/App.tsx`, `src/components/`, `src/components/ui/button.tsx` |
 
 If any of these change, update this table in the same commit.
 
@@ -55,9 +55,11 @@ If any of these change, update this table in the same commit.
 - No IPC events, job registry, cancellation, or concurrency budgets.
 - No startup/service collectors, and no storage traversal.
 - No SQLite, migrations, repositories, or data directory.
-- No diagnostics export or in-app log viewer; logs are local files (B-006).
-- No app shell navigation or routing — one screen with three panels (backend
-  status, system snapshot, process inventory).
+- No saved-file diagnostics export and no log viewer or level filter. The
+  in-app preview/copy of a redacted support bundle exists (B-006); logs remain
+  local files.
+- No app shell navigation or routing — one screen with four panels (backend
+  status, system snapshot, process inventory, diagnostics).
 - No runtime validation of IPC response payloads in the frontend.
 - No auto-updater, code signing, or telemetry.
 - No network access of any kind.
@@ -87,6 +89,7 @@ Avoid: "clean", "infected", "optimize", "fix" for anything that is not verified.
 | Share a presentational component | `src/components/` (implemented); shared primitives in `src/components/ui/` |
 | Add or change a design token | `src/styles/globals.css` (`@theme` / `@theme inline`) |
 | Log a backend event | `tracing::info!`/`warn!` at the call site; subscriber and rotation live in `src-tauri/src/logging.rs` |
+| Redact diagnostic text | `src-tauri/src/redact.rs` (shape rules + literal secrets); add a test for every new field that reaches a bundle |
 | Call Rust from the UI | `src/services/` (implemented) — never in a component |
 | Define an IPC command | `src-tauri/src/commands/` (implemented) |
 | Orchestrate jobs/cancellation | `src-tauri/src/app/` (planned) |

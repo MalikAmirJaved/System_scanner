@@ -103,7 +103,8 @@ record in [`docs/DECISIONS.md`](docs/DECISIONS.md).
 - Commands log their stable code and correlation ID on failure; request payloads
   and inputs are never logged, and diagnostic detail passes best-effort path
   redaction.
-- Logs never leave the machine. An in-app preview/export is still B-006.
+- Logs never leave the machine. The in-app diagnostics panel builds a redacted
+  preview on request and copies it; saved-file export is still pending (F-092).
 
 ## 3. Rejected alternatives
 
@@ -116,7 +117,7 @@ record in [`docs/DECISIONS.md`](docs/DECISIONS.md).
 | Microservices | No deployment or scaling requirement justifies them |
 | Electron store / Redux for scan state | Rust is authoritative for job state; duplicating it in the UI causes drift |
 | CSS-in-JS runtime (styled-components, Emotion) | Ships a runtime and a second theming model; Tailwind v4 emits static CSS and shares one token layer |
-| A full component kit (MUI, Ant Design) | Large surface and its own theme system for a three-panel desktop UI |
+| A full component kit (MUI, Ant Design) | Large surface and its own theme system for a compact multi-panel desktop UI |
 | A second HTTP client | One client, opt-in only; see [`docs/NETWORKING.md`](docs/NETWORKING.md) |
 
 ## 4. Version policy
@@ -140,7 +141,7 @@ record in [`docs/DECISIONS.md`](docs/DECISIONS.md).
 | ESLint + `eslint-plugin-react-hooks` | Catch hook and unused-code issues | Configured; `npm run lint` passes |
 | Prettier | Consistent formatting | Configured; `npm run format:check` passes (code only, Markdown/CSS excluded by design) |
 | `rustfmt.toml` / `clippy.toml` | Explicit Rust style | Defaults are in use; `cargo fmt --check` and `clippy -D warnings` pass |
-| Vitest | Unit tests | Configured; `npm test` passes (15 tests) |
+| Vitest | Unit tests | Configured; `npm test` passes (18 tests) |
 | `rust-toolchain.toml` | Reproducible toolchain | Committed; pins `stable` + `rustfmt`/`clippy` (not an exact compiler version; B-011) |
 | GitHub Actions | Windows CI | Workflow committed (`.github/workflows/ci.yml`); never executed (B-092) |
 | `cargo-audit`, Dependabot | Advisory monitoring | Not enabled |

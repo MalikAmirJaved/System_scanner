@@ -1,12 +1,12 @@
 # API
 
-> **Status:** **IPC envelope implemented; three commands implemented.** The typed
+> **Status:** **IPC envelope implemented; four commands implemented.** The typed
 > envelope (`CommandResult`, `AppError`), the error taxonomy, `get_app_info`,
-> `get_system_snapshot`, and `list_processes` exist and are covered by tests. Every
-> other command in this document is **proposed** and must not be described as
-> available.
+> `get_system_snapshot`, `list_processes`, and `get_diagnostics` exist and are
+> covered by tests. Every other command in this document is **proposed** and must
+> not be described as available.
 >
-> **Last updated:** 2026-11-13 · **Related:** [`ARCHITECTURE.md`](ARCHITECTURE.md)
+> **Last updated:** 2026-11-14 · **Related:** [`ARCHITECTURE.md`](ARCHITECTURE.md)
 
 ---
 
@@ -298,10 +298,60 @@ reason display). Tests: `src-tauri/src/domain/process.rs` (paging + fake port),
 `src-tauri/src/commands/processes.rs` (limit and ordering),
 `src/components/ProcessList.test.tsx`.
 
-### 3.4 `get_diagnostics` (proposed)
+### 3.4 `get_diagnostics` (implemented)
 
-Returns app version, OS build, log location, recent redacted log lines, and
-feature availability. Used to build a shareable support bundle.
+```rust
+pub async fn get_diagnostics(app: tauri::AppHandle) -> CommandResult<DiagnosticsDto>
+```
+
+Takes no arguments. Reads the app/OS facts, the aggregate log size, and a bounded
+redacted log tail, then renders a support-bundle preview. It runs on a blocking
+thread because it reads the log directory. It never writes a file, opens a
+network connection, or returns an absolute path.
+
+Wire shape (`DIAGNOSTICS_SCHEMA_VERSION = 1`):
+
+```json
+{
+  "generatedAt": 1763000000000,
+  "schemaVersion": 1,
+  "appVersion": "0.1.0",
+  "tauriVersion": "2.12.5",
+  "os": {
+    "name": "Windows 11 Pro",
+    "version": "10.0.26100",
+    "build": "26100",
+    "arch": "x64",
+    "elevated": false
+  },
+  "log": { "sizeBytes": 1234, "fileCount": 2, "modifiedAt": 1763000000000 },
+  "bundle": {
+    "preview": "System Scanner support bundle\n…",
+    "redactions": 4,
+    "logTruncated": true,
+    "includedLogBytes": 262144
+  },
+  "unavailable": []
+}
+```
+
+Guarantees:
+
+- `bundle.preview` is generated locally and never uploaded. The renderer shows it
+  only after the user asks for it, and copies it only on an explicit action.
+- The log tail is capped at 256 KiB and starts on a whole line.
+- Redaction replaces user-profile and other absolute paths, UNC paths, e-mail
+  addresses, IPv4/IPv6 addresses, MAC addresses, SIDs, and the current account
+  and machine names. It is best-effort; no log call site may rely on it alone.
+- Only the log file name is returned, never its directory.
+- A missing `log` group, `log.tail`, `os`, or `os.*` leaf is paired with an entry
+  in `unavailable`. `os.arch` is always reported.
+
+Tests: `src-tauri/src/redact.rs` (shape rules and literal secrets),
+`src-tauri/src/domain/diagnostics.rs` (bundle text, timestamp, redaction),
+`src-tauri/src/logging.rs` (summary and bounded tail),
+`src-tauri/src/dto/diagnostics.rs` (wire shape and gaps),
+`src/components/Diagnostics.test.tsx` (on-demand load, error/retry, copy).
 
 ### 3.5 Events (proposed, none emitted today)
 
@@ -399,7 +449,8 @@ export async function invokeCommand<T>(
 ```
 
 Domain modules wrap it (`src/services/app.ts` → `getAppInfo()`,
-`processes.ts` → `listProcesses()`), and components call the domain module.
+`processes.ts` → `listProcesses()`, `diagnostics.ts` → `getDiagnostics()`), and
+components call the domain module.
 Implemented rules for `src/services`:
 
 - One module per domain; no component calls `invoke` directly.
@@ -427,10 +478,12 @@ Status today:
 |---|---|
 | Envelope serialization (ok/err, camelCase, omitted `detail`) | ✅ `src-tauri/src/ipc.rs` tests |
 | Error code taxonomy + unique correlation IDs | ✅ `src-tauri/src/error.rs` tests |
-| DTO wire shape + `schemaVersion` | ✅ `src-tauri/src/dto/{app_info,system_snapshot,process_list}.rs` tests |
+| DTO wire shape + `schemaVersion` | ✅ `src-tauri/src/dto/{app_info,system_snapshot,process_list,diagnostics}.rs` tests |
 | Adapter unwrap / `IpcError` / argument pass-through | ✅ `src/services/ipc.test.ts` |
-| UI states (loading, ready, error, retry) | ✅ `BackendStatus.test.tsx`, `SystemOverview.test.tsx`, `ProcessList.test.tsx` |
+| UI states (loading, ready, error, retry) | ✅ `BackendStatus.test.tsx`, `SystemOverview.test.tsx`, `ProcessList.test.tsx`, `Diagnostics.test.tsx` |
 | Unavailable-field reporting (group, leaf, per row) | ✅ domain + DTO tests; two native smoke tests |
+| Redaction rules (paths, identities, network addresses) | ✅ `src-tauri/src/redact.rs`, `domain/diagnostics.rs` tests |
+| Bounded log tail | ✅ `src-tauri/src/logging.rs` tests |
 | Native adapter structural invariants | ✅ `adapters/windows/{system_info,processes}.rs` (Windows-only tests) |
 | Paging input validation (boundaries, oversized values) | ✅ `domain/process.rs`, `commands/processes.rs` tests |
 | Paging stability across refreshes | ✅ `commands/processes.rs` ordering test |

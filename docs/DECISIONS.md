@@ -437,6 +437,53 @@ write concurrently (single-instance assumption).
 
 ---
 
+## ADR-016 — Diagnostics bundle: local preview/copy, best-effort redaction
+
+**Status:** Accepted · 2026-11-14
+
+**Context.** B-006 requires a diagnostics view and a support bundle that excludes
+paths and PII, without telemetry or a network path. A saved-file export needs a
+file-picker flow (a new capability or dialog plugin), and a zip archive would add
+a dependency. The app also cannot yet rely on the user finding
+`%LOCALAPPDATA%\...\logs`.
+
+**Options.**
+
+1. Return the raw log file and let the user share it.
+2. Build a text preview in Rust, redact it, and let the user copy it.
+3. Write a `.zip` to a fixed app directory and reveal it in Explorer.
+4. Add a dialog/shell plugin and a zip crate for a full export flow.
+
+**Decision.**
+
+- `get_diagnostics` returns environment facts plus a **plain-text preview** built
+  in Rust. The log tail is capped at **256 KiB** and starts on a whole line.
+- Redaction runs in `src-tauri/src/redact.rs` on the finished text: profile and
+  other absolute paths, UNC paths, e-mail addresses, IPv4/IPv6, MAC addresses,
+  SIDs, and literal account/machine names. The Windows adapter supplies the two
+  names from `GetUserNameW`/`GetComputerNameW`; token elevation is read with the
+  existing `windows-sys` dependency (`Win32_Security` feature).
+- The preview is **generated only on an explicit action** and copied only on a
+  second action. The command writes no file and returns no absolute path.
+- The panel is a fourth section in the existing dashboard. No router, dialog
+  plugin, shell plugin, or new capability is added.
+- No new crate: the UTC formatter is in-process and redaction is hand-written and
+  tested.
+
+**Consequences.**
+
+- Support can receive a complete-enough bundle by copy/paste today; a saved file
+  remains F-092/B-064.
+- Redaction is heuristic (KI-043). Every new field that reaches the bundle needs
+  a rule or a test, and the preview remains reviewable before it is shared.
+- The elevation probe is read-only. It does not request elevation and does not
+  change the "read-only, unelevated" default.
+
+**Revisit if:** a saved-file flow becomes a release requirement, logs move to
+structured JSON, or redaction needs to cover a new class of identifier.
+
+---
+
 ## Template
 
 ```text

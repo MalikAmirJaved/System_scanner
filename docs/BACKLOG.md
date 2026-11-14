@@ -19,9 +19,9 @@
 | B-001 | ✅ Add typed IPC boundary (`CommandResult`, `AppError`) | Everything depends on it | A no-op command round-trips with typed errors |
 | B-002 | ✅ Implement `get_system_snapshot` (Win32) | Core Release 0 value | OS/CPU/memory/disks/adapters returned; unavailable fields reported |
 | B-003 | ✅ Implement `list_processes` with stable identity | Core Release 0 value | Paged, bounded, access-limited rows marked |
-| B-004 | Build the app shell + dashboard route | One screen with three panels; no navigation or routing | Navigation + loading/empty/error states |
+| B-004 | Build the app shell + dashboard route | One dashboard screen with panels; no navigation or routing | Panels share one dashboard with loading/empty/error states; no router |
 | B-005 | ✅ Refresh lifecycle (manual, in-progress, last-updated) | Prevent stale/frozen UI | No overlapping refreshes; stale responses discarded |
-| B-006 | Diagnostics view + redacted support bundle | Support without telemetry | Bundle previews and excludes paths/PII |
+| B-006 | ✅ Diagnostics view + redacted support bundle | Support without telemetry | Bundle previews and excludes paths/PII |
 | B-007 | ✅ Structured logging with rotation | Diagnosability | `tracing` to file, 5×10 MB cap, redaction test |
 | B-008 | ✅ Add test runner + first tests | Zero tests today | `cargo test` has real tests; `npm test` exists |
 | B-009 | ✅ Add ESLint + Prettier | Consistency before the codebase grows | `npm run lint` / `format` pass |

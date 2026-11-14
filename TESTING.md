@@ -1,11 +1,12 @@
 # Testing Strategy
 
-> **Status:** **Runners are configured; coverage is still narrow.** 37 Rust tests
-> and 15 frontend tests cover the IPC contract (envelope, error taxonomy, DTO
+> **Status:** **Runners are configured; coverage is still narrow.** 52 Rust tests
+> and 18 frontend tests cover the IPC contract (envelope, error taxonomy, DTO
 > shapes), the snapshot and process domain rules, both native adapters'
-> structural invariants, and three UI panels. Nothing tests traversal,
-> persistence, or end-to-end flows yet, because those features do not exist. This
-> document defines the target strategy and the minimum bar for new work.
+> structural invariants, logging/redaction, and four UI panels. Nothing tests
+> traversal, persistence, or end-to-end flows yet, because those features do not
+> exist. This document defines the target strategy and the minimum bar for new
+> work.
 > **Last updated:** 2026-11-14
 
 ---
@@ -14,9 +15,9 @@
 
 | Level | Tool | Configured | Tests |
 |---|---|---|---|
-| Rust unit/integration | `cargo test` | Yes | 37 (`ipc`, `error`, `logging`, `dto::*`, `domain::*`, `adapters::windows::*`, `commands::*`) |
+| Rust unit/integration | `cargo test` | Yes | 51 (`ipc`, `error`, `logging`, `redact`, `dto::*`, `domain::*`, `adapters::windows::*`, `commands::*`) |
 | Frontend unit | Vitest 5 + jsdom | Yes | 3 (`services/ipc.test.ts`) |
-| Frontend component | Testing Library 16 | Yes | 12 (`BackendStatus`, `ThemeToggle`, `SystemOverview`, `ProcessList`) |
+| Frontend component | Testing Library 16 | Yes | 15 (`BackendStatus`, `ThemeToggle`, `SystemOverview`, `ProcessList`, `Diagnostics`) |
 | E2E | tauri-driver / WebDriver (proposed) | No | 0 |
 | Performance | custom harness (proposed) | No | 0 |
 | Security | manual review + targeted tests | No | 0 |
@@ -36,7 +37,12 @@ What the existing tests actually establish, and nothing more:
   when the list hit its safety cap;
 - the theme toggle writes `data-theme`, persists the choice, and restores it;
 - the log writer enforces its file cap, rotates without losing the active file,
-  and redacts user-profile and drive-rooted paths.
+  and limits a tail to a whole-line boundary;
+- the redactor replaces user-profile and other absolute paths, UNC paths,
+  e-mail/IP/MAC/SID shapes, and literal account and machine names;
+- the diagnostics panel waits for an explicit request, renders versions and
+  environment facts, shows the redacted preview, reports errors, retries, and
+  confirms a copy.
 
 They do **not** establish that the UI is visually correct under WebView2; layout
 and theme appearance still need a manual smoke test.
@@ -189,16 +195,16 @@ Formal support matrix is an open decision (`docs/plan.md` §12).
 When reporting test results, state exactly what ran:
 
 ```text
-cargo test            -> 37 tests passed (ipc, error, logging, dto::app_info,
-                         dto::system_snapshot, dto::process_list,
-                         domain::system, domain::process,
+cargo test            -> 52 tests passed (ipc, error, logging, redact,
+                         dto::{app_info, system_snapshot, process_list,
+                         diagnostics}, domain::{system, process, diagnostics},
                          adapters::windows::{system_info, processes},
                          commands::{app, system, processes})
-npm test              -> 15 tests passed (5 files: ipc, BackendStatus, ThemeToggle,
-                         SystemOverview, ProcessList)
+npm test              -> 18 tests passed (6 files: ipc, BackendStatus, ThemeToggle,
+                         SystemOverview, ProcessList, Diagnostics)
 npm run build         -> passed (tsc + vite)
 ```
 
 Never summarize "all tests pass" without stating the counts and what they cover —
-fifty-two tests that mostly assert read-only contracts say nothing about
+seventy tests that mostly assert read-only contracts say nothing about
 traversal, persistence, or crash recovery.
