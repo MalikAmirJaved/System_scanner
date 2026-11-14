@@ -2,7 +2,7 @@
 
 > **Purpose:** the minimum context an AI agent needs to work correctly in this
 > repository. Read this before touching code.
-> **Last updated:** 2026-11-13
+> **Last updated:** 2026-11-14
 
 ---
 
@@ -30,7 +30,8 @@ Architecture: [`ARCHITECTURE.md`](ARCHITECTURE.md).
 | Bundle target | NSIS x64 only | `tauri.conf.json` |
 | CSP | `default-src 'self'; img-src 'self' asset: data:; style-src 'self' 'unsafe-inline'; font-src 'self' data:` | `tauri.conf.json` |
 | Capabilities | `core:default` only, window `main` | `capabilities/default.json` |
-| Runtime JS deps | `react`, `react-dom`, `@tauri-apps/api` | `package.json` |
+| Runtime JS deps | `react`, `react-dom`, `@tauri-apps/api`, Tailwind v4 styling primitives (`cva`, `clsx`, `tailwind-merge`, Radix `Slot`, `lucide-react`) | `package.json` |
+| Styles | Tailwind CSS v4 via `@tailwindcss/vite`; tokens in `src/styles/globals.css` | `vite.config.ts` |
 | Rust deps | `tauri 2`, `serde`, `serde_json`, `thiserror`, `windows-sys 0.61` (Windows target) | `Cargo.toml` |
 | Release profile | LTO, `codegen-units=1`, `opt-level=3`, `panic=abort`, `strip` | `Cargo.toml` |
 | Rust files | `main.rs`, `lib.rs`, `ipc.rs`, `error.rs`, `dto/`, `commands/`, `domain/`, `ports/`, `adapters/windows/` | `src-tauri/src/` |
@@ -38,9 +39,9 @@ Architecture: [`ARCHITECTURE.md`](ARCHITECTURE.md).
 | Wire format | envelope `{status, data|error}`; DTO fields camelCase; codes snake_case | `API.md` §1–§2 |
 | Frontend IPC | `src/services/ipc.ts` is the only `invoke` call site | `src/services/` |
 | Database | **none** | — |
-| Tests | 32 Rust + 13 frontend (`npm test`, `cargo test`) | `src/**/*.test.ts(x)`, `#[cfg(test)]` |
+| Tests | 32 Rust + 15 frontend (`npm test`, `cargo test`) | `src/**/*.test.ts(x)`, `#[cfg(test)]` |
 | CI | `.github/workflows/ci.yml` (**never run on GitHub**) | `.github/` |
-| Frontend | welcome screen + backend status + system snapshot + paged process list | `src/App.tsx`, `src/components/` |
+| Frontend | shell header + backend status + system snapshot + paged process list in a responsive 1/2/3-column grid | `src/App.tsx`, `src/components/`, `src/components/ui/button.tsx` |
 
 If any of these change, update this table in the same commit.
 
@@ -55,7 +56,8 @@ If any of these change, update this table in the same commit.
 - No startup/service collectors, and no storage traversal.
 - No SQLite, migrations, repositories, or data directory.
 - No logging, tracing, or diagnostics export.
-- No app shell, navigation, or routing — one welcome screen with two data panels.
+- No app shell navigation or routing — one screen with three panels (backend
+  status, system snapshot, process inventory).
 - No runtime validation of IPC response payloads in the frontend.
 - No auto-updater, code signing, or telemetry.
 - No network access of any kind.
@@ -82,7 +84,8 @@ Avoid: "clean", "infected", "optimize", "fix" for anything that is not verified.
 | I want to… | Put it in |
 |---|---|
 | Render a screen | `src/features/<domain>/` (planned); presentational pieces in `src/components/` |
-| Share a presentational component | `src/components/` (implemented) |
+| Share a presentational component | `src/components/` (implemented); shared primitives in `src/components/ui/` |
+| Add or change a design token | `src/styles/globals.css` (`@theme` / `@theme inline`) |
 | Call Rust from the UI | `src/services/` (implemented) — never in a component |
 | Define an IPC command | `src-tauri/src/commands/` (implemented) |
 | Orchestrate jobs/cancellation | `src-tauri/src/app/` (planned) |

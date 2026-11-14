@@ -43,7 +43,7 @@ and no network dependency for core functionality.
 | Tauri 2 + React 19 + TS + Vite shell launches | ✅ Implemented | `src-tauri/`, `src/App.tsx` |
 | Production build + NSIS installer | ✅ Implemented | `src-tauri/target/release/bundle/nsis/` |
 | Strict CSP, minimal Tauri capability set | ✅ Implemented | `tauri.conf.json`, `src-tauri/capabilities/default.json` |
-| Styled welcome screen, design tokens | ✅ Implemented | `src/App.tsx`, `src/App.css` |
+| Tailwind v4 responsive shell, theme toggle, shared primitives | ✅ Implemented | `src/App.tsx`, `src/components/ThemeToggle.tsx`, `src/styles/globals.css` |
 | Typed IPC command surface | ✅ Implemented | `src-tauri/src/ipc.rs`, `commands/`, `src/services/ipc.ts` |
 | Error taxonomy + correlation IDs | ✅ Implemented | `src-tauri/src/error.rs` |
 | Read-only system snapshot (OS/CPU/memory/disks/adapters) | ✅ Implemented | `domain/`, `ports/`, `adapters/windows/`, `SystemOverview.tsx` |
@@ -51,7 +51,7 @@ and no network dependency for core functionality.
 | Startup and service collection | ⏳ Planned | `docs/BACKLOG.md` B-043 |
 | Storage scan engine | ⏳ Planned | Release 1 |
 | SQLite persistence + migrations | ⏳ Planned | Release 1 |
-| Tests, lint config, CI | 🟡 Partial | 45 tests + ESLint/Prettier pass; CI workflow never run |
+| Tests, lint config, CI | 🟡 Partial | 47 tests + ESLint/Prettier pass; CI workflow never run |
 | Network egress | 🚫 None by design | no HTTP client dependency |
 
 Full inventory: [`docs/FEATURES.md`](docs/FEATURES.md). Gaps:
@@ -82,6 +82,7 @@ Full inventory: [`docs/FEATURES.md`](docs/FEATURES.md). Gaps:
 | Core | Rust | edition 2024, stable 1.99.1 |
 | UI | React + TypeScript | 19.1 / ~6.0.3 |
 | Bundler | Vite | ^8.0.16 |
+| Styling | Tailwind CSS v4 + shadcn-style local primitives | 4.3.5 |
 | Persistence | SQLite (**not yet added**) | — |
 | Installer | NSIS | x64 |
 
@@ -113,11 +114,12 @@ Every command, flag, artifact path, and troubleshooting entry lives in
 ```text
 system-scanner/
 ├─ src/                     # React UI (rendering only, no OS access)
-│  ├─ App.tsx               # welcome screen + data panels
-│  ├─ App.css               # design tokens + layout
+│  ├─ App.tsx               # shell + responsive panel grid
+│  ├─ styles/globals.css    # Tailwind v4 theme tokens + base layer
 │  ├─ main.tsx              # React root
 │  ├─ services/             # typed IPC adapters (only `invoke` call site)
 │  ├─ components/           # BackendStatus + SystemOverview + ProcessList
+│  │  └─ ui/                # shared primitives (Button)
 │  └─ test/setup.ts         # Vitest setup
 ├─ src-tauri/
 │  ├─ src/lib.rs            # Tauri builder + invoke_handler registration

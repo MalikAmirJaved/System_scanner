@@ -1,6 +1,9 @@
 import { useEffect, useState } from "react";
+import { RotateCcw } from "lucide-react";
 import { getAppInfo, type AppInfo } from "../services/app";
 import { IpcError } from "../services/ipc";
+import { cn } from "../lib/utils";
+import { Button } from "./ui/button";
 
 type BackendState =
   | { status: "loading" }
@@ -24,7 +27,7 @@ function toErrorState(error: unknown): BackendState {
  * Proves the renderer -> IPC -> Rust path with a single read-only command.
  * Shows loading, ready, and failure states instead of hiding them.
  */
-export function BackendStatus() {
+export function BackendStatus({ className }: { className?: string }) {
   const [attempt, setAttempt] = useState(0);
   const [state, setState] = useState<BackendState>({ status: "loading" });
 
@@ -50,25 +53,43 @@ export function BackendStatus() {
   };
 
   return (
-    <div className={`backend-status backend-status--${state.status}`}>
-      <span className="backend-dot" aria-hidden="true" />
+    <section
+      aria-labelledby="backend-panel-title"
+      className={cn("rounded-lg border border-border bg-card p-4 shadow-sm sm:p-6", className)}
+    >
+      <h2 id="backend-panel-title" className="text-lg font-semibold tracking-tight">
+        Backend
+      </h2>
 
-      <span role="status" aria-live="polite">
-        {state.status === "loading" && "Checking desktop backend…"}
+      <div className="mt-4 flex flex-wrap items-center gap-3">
+        <span
+          aria-hidden="true"
+          className={cn(
+            "size-2.5 shrink-0 rounded-full",
+            state.status === "ready" && "bg-primary",
+            state.status === "loading" && "animate-pulse bg-muted-foreground",
+            state.status === "error" && "bg-destructive",
+          )}
+        />
 
-        {state.status === "ready" &&
-          `Backend ${state.info.appVersion} · ${state.info.os} ${state.info.arch}`}
+        <span className="text-sm" role="status" aria-live="polite">
+          {state.status === "loading" && "Checking desktop backend…"}
+
+          {state.status === "ready" &&
+            `Backend ${state.info.appVersion} · ${state.info.os} ${state.info.arch}`}
+
+          {state.status === "error" && (
+            <span title={state.message}>Backend unavailable ({state.code})</span>
+          )}
+        </span>
 
         {state.status === "error" && (
-          <span title={state.message}>Backend unavailable ({state.code})</span>
+          <Button size="sm" onClick={retry} className="ml-auto">
+            <RotateCcw aria-hidden="true" className="size-3.5" />
+            Retry
+          </Button>
         )}
-      </span>
-
-      {state.status === "error" && (
-        <button type="button" className="backend-retry" onClick={retry}>
-          Retry
-        </button>
-      )}
-    </div>
+      </div>
+    </section>
   );
 }

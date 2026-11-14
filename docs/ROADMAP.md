@@ -1,6 +1,6 @@
 # Roadmap
 
-> **Status:** Release 0 in progress · **Last updated:** 2026-11-06
+> **Status:** Release 0 in progress · **Last updated:** 2026-11-14
 > **Authority:** [`plan.md`](plan.md) governs sequencing; this file tracks status.
 >
 > A release is "done" only when its exit criteria have evidence. Checked items
@@ -42,7 +42,7 @@ requirements.
 | Tauri 2 + React/TS/Vite scaffold | ✅ Implemented |
 | Production build + NSIS installer | ✅ Implemented |
 | Minimal capability set + CSP | ✅ Implemented |
-| Welcome screen | ✅ Implemented |
+| Responsive shell + design tokens (Tailwind v4) | ✅ Implemented — 1/2/3-column panel grid |
 | App shell, navigation, routing | ⏳ Not started |
 | Typed IPC boundary + DTO + error model | ✅ Implemented (`get_app_info`, `get_system_snapshot`) |
 | IPC event channel | ⏳ Not started |
@@ -50,7 +50,7 @@ requirements.
 | Process list with stable identity | ✅ Implemented — paged, per-row unavailable fields |
 | Refresh lifecycle (manual + bounded periodic) | 🟡 Manual refresh implemented; periodic refresh not |
 | Diagnostics view + redacted support bundle | ⏳ Not started |
-| Tests (unit/adapter/UI) | 🟡 Partial — IPC, snapshot + process contracts/adapters/usecases, 3 UI panels; 45 tests |
+| Tests (unit/adapter/UI) | 🟡 Partial — IPC, snapshot + process contracts/adapters/usecases, 3 UI panels + theme toggle; 47 tests |
 | CI on Windows | 🟡 Workflow committed, never run on GitHub |
 
 **Exit criteria**

@@ -1,72 +1,50 @@
-import "./App.css";
+import "./styles/globals.css";
 import { BackendStatus } from "./components/BackendStatus";
 import { ProcessList } from "./components/ProcessList";
 import { SystemOverview } from "./components/SystemOverview";
+import { ThemeToggle } from "./components/ThemeToggle";
 
-function App() {
+/**
+ * Application shell.
+ *
+ * The grid is the responsive contract: one column on narrow windows, two at
+ * `sm`, and three at `lg`. The process inventory spans the full width because
+ * its table needs the room; the other two panels share the remaining columns.
+ */
+export default function App() {
   return (
-    <main className="app-shell">
-      <header className="topbar">
-        <a className="brand" href="#home" aria-label="System Scanner home">
-          <span className="brand-mark" aria-hidden="true">
-            <span />
-            <span />
-            <span />
-            <span />
-          </span>
-          <span className="brand-name">
-            system<span>scanner</span>
-          </span>
-        </a>
-        <span className="build-label">
-          <span className="status-dot" /> FIRST BUILD
-        </span>
+    <div className="min-h-screen bg-background text-foreground">
+      <header className="border-b border-border bg-card">
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6 lg:px-8">
+          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+            <span className="text-base font-semibold tracking-tight">System Scanner</span>
+            <span className="text-2xs uppercase tracking-widest text-muted-foreground">
+              Windows · preview 0.1.0
+            </span>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="text-2xs uppercase tracking-widest text-muted-foreground">
+              Read-only · unelevated
+            </span>
+            <ThemeToggle />
+          </div>
+        </div>
       </header>
 
-      <section className="welcome" aria-labelledby="welcome-title">
-        <div className="eyebrow">
-          <span className="eyebrow-line" /> YOUR SYSTEM, IN FOCUS
-        </div>
-        <div className="welcome-icon" aria-hidden="true">
-          <div className="icon-ring ring-outer" />
-          <div className="icon-ring ring-inner" />
-          <div className="icon-core">
-            <span />
-            <span />
-            <span />
-          </div>
-          <span className="icon-spark spark-one" />
-          <span className="icon-spark spark-two" />
-        </div>
-        <h1 id="welcome-title">
-          Hello, world<span className="title-period">.</span>
-        </h1>
-        <p className="welcome-copy">
-          A clearer view of your PC starts here.
-          <br />
-          This is the first step for System Scanner.
-        </p>
-        <div className="welcome-divider">
-          <span />
-          <span />
-          <span />
-        </div>
-        <p className="welcome-note">Your system is ready to be explored.</p>
-        <BackendStatus />
-        <SystemOverview />
-        <ProcessList />
-      </section>
+      <main className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+        <h1 className="sr-only">System overview, backend status, and process inventory</h1>
 
-      <footer className="footer">
-        <span>
-          SYSTEM SCANNER <span className="footer-separator">/</span> WINDOWS
-        </span>
-        <span className="version">
-          PREVIEW <span>0.1.0</span>
-        </span>
+        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          <SystemOverview className="sm:col-span-2" />
+          <BackendStatus />
+          <ProcessList className="sm:col-span-2 lg:col-span-3" />
+        </div>
+      </main>
+
+      <footer className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-2 px-4 pb-6 text-2xs uppercase tracking-widest text-muted-foreground sm:px-6 lg:px-8">
+        <span>System Scanner / Windows</span>
+        <span>No network egress</span>
       </footer>
-    </main>
+    </div>
   );
 }
-
-export default App;

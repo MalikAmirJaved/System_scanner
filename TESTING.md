@@ -1,12 +1,12 @@
 # Testing Strategy
 
 > **Status:** **Runners are configured; coverage is still narrow.** 32 Rust tests
-> and 13 frontend tests cover the IPC contract (envelope, error taxonomy, DTO
+> and 15 frontend tests cover the IPC contract (envelope, error taxonomy, DTO
 > shapes), the snapshot and process domain rules, both native adapters'
 > structural invariants, and three UI panels. Nothing tests traversal,
 > persistence, or end-to-end flows yet, because those features do not exist. This
 > document defines the target strategy and the minimum bar for new work.
-> **Last updated:** 2026-11-13
+> **Last updated:** 2026-11-14
 
 ---
 
@@ -16,7 +16,7 @@
 |---|---|---|---|
 | Rust unit/integration | `cargo test` | Yes | 32 (`ipc`, `error`, `dto::*`, `domain::*`, `adapters::windows::*`, `commands::*`) |
 | Frontend unit | Vitest 5 + jsdom | Yes | 3 (`services/ipc.test.ts`) |
-| Frontend component | Testing Library 16 | Yes | 10 (`BackendStatus`, `SystemOverview`, `ProcessList`) |
+| Frontend component | Testing Library 16 | Yes | 12 (`BackendStatus`, `ThemeToggle`, `SystemOverview`, `ProcessList`) |
 | E2E | tauri-driver / WebDriver (proposed) | No | 0 |
 | Performance | custom harness (proposed) | No | 0 |
 | Security | manual review + targeted tests | No | 0 |
@@ -28,10 +28,16 @@ What the existing tests actually establish, and nothing more:
 - correlation IDs are unique per error;
 - `AppInfo` serializes with camelCase keys and `schemaVersion`;
 - the frontend adapter unwraps `ok` and throws `IpcError` on `err`;
-- the status component renders loading, ready, error, and recovers on retry.
+- the status component renders loading, ready, error, and recovers on retry;
+- the system panel renders each collected group, replaces a missing group with its
+  `unavailable` reason, and recovers after a failed refresh;
+- the process panel renders rows and the paged range, requests the next offset,
+  keeps denied fields visible with their reason, recovers on refresh, and states
+  when the list hit its safety cap;
+- the theme toggle writes `data-theme`, persists the choice, and restores it.
 
-They do **not** establish that any system data is collected, because no code
-collects it. Do not generalize "tests pass" beyond this list.
+They do **not** establish that the UI is visually correct under WebView2; layout
+and theme appearance still need a manual smoke test.
 
 Commands: `npm test` (run once), `npm run test:watch`, `cd src-tauri; cargo test`.
 
@@ -186,11 +192,11 @@ cargo test            -> 32 tests passed (ipc, error, dto::app_info,
                          domain::system, domain::process,
                          adapters::windows::{system_info, processes},
                          commands::{app, system, processes})
-npm test              -> 13 tests passed (4 files: ipc, BackendStatus,
+npm test              -> 15 tests passed (5 files: ipc, BackendStatus, ThemeToggle,
                          SystemOverview, ProcessList)
 npm run build         -> passed (tsc + vite)
 ```
 
 Never summarize "all tests pass" without stating the counts and what they cover —
-forty-five tests that mostly assert read-only contracts say nothing about
+forty-seven tests that mostly assert read-only contracts say nothing about
 traversal, persistence, or crash recovery.

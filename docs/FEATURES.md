@@ -4,7 +4,7 @@
 > (some code, incomplete or unverified), `Planned` (designed, not built),
 > `Proposed` (an idea), `Not started`.
 >
-> **Last updated:** 2026-11-13
+> **Last updated:** 2026-11-14
 >
 > This inventory is the ground truth for "does this exist?". If code and this
 > table disagree, the code wins for behavior and this table must be corrected.
@@ -20,12 +20,13 @@
 | F-003 | Production build + NSIS installer | 0 | ✅ Implemented | `bundle/nsis/*_x64-setup.exe` |
 | F-004 | Strict CSP, no remote origins | 0 | ✅ Implemented | `tauri.conf.json` |
 | F-005 | Minimal capability set (`core:default`) | 0 | ✅ Implemented | `capabilities/default.json` |
-| F-006 | Welcome screen + design tokens | 0 | ✅ Implemented | `src/App.tsx`, `src/App.css` |
-| F-007 | Application shell, navigation, routing | 0 | ⏳ Not started | — |
+| F-006 | Application shell + design tokens | 0 | ✅ Implemented | `src/App.tsx`, `src/styles/globals.css` |
+| F-007 | In-app navigation and routing | 0 | ⏳ Not started | — |
 | F-008 | Error boundary + fatal-startup screen | 0 | ⏳ Not started | `lib.rs` uses `expect()` |
-| F-009 | Theming (light/dark/system) | 5 | ⏳ Not started | — |
-| F-010 | Accessible keyboard navigation | 0 | ⏳ Not started | — |
+| F-009 | Theming (light/dark/system) | 5 | 🟡 Partial — manual light/dark toggle persisted in `localStorage`; no OS-preference follow | `src/components/ThemeToggle.tsx`, `src/styles/globals.css` |
+| F-010 | Accessible keyboard navigation | 0 | ⏳ Not started — focus-visible styling and semantic table/landmarks only | `src/styles/globals.css` |
 | F-011 | Window state persistence | 5 | ⏳ Not started | — |
+| F-012 | Responsive panel layout + component primitives | 0 | ✅ Implemented — 1/2/3-column Tailwind grid, shared `Button`, light/dark color tokens | `src/App.tsx`, `src/components/ui/button.tsx`, `src/styles/globals.css` |
 
 ## 2. IPC and application core
 
@@ -144,9 +145,9 @@ commands/processes.rs}`, `src/components/ProcessList.tsx`, `API.md` §3.3.
 
 | Status | Count |
 |---|---|
-| Implemented | 21 (18 features + 3 baseline properties) |
-| Partial | 3 (F-020 event channel; F-040 process fields; F-042 hierarchy view) |
-| Not started / planned | 44 |
+| Implemented | 22 (19 features + 3 baseline properties) |
+| Partial | 4 (F-009 OS-follow theming; F-020 event channel; F-040 process fields; F-042 hierarchy view) |
+| Not started / planned | 43 |
 | Gated (requires security work) | 5 |
 | Research / proposed | 2 |
 
@@ -155,7 +156,9 @@ correlation IDs, three versioned DTOs, three read-only commands (`get_app_info`,
 `get_system_snapshot`, `list_processes`), the port/domain/Windows-adapter split
 for system information and processes, and UI views for backend status, the system
 snapshot, and the paged process inventory, with loading, error, retry, refresh,
-paging, and per-field unavailable reasons.
+paging, and per-field unavailable reasons. The renderer uses Tailwind CSS v4
+design tokens, a responsive panel grid that reflows from one to three columns,
+and a persisted light/dark toggle.
 
 The event channel, job registry, cancellation, logging, image paths, and
 everything that touches storage are still ahead.

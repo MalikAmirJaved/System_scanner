@@ -6,7 +6,7 @@
 >
 > Only record changes that affect structure, boundaries, contracts, or process.
 > Routine edits do not belong here.
-> **Last updated:** 2026-11-13
+> **Last updated:** 2026-11-14
 
 ---
 
@@ -22,6 +22,45 @@
 - Evidence: <commands run / tests / review>
 - Follow-up: <tracked items>
 ```
+
+---
+
+## 2026-11-14 — Renderer reskin: Tailwind CSS v4 + responsive panel grid
+
+- **Agent/tool:** OpenCode (DeepSeek V4.1 Flash Free).
+- **Scope:** `src/App.tsx`, `src/components/*`, `src/components/ui/button.tsx`,
+  `src/lib/utils.ts`, `src/styles/globals.css`, `vite.config.ts`, `package.json`;
+  removed `src/App.css`. Rust, domain, ports, adapters, and IPC untouched.
+- **Change:**
+  - Replaced the hand-written `App.css` with Tailwind CSS v4 configured through
+    `@tailwindcss/vite`; the palette, radius scale, focus ring, and light/dark
+    token sets now live in `src/styles/globals.css` (`@theme` / `@theme inline`).
+  - Added a shared `Button` primitive (`cva` variants, `cn()` merge, Radix
+    `Slot` for `asChild`, Lucide icons) under `src/components/ui/`.
+  - Apps shell now renders three panels in a 1 → 2 → 3 column responsive grid:
+    backend status, system snapshot, and a full-width paged process table.
+  - Added a persisted light/dark toggle (`ThemeToggle`) that selects the
+    `[data-theme="dark"]` token set and remembers the choice in `localStorage`.
+  - Preserved all prior behavior: refresh/retry, single in-flight refresh,
+    paging with the Rust-supplied offset/limit, per-field `Unavailable (reason)`
+    text, truncation and denial notes, and the empty-list message.
+  - Tests were updated to target roles/labels and to assert the restored
+    behaviors (range caption, refresh recovery, safety-cap note).
+- **Why:** The Release 0 UI grew ad-hoc CSS and panels duplicated control
+  styling. The reskin gives one token layer and one responsive contract before
+  more panels are added.
+- **Risk:**
+  - Tailwind utilities fail silently when mistyped; reviewers must check class
+    strings (`data-theme('…')?`-style pseudo-syntax is invalid).
+  - Adding seven direct dependencies expands the frontend tree; recorded in
+    `docs/DEPENDENCIES.md` and ADR-014.
+  - The app now ships a manual light/dark toggle persisted in `localStorage`;
+    OS-preference following (F-009 system mode) is still missing.
+- **Evidence:** `npm test -- --run` (15 passed, 5 files), `npm run build`
+  (tsc + Vite), `npm run lint`, `npm run format:check`; Rust gates unchanged
+  (32 passed).
+- **Follow-up:** F-009 OS-preference following, F-010 accessibility review, and a
+  visual smoke test under WebView2 (not part of the automated gates).
 
 ---
 

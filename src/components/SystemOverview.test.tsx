@@ -46,7 +46,7 @@ describe("SystemOverview", () => {
     expect(screen.getByText(/12\.0 GB free of 32\.0 GB/i)).toBeInTheDocument();
     expect(screen.getByText("C:\\")).toBeInTheDocument();
     expect(screen.getByText(/192\.0\.2\.10/)).toBeInTheDocument();
-    expect(screen.getByText(/updated/i)).toBeInTheDocument();
+    expect(screen.getByText(/read-only snapshot · updated/i)).toBeInTheDocument();
   });
 
   it("shows why a group is missing instead of an empty value", async () => {
@@ -82,5 +82,6 @@ describe("SystemOverview", () => {
     fireEvent.click(screen.getByRole("button", { name: /refresh/i }));
 
     expect(await screen.findByText(/windows 11 pro/i)).toBeInTheDocument();
+    expect(mockedGetSystemSnapshot).toHaveBeenCalledTimes(2);
   });
 });

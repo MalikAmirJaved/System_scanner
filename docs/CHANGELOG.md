@@ -40,6 +40,12 @@ exists. Until then, `0.x` versions may change behavior without notice.
   refresh, last-updated time, and per-field unavailable reasons.
 - ADR-012: Win32 bindings are confined to an adapter behind a narrow port, and
   network-drive size/label queries are skipped to keep the snapshot bounded.
+- **Responsive reskin (implemented).** Tailwind CSS v4 (`@tailwindcss/vite`) with
+  CSS-first tokens in `src/styles/globals.css`, a shared `Button` primitive
+  (`class-variance-authority`, `cn()`, Radix `Slot`, Lucide icons), and a shell
+  grid that reflows from one to three columns. The system, backend, and process
+  panels keep refresh/retry, paging, and per-field gap reporting. A persisted
+  light/dark toggle selects the `[data-theme="dark"]` tokens. ADR-014.
 - **Process inventory (implemented).** `list_processes` returns one page of
   processes through `ports/processes.rs`, `domain/process.rs`, and
   `adapters/windows/processes.rs` (Toolhelp snapshot + per-process query

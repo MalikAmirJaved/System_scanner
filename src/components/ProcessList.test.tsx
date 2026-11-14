@@ -1,14 +1,14 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { IpcError } from "../services/ipc";
-import { listProcesses, type ProcessList } from "../services/processes";
+import { listProcesses, type ProcessList as ProcessPage } from "../services/processes";
 import { ProcessList as ProcessPanel } from "./ProcessList";
 
 vi.mock("../services/processes", () => ({ listProcesses: vi.fn() }));
 
 const mockedListProcesses = vi.mocked(listProcesses);
 
-const page: ProcessList = {
+const page: ProcessPage = {
   capturedAt: 1762387200000,
   schemaVersion: 1,
   total: 312,
@@ -51,7 +51,7 @@ describe("ProcessList", () => {
 
     expect(await screen.findByText("example.exe")).toBeInTheDocument();
     expect(screen.getByText("812")).toBeInTheDocument();
-    expect(screen.getByText(/1–2 of 312/)).toBeInTheDocument();
+    expect(screen.getByRole("caption")).toHaveTextContent(/1–2 of 312/);
     expect(screen.getByRole("button", { name: /previous/i })).toBeDisabled();
     expect(screen.getByRole("button", { name: /next/i })).toBeEnabled();
 
@@ -82,6 +82,7 @@ describe("ProcessList", () => {
 
     expect(await screen.findByText("System")).toBeInTheDocument();
     expect(screen.getAllByText(/unavailable \(access_denied\)/i)).toHaveLength(2);
+    expect(screen.getByText(/rows marked unavailable were denied by windows/i)).toBeInTheDocument();
   });
 
   it("reports a failure and recovers on refresh", async () => {
@@ -105,6 +106,7 @@ describe("ProcessList", () => {
     fireEvent.click(screen.getByRole("button", { name: /refresh/i }));
 
     expect(await screen.findByText("example.exe")).toBeInTheDocument();
+    expect(mockedListProcesses).toHaveBeenCalledTimes(2);
   });
 
   it("says so when the list was truncated", async () => {
@@ -112,6 +114,7 @@ describe("ProcessList", () => {
 
     render(<ProcessPanel />);
 
-    expect(await screen.findByText(/safety cap/i)).toBeInTheDocument();
+    expect(await screen.findByText(/the list hit its safety cap/i)).toBeInTheDocument();
+    expect(screen.getByRole("caption")).toHaveTextContent(/of 8,192\+/);
   });
 });

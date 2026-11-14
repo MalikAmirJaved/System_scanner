@@ -57,6 +57,10 @@ Notes:
   dev server fails instead of silently moving (see `vite.config.ts`).
 - HMR uses port `1421` when `TAURI_DEV_HOST` is set (remote/device debugging).
 - `src-tauri` is excluded from Vite's file watcher.
+- Tailwind CSS v4 is applied by `@tailwindcss/vite`; design tokens live in
+  `src/styles/globals.css` (`@theme` / `@theme inline`). There is no
+  `tailwind.config.js`; adding a color means adding a token, not a hex value in a
+  component.
 - The first `tauri dev` compiles the full Rust dependency tree and can take
   several minutes. Later builds are incremental.
 
@@ -65,7 +69,7 @@ Notes:
 ```powershell
 # --- Frontend ---
 npm run build               # Verified: `tsc` type-check (noEmit) + `vite build`
-npm test                    # Verified: Vitest run, 4 files / 13 tests
+npm test                    # Verified: Vitest run, 5 files / 15 tests
 npm run lint                # Verified: ESLint 10 flat config, 0 problems
 npm run format:check        # Verified: Prettier check (code only, see .prettierignore)
 npx tsc --noEmit            # Verified: type-check only

@@ -1,6 +1,6 @@
 # Dependencies
 
-> **Status:** Inventory of direct dependencies as resolved on 2026-11-13.
+> **Status:** Inventory of direct dependencies as resolved on 2026-11-14.
 > License review and advisory gating are **not yet automated**.
 > **Related:** [`../TECH_STACK.md`](../TECH_STACK.md), [`DECISIONS.md`](DECISIONS.md)
 
@@ -13,8 +13,14 @@
 | `react` | `^19.1.0` | `19.3.1` | MIT | UI library |
 | `react-dom` | `^19.1.0` | `19.3.1` | MIT | DOM renderer |
 | `@tauri-apps/api` | `^2` | `2.12.4` | Apache-2.0 OR MIT | Typed IPC/event API — used by `src/services/ipc.ts` |
+| `class-variance-authority` | `^0.7.1` | `0.7.1` | Apache-2.0 | Typed component variants for the shared `Button` |
+| `clsx` | `^2.1.1` | `2.1.1` | MIT | Conditional class names in `cn()` |
+| `tailwind-merge` | `^3.7.0` | `3.7.0` | MIT | Tailwind conflict resolution in `cn()` |
+| `@radix-ui/react-slot` | `^1.5.0` | `1.5.0` | MIT | `asChild` composition for `Button` |
+| `lucide-react` | `^1.72.0` | `1.72.0` | ISC | Icon SVGs (decorative, `aria-hidden`) |
 
-Production tree: 5 packages total including transitive (`scheduler`, etc.).
+Production tree: 13 packages total including transitive (`scheduler`, `react-is`,
+etc.).
 
 ## 2. Development JavaScript dependencies
 
@@ -23,6 +29,8 @@ Production tree: 5 packages total including transitive (`scheduler`, etc.).
 | `@tauri-apps/cli` | `^2` | `2.12.4` | Apache-2.0 OR MIT | Dev/build/bundle orchestration |
 | `vite` | `^8.0.16` | `8.3.6` | MIT | Dev server + bundler |
 | `@vitejs/plugin-react` | `^6.0.2` | `6.2.1` | MIT | React transform/HMR |
+| `tailwindcss` | `^4.3.5` | `4.3.5` | MIT | Utility CSS engine + `@theme` tokens |
+| `@tailwindcss/vite` | `^4.3.5` | `4.3.5` | MIT | Tailwind integration for Vite |
 | `typescript` | `~6.0.3` | `6.0.3` | Apache-2.0 | Type checking |
 | `@types/react` | `^19.1.8` | `19.3.0` | MIT | React types |
 | `@types/react-dom` | `^19.1.6` | `19.3.0` | MIT | React DOM types |
@@ -144,8 +152,9 @@ and archives checksums.
 
 | License | Packages (direct) |
 |---|---|
-| MIT | react, react-dom, vite, plugin-react, vitest, jsdom, testing-library, eslint stack, prettier, @types/* |
-| Apache-2.0 | typescript |
+| MIT | react, react-dom, vite, plugin-react, vitest, jsdom, testing-library, eslint stack, prettier, tailwindcss, @tailwindcss/vite, clsx, tailwind-merge, @radix-ui/react-slot, @types/* |
+| Apache-2.0 | typescript, class-variance-authority |
+| ISC | lucide-react |
 | Apache-2.0 OR MIT | @tauri-apps/api, @tauri-apps/cli, tauri, serde, serde_json, thiserror |
 
 **This is not a legal review.** A full transitive license audit is required before

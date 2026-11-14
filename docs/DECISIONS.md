@@ -343,6 +343,53 @@ bounded interval.
 
 ---
 
+## ADR-014 — UI styling: Tailwind CSS v4 with local shadcn-style primitives
+
+**Status:** Accepted · 2026-11-14
+
+**Context.** The Release 0 renderer had one hand-written stylesheet
+(`src/App.css`, ~10 KB) for a welcome screen; the three data panels reused class
+names but had no shared control primitives. The next slices add more panels,
+tables, and states. Continuing with ad-hoc CSS would grow a second, undocumented
+design system and make responsive behavior inconsistent.
+
+**Options.**
+
+1. Keep plain CSS and add conventions by hand.
+2. Adopt a component kit (MUI, Ant Design) with its own theme provider.
+3. Adopt Tailwind CSS v4 plus shadcn-style components copied into the repo.
+4. Adopt a CSS-in-JS runtime (styled-components, Emotion).
+
+**Decision.**
+
+- **Tailwind CSS v4** through `@tailwindcss/vite`. Tokens live in
+  `src/styles/globals.css` using `@theme` / `@theme inline` and CSS variables;
+  there is no `tailwind.config.js` palette to keep in sync.
+- **shadcn-style primitives** live in `src/components/ui/` and are owned by this
+  repository. `Button` uses `class-variance-authority` for variants,
+  `tailwind-merge` + `clsx` through `cn()` so caller overrides win, Radix `Slot`
+  for `asChild`, and `lucide-react` for decorative icons.
+- **Responsive contract:** the shell grid is one column, then two at `sm`, then
+  three at `lg`; the process table spans the full width because it needs it.
+- Light and dark token sets are selected by `[data-theme="dark"]`; a small
+  `ThemeToggle` writes the attribute and persists the choice in `localStorage`.
+  Following the OS preference is not implemented (F-009 stays partial).
+
+**Consequences.**
+
+- One token layer and one button primitive replace per-panel CSS classes.
+- Utility classes appear in JSX; reviewers must check class strings, and invalid
+  utilities fail silently at runtime (they simply emit no CSS).
+- Seven direct dependencies were added (two dev, five runtime); they are recorded
+  in `docs/DEPENDENCIES.md` and are small, maintained, permissively licensed.
+- No styling runtime is shipped; the bundle carries static CSS.
+
+**Revisit if:** the panel count grows enough that copied primitives duplicate a
+real component library, a design-token pipeline (Figma → CSS) is adopted, or the
+theme toggle (F-009) needs a provider that changes the current structure.
+
+---
+
 ## Template
 
 ```text

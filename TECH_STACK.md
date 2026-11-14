@@ -1,6 +1,6 @@
 # Tech Stack
 
-> **Status:** Current stack (implemented) + planned additions · **Last updated:** 2026-11-06
+> **Status:** Current stack (implemented) + planned additions · **Last updated:** 2026-11-14
 >
 > Versions below were read from `package.json`, `src-tauri/Cargo.toml`, and the
 > installed toolchains. Anything marked **Proposed** is not a dependency yet.
@@ -18,7 +18,8 @@
 | Bundler / dev server | Vite | `^8.0.16` | Implemented |
 | React plugin | `@vitejs/plugin-react` | `^6.0.2` | Implemented |
 | Tauri JS API | `@tauri-apps/api` | `^2` | Implemented (`src/services/ipc.ts` is the only caller) |
-| Styles | Plain CSS + custom properties | — | Implemented |
+| Styles | Tailwind CSS v4 (`@tailwindcss/vite`) + CSS variables | `4.3.5` | Implemented (`src/styles/globals.css`) |
+| UI primitives | shadcn-style local components (`cva`, `clsx`, `tailwind-merge`, Radix `Slot`, `lucide-react`) | see `package.json` | Implemented (`src/components/ui/`) |
 | Persistence | SQLite | — | **Proposed** |
 | DB access | `rusqlite` or `sqlx` | — | **Undecided** (B-020) |
 | Serialization | `serde` / `serde_json` | `1.0.229` / `1.0.154` | Implemented |
@@ -59,6 +60,24 @@ Rust ramp-up cost; debugging spans two languages.
 - TypeScript `strict` is enabled; `noUnusedLocals`/`noUnusedParameters` keep IPC
   DTO adapters honest.
 
+### Tailwind CSS v4 + shadcn-style primitives
+
+- Tailwind v4's Vite plugin performs the CSS-first configuration: tokens live in
+  `@theme` / `@theme inline` inside `src/styles/globals.css`, so the palette and
+  radius scale have one source of truth instead of a JS config file.
+- Components are **copied into the repository** (`src/components/ui/`), not
+  imported from a runtime library. There is no hidden theme provider to upgrade,
+  and the whole styling surface stays auditable.
+- `class-variance-authority` + `tailwind-merge` give the shared `Button` typed
+  variants without a prop-styling free-for-all; Radix `Slot` is the only Radix
+  dependency and is used for `asChild`.
+- Icons come from `lucide-react`; they are decorative SVGs with `aria-hidden`,
+  so a screen reader never reads an icon name.
+
+**Trade-offs accepted:** utility classes in markup, a build-time dependency on
+Tailwind, and the need to keep tokens (not arbitrary colors) as the palette
+source. In exchange the UI ships static CSS and no styling runtime.
+
 ### Rust
 
 - Memory safety without a GC is material when the app must stay responsive while
@@ -87,6 +106,8 @@ record in [`docs/DECISIONS.md`](docs/DECISIONS.md).
 | Next.js | Server rendering and routing server are irrelevant locally |
 | Microservices | No deployment or scaling requirement justifies them |
 | Electron store / Redux for scan state | Rust is authoritative for job state; duplicating it in the UI causes drift |
+| CSS-in-JS runtime (styled-components, Emotion) | Ships a runtime and a second theming model; Tailwind v4 emits static CSS and shares one token layer |
+| A full component kit (MUI, Ant Design) | Large surface and its own theme system for a three-panel desktop UI |
 | A second HTTP client | One client, opt-in only; see [`docs/NETWORKING.md`](docs/NETWORKING.md) |
 
 ## 4. Version policy
@@ -97,8 +118,11 @@ record in [`docs/DECISIONS.md`](docs/DECISIONS.md).
 - **Tauri:** stay on the latest 2.x patch line. A 3.x move requires an ADR and a
   capability/CSP review.
 - **TypeScript:** currently `~6.0.3` (patch updates only within the minor).
-- **Frontend runtime deps:** keep to React, React DOM, and `@tauri-apps/api` until
-  a feature proves it needs more.
+- **Frontend runtime deps:** Tailwind CSS v4, its Vite plugin, and the small
+  shadcn-style primitive set (`class-variance-authority`, `clsx`,
+  `tailwind-merge`, `@radix-ui/react-slot`, `lucide-react`) are accepted as the
+  styling contract. Any further component library requires an ADR and a
+  dependency entry; do not add a second styling system.
 
 ## 5. Tooling status
 
