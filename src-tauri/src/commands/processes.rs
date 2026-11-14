@@ -13,6 +13,14 @@ pub async fn list_processes(
     offset: Option<u32>,
     limit: Option<u32>,
 ) -> CommandResult<ProcessListDto> {
+    let result = run_list_processes(offset, limit).await;
+    result.log_outcome("list_processes")
+}
+
+async fn run_list_processes(
+    offset: Option<u32>,
+    limit: Option<u32>,
+) -> CommandResult<ProcessListDto> {
     let request = match PageRequest::new(offset, limit) {
         Ok(request) => request,
         Err(error) => {

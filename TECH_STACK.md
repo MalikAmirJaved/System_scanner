@@ -24,7 +24,7 @@
 | DB access | `rusqlite` or `sqlx` | — | **Undecided** (B-020) |
 | Serialization | `serde` / `serde_json` | `1.0.229` / `1.0.154` | Implemented |
 | Errors | `thiserror` | `2.0.21` | Implemented |
-| Logging | `tracing` + `tracing-subscriber` | — | **Proposed** |
+| Logging | `tracing` + `tracing-subscriber`, size-based file rotation (`src-tauri/src/logging.rs`) | `0.1.44` / `0.3.23` | Implemented |
 | Hashing | `sha2` / `blake3` | — | **Proposed** |
 | Windows bindings | `windows` / `windows-sys` | — | **Proposed** |
 | Frontend tests | Vitest + Testing Library | `5.1.0` / `16.3.3` | Implemented |
@@ -96,6 +96,15 @@ source. In exchange the UI ships static CSS and no styling runtime.
 (async, compile-time query checking, heavier). Decide before the first migration;
 record in [`docs/DECISIONS.md`](docs/DECISIONS.md).
 
+### Local logs
+
+- `tracing` events go to `app_log_dir()/system-scanner.log`, rotated at 10 MB with
+  five files maximum (50 MB bound).
+- Commands log their stable code and correlation ID on failure; request payloads
+  and inputs are never logged, and diagnostic detail passes best-effort path
+  redaction.
+- Logs never leave the machine. An in-app preview/export is still B-006.
+
 ## 3. Rejected alternatives
 
 | Option | Why rejected |
@@ -131,7 +140,7 @@ record in [`docs/DECISIONS.md`](docs/DECISIONS.md).
 | ESLint + `eslint-plugin-react-hooks` | Catch hook and unused-code issues | Configured; `npm run lint` passes |
 | Prettier | Consistent formatting | Configured; `npm run format:check` passes (code only, Markdown/CSS excluded by design) |
 | `rustfmt.toml` / `clippy.toml` | Explicit Rust style | Defaults are in use; `cargo fmt --check` and `clippy -D warnings` pass |
-| Vitest | Unit tests | Configured; `npm test` passes (13 tests) |
+| Vitest | Unit tests | Configured; `npm test` passes (15 tests) |
 | `rust-toolchain.toml` | Reproducible toolchain | Committed; pins `stable` + `rustfmt`/`clippy` (not an exact compiler version; B-011) |
 | GitHub Actions | Windows CI | Workflow committed (`.github/workflows/ci.yml`); never executed (B-092) |
 | `cargo-audit`, Dependabot | Advisory monitoring | Not enabled |

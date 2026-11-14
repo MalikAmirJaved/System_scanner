@@ -59,6 +59,8 @@ See [`KNOWN_ISSUES.md`](KNOWN_ISSUES.md) KI-036.
 | `serde` | `1.0.229` (`derive`) | `1.0.229` | MIT OR Apache-2.0 | DTO/error serialization |
 | `serde_json` | `1.0.154` | `1.0.154` | MIT OR Apache-2.0 | Envelope and DTO tests |
 | `thiserror` | `2.0.21` | `2.0.21` | MIT OR Apache-2.0 | `AppError` `Error` impl |
+| `tracing` | `0.1` | `0.1.44` | MIT | Structured events (already transitive via Tauri; now declared directly) |
+| `tracing-subscriber` | `0.3` (`default-features = false`, `fmt`, `std`) | `0.3.23` | MIT | File subscriber for `tracing` |
 | `windows-sys` (Windows target only) | `0.61.2` | `0.61.2` | MIT OR Apache-2.0 | Win32 registry, memory, volume, adapter, and process bindings for `adapters/windows` (B-002, B-003) |
 
 `windows-sys` features enabled: `Win32_Foundation`,
@@ -69,7 +71,9 @@ See [`KNOWN_ISSUES.md`](KNOWN_ISSUES.md) KI-036.
 `Win32_System_Threading`, `Win32_System_WindowsProgramming`. It is target-scoped
 so `domain/` and its tests still build on non-Windows hosts.
 
-- `Cargo.lock` currently resolves **407 packages** (full transitive tree).
+- `Cargo.lock` currently resolves **412 packages** (full transitive tree).
+- Logging adds `tracing-subscriber` plus four small transitive crates; `tracing`
+  itself was already in the tree through Tauri.
 - The workspace crate `system-scanner` declares **no license field**, which means
   all rights reserved by default. This must be fixed before distribution.
 
@@ -98,7 +102,6 @@ so `domain/` and its tests still build on non-Windows hosts.
 
 | Dependency | Would be used for | Gate |
 |---|---|---|
-| `tracing`, `tracing-subscriber`, `tracing-appender` | Logging | Release 0 diagnostics (B-007) |
 | `rusqlite` **or** `sqlx` | SQLite | ADR-005 (B-020) |
 | `walkdir` **or** custom traversal | Directory enumeration | Decide after prototype (B-022) |
 | `sha2`, `blake3` | Hashing | Release 1 (B-028) |
@@ -106,6 +109,8 @@ so `domain/` and its tests still build on non-Windows hosts.
 | `zod` (optional) | Runtime DTO validation in the renderer | Only if hand-written guards prove insufficient (B-090) |
 
 Each addition requires an entry here **in the same change**, plus a justification.
+Rotation is implemented in-process (`logging.rs`), so `tracing-appender` is not
+planned.
 
 ## 7. Dependency policy
 
@@ -152,7 +157,7 @@ and archives checksums.
 
 | License | Packages (direct) |
 |---|---|
-| MIT | react, react-dom, vite, plugin-react, vitest, jsdom, testing-library, eslint stack, prettier, tailwindcss, @tailwindcss/vite, clsx, tailwind-merge, @radix-ui/react-slot, @types/* |
+| MIT | react, react-dom, vite, plugin-react, vitest, jsdom, testing-library, eslint stack, prettier, tailwindcss, @tailwindcss/vite, clsx, tailwind-merge, @radix-ui/react-slot, tracing, tracing-subscriber, @types/* |
 | Apache-2.0 | typescript, class-variance-authority |
 | ISC | lucide-react |
 | Apache-2.0 OR MIT | @tauri-apps/api, @tauri-apps/cli, tauri, serde, serde_json, thiserror |

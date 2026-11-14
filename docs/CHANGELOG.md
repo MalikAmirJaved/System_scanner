@@ -40,6 +40,11 @@ exists. Until then, `0.x` versions may change behavior without notice.
   refresh, last-updated time, and per-field unavailable reasons.
 - ADR-012: Win32 bindings are confined to an adapter behind a narrow port, and
   network-drive size/label queries are skipped to keep the snapshot bounded.
+- **Local logging (implemented).** `tracing` events write to Tauri's
+  `app_log_dir()` through a size-rotating writer (10 MB × 5 files). Command
+  outcomes log stable codes and correlation IDs without payloads; diagnostic
+  detail passes best-effort path redaction. Initialization failure is non-fatal.
+  ADR-015.
 - **Responsive reskin (implemented).** Tailwind CSS v4 (`@tailwindcss/vite`) with
   CSS-first tokens in `src/styles/globals.css`, a shared `Button` primitive
   (`class-variance-authority`, `cn()`, Radix `Slot`, Lucide icons), and a shell

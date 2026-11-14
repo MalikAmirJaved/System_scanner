@@ -25,7 +25,7 @@
 |---|---|---|---|
 | KI-010 | Startup failure calls `expect()` | A fatal error exits with a panic message, no UI | `src-tauri/src/lib.rs` |
 | KI-011 | IPC responses are not validated at runtime in the frontend | A DTO rename would render `undefined` instead of failing loudly | B-090; `API.md` §8 |
-| KI-012 | No logging | Field failures cannot be diagnosed | B-007 |
+| KI-012 | Logs have no in-app viewer or export | Failures are diagnosable on disk, but support must locate and read the file manually | B-006 |
 | KI-013 | No cancellation infrastructure | Long work would be unstoppable | Design in `SYSTEM_DESIGN.md` |
 | KI-014 | No DB recovery path | Once persistence lands, corruption risks data loss | `RECOVERY_PLAN.md` |
 | KI-015 | No updater | Security fixes cannot reach users | `DEPLOYMENT.md` §7 |

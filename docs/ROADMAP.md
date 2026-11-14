@@ -49,8 +49,9 @@ requirements.
 | System snapshot (OS/CPU/memory/disks/network) | ✅ Implemented — unavailable fields reported |
 | Process list with stable identity | ✅ Implemented — paged, per-row unavailable fields |
 | Refresh lifecycle (manual + bounded periodic) | 🟡 Manual refresh implemented; periodic refresh not |
+| Structured logging + rotation | ✅ Implemented — 10 MB × 5 files in the app log directory; redaction test |
 | Diagnostics view + redacted support bundle | ⏳ Not started |
-| Tests (unit/adapter/UI) | 🟡 Partial — IPC, snapshot + process contracts/adapters/usecases, 3 UI panels + theme toggle; 47 tests |
+| Tests (unit/adapter/UI) | 🟡 Partial — IPC, snapshot + process contracts/adapters/usecases, logging, 3 UI panels + theme toggle; 52 tests |
 | CI on Windows | 🟡 Workflow committed, never run on GitHub |
 
 **Exit criteria**

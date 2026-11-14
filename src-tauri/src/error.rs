@@ -31,6 +31,23 @@ pub enum ErrorCode {
 }
 
 impl ErrorCode {
+    /// Stable snake_case name used on the wire and in logs.
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::InvalidInput => "invalid_input",
+            Self::NotPermitted => "not_permitted",
+            Self::AccessDenied => "access_denied",
+            Self::NotFound => "not_found",
+            Self::Unsupported => "unsupported",
+            Self::Timeout => "timeout",
+            Self::Busy => "busy",
+            Self::Cancelled => "cancelled",
+            Self::DiskFull => "disk_full",
+            Self::DbError => "db_error",
+            Self::Internal => "internal",
+        }
+    }
+
     /// Whether the caller may reasonably retry without changing the request.
     pub const fn retryable(self) -> bool {
         matches!(
@@ -54,6 +71,12 @@ impl ErrorCode {
             Self::DbError => "The local history database could not be read or written.",
             Self::Internal => "An unexpected internal error occurred.",
         }
+    }
+}
+
+impl std::fmt::Display for ErrorCode {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(self.as_str())
     }
 }
 
@@ -132,6 +155,12 @@ mod tests {
         for code in codes {
             assert!(!code.default_message().is_empty());
         }
+    }
+
+    #[test]
+    fn codes_have_stable_log_names() {
+        assert_eq!(ErrorCode::AccessDenied.as_str(), "access_denied");
+        assert_eq!(ErrorCode::InvalidInput.to_string(), "invalid_input");
     }
 
     #[test]

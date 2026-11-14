@@ -32,14 +32,14 @@ Architecture: [`ARCHITECTURE.md`](ARCHITECTURE.md).
 | Capabilities | `core:default` only, window `main` | `capabilities/default.json` |
 | Runtime JS deps | `react`, `react-dom`, `@tauri-apps/api`, Tailwind v4 styling primitives (`cva`, `clsx`, `tailwind-merge`, Radix `Slot`, `lucide-react`) | `package.json` |
 | Styles | Tailwind CSS v4 via `@tailwindcss/vite`; tokens in `src/styles/globals.css` | `vite.config.ts` |
-| Rust deps | `tauri 2`, `serde`, `serde_json`, `thiserror`, `windows-sys 0.61` (Windows target) | `Cargo.toml` |
+| Rust deps | `tauri 2`, `serde`, `serde_json`, `thiserror`, `tracing`/`tracing-subscriber`, `windows-sys 0.61` (Windows target) | `Cargo.toml` |
 | Release profile | LTO, `codegen-units=1`, `opt-level=3`, `panic=abort`, `strip` | `Cargo.toml` |
 | Rust files | `main.rs`, `lib.rs`, `ipc.rs`, `error.rs`, `dto/`, `commands/`, `domain/`, `ports/`, `adapters/windows/` | `src-tauri/src/` |
 | IPC commands | `get_app_info`, `get_system_snapshot`, `list_processes` (all read-only) | `src-tauri/src/commands/` |
 | Wire format | envelope `{status, data|error}`; DTO fields camelCase; codes snake_case | `API.md` §1–§2 |
 | Frontend IPC | `src/services/ipc.ts` is the only `invoke` call site | `src/services/` |
 | Database | **none** | — |
-| Tests | 32 Rust + 15 frontend (`npm test`, `cargo test`) | `src/**/*.test.ts(x)`, `#[cfg(test)]` |
+| Tests | 37 Rust + 15 frontend (`npm test`, `cargo test`) | `src/**/*.test.ts(x)`, `#[cfg(test)]` |
 | CI | `.github/workflows/ci.yml` (**never run on GitHub**) | `.github/` |
 | Frontend | shell header + backend status + system snapshot + paged process list in a responsive 1/2/3-column grid | `src/App.tsx`, `src/components/`, `src/components/ui/button.tsx` |
 
@@ -55,7 +55,7 @@ If any of these change, update this table in the same commit.
 - No IPC events, job registry, cancellation, or concurrency budgets.
 - No startup/service collectors, and no storage traversal.
 - No SQLite, migrations, repositories, or data directory.
-- No logging, tracing, or diagnostics export.
+- No diagnostics export or in-app log viewer; logs are local files (B-006).
 - No app shell navigation or routing — one screen with three panels (backend
   status, system snapshot, process inventory).
 - No runtime validation of IPC response payloads in the frontend.
@@ -86,6 +86,7 @@ Avoid: "clean", "infected", "optimize", "fix" for anything that is not verified.
 | Render a screen | `src/features/<domain>/` (planned); presentational pieces in `src/components/` |
 | Share a presentational component | `src/components/` (implemented); shared primitives in `src/components/ui/` |
 | Add or change a design token | `src/styles/globals.css` (`@theme` / `@theme inline`) |
+| Log a backend event | `tracing::info!`/`warn!` at the call site; subscriber and rotation live in `src-tauri/src/logging.rs` |
 | Call Rust from the UI | `src/services/` (implemented) — never in a component |
 | Define an IPC command | `src-tauri/src/commands/` (implemented) |
 | Orchestrate jobs/cancellation | `src-tauri/src/app/` (planned) |
@@ -145,5 +146,5 @@ From [`docs/plan.md`](docs/plan.md) §12:
 | Putting `std::fs` calls in `domain` | Add a port and a filesystem adapter |
 | Sending 100k rows to the UI | Aggregate in Rust; page results |
 | Adding `tokio`/`serde` "just in case" | Add only with a feature that needs it, plus a dependency entry |
-| Logging full paths by default | Redact or hash; log at debug only |
+| Logging full paths by default | Redact or hash before logging |
 | Marking the checklist item done because code compiles | Evidence required: test, measurement, or review |

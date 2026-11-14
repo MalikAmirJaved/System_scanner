@@ -13,7 +13,7 @@
 | Capability | Status |
 |---|---|
 | CI provider | GitHub Actions workflow committed (`.github/workflows/ci.yml`); never executed |
-| Automated tests | `npm test` (13 tests), `cargo test` (32 tests) |
+| Automated tests | `npm test` (15 tests), `cargo test` (37 tests) |
 | Automated lint/format | ESLint, Prettier, rustfmt, clippy — in the workflow and runnable locally |
 | Release automation | None |
 | Artifact storage | `upload-artifact@v4` for the NSIS installer, 14-day retention (untested) |
@@ -52,7 +52,7 @@ frontend:
     - run: npm run build          # tsc + vite build
     - run: npm run lint
     - run: npm run format:check
-    - run: npm test               # Vitest, 13 tests
+    - run: npm test               # Vitest, 15 tests
 ```
 
 ### 2.2 Rust job

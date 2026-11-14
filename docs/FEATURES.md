@@ -38,7 +38,7 @@
 | F-023 | Job registry + lifecycle state machine | 0 | ⏳ Not started | — |
 | F-024 | Cancellation tokens per job | 0 | ⏳ Not started | — |
 | F-025 | Bounded concurrency + resource budgets | 1 | ⏳ Not started | — |
-| F-026 | Structured logging + rotation | 0 | ⏳ Not started | — |
+| F-026 | Structured logging + rotation | 0 | ✅ Implemented — `tracing` to `app_log_dir()`, 10 MB × 5 files, redaction guard; command outcomes logged without payloads | `src-tauri/src/logging.rs`, `ipc.rs` |
 | F-027 | Startup reconciliation of interrupted jobs | 1 | ⏳ Not started | — |
 | F-028 | Runtime settings store | 1 | ⏳ Not started | — |
 
@@ -145,9 +145,9 @@ commands/processes.rs}`, `src/components/ProcessList.tsx`, `API.md` §3.3.
 
 | Status | Count |
 |---|---|
-| Implemented | 22 (19 features + 3 baseline properties) |
+| Implemented | 23 (20 features + 3 baseline properties) |
 | Partial | 4 (F-009 OS-follow theming; F-020 event channel; F-040 process fields; F-042 hierarchy view) |
-| Not started / planned | 43 |
+| Not started / planned | 42 |
 | Gated (requires security work) | 5 |
 | Research / proposed | 2 |
 
@@ -158,7 +158,8 @@ for system information and processes, and UI views for backend status, the syste
 snapshot, and the paged process inventory, with loading, error, retry, refresh,
 paging, and per-field unavailable reasons. The renderer uses Tailwind CSS v4
 design tokens, a responsive panel grid that reflows from one to three columns,
-and a persisted light/dark toggle.
+and a persisted light/dark toggle. The backend writes bounded, redacted local
+logs for command outcomes and startup.
 
 The event channel, job registry, cancellation, logging, image paths, and
 everything that touches storage are still ahead.

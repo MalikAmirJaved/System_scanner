@@ -1,6 +1,6 @@
 # Backlog
 
-> **Status:** Active · **Last updated:** 2026-11-13
+> **Status:** Active · **Last updated:** 2026-11-14
 >
 > Priority: **P0** blocks Release 0 / trust, **P1** needed for V1, **P2** V2+,
 > **P3** nice to have. IDs are stable; do not renumber.
@@ -22,7 +22,7 @@
 | B-004 | Build the app shell + dashboard route | One screen with three panels; no navigation or routing | Navigation + loading/empty/error states |
 | B-005 | ✅ Refresh lifecycle (manual, in-progress, last-updated) | Prevent stale/frozen UI | No overlapping refreshes; stale responses discarded |
 | B-006 | Diagnostics view + redacted support bundle | Support without telemetry | Bundle previews and excludes paths/PII |
-| B-007 | Structured logging with rotation | Diagnosability | `tracing` to file, 5×10 MB cap, redaction test |
+| B-007 | ✅ Structured logging with rotation | Diagnosability | `tracing` to file, 5×10 MB cap, redaction test |
 | B-008 | ✅ Add test runner + first tests | Zero tests today | `cargo test` has real tests; `npm test` exists |
 | B-009 | ✅ Add ESLint + Prettier | Consistency before the codebase grows | `npm run lint` / `format` pass |
 | B-010 | 🟡 Add Windows CI (fmt, clippy, test, build) | No automation today | PRs blocked on failing checks |

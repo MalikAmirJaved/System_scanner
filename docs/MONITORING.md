@@ -1,7 +1,8 @@
 # Monitoring & Observability
 
-> **Status:** No logging, metrics, tracing, or diagnostics exist in the code.
-> **Last updated:** 2026-11-06
+> **Status:** Local structured logging exists (file, bounded, redacted). Metrics,
+> an in-app diagnostics view, and support bundles do not exist yet.
+> **Last updated:** 2026-11-14
 
 ---
 
@@ -17,9 +18,14 @@
 5. **Useful under failure.** The most valuable logs are from crashes, denials, and
    cancellations.
 
-## 2. Logging (proposed)
+## 2. Logging (implemented, Release 0)
 
-Stack: `tracing` + `tracing-subscriber` with a rolling file appender.
+Stack: `tracing` + `tracing-subscriber`, writing through the size-rotating
+writer in `src-tauri/src/logging.rs`. Commands log their outcome, stable error
+code, and correlation ID; payloads and IPC inputs are not logged.
+
+Output is the default text `tracing` format today. The JSONL schema below is the
+target for the support bundle (B-006), not the current file format.
 
 | Level | Use |
 |---|---|
@@ -62,15 +68,15 @@ Errors surfaced to the UI use a correlation ID; the detailed cause stays local.
 
 ### 2.3 Rotation and retention
 
-| Setting | Proposed |
+| Setting | Implemented |
 |---|---|
-| File | `%LOCALAPPDATA%\com.systemscanner.desktop\logs\app.log` |
+| File | `%LOCALAPPDATA%\com.systemscanner.desktop\logs\system-scanner.log` (resolved by Tauri `app_log_dir()`) |
 | Rotation | 10 MB per file |
 | Files kept | 5 |
 | Max total | 50 MB |
-| Level in release | `info` (user can raise to `debug` for a session) |
+| Level in release | `info` (no runtime toggle yet) |
 
-## 3. Diagnostics view (Release 0 requirement)
+## 3. Diagnostics view (Release 0 requirement — not implemented)
 
 A read-only screen showing:
 
@@ -100,6 +106,8 @@ recorded in the DB:
 These are visible to the user and never uploaded.
 
 ## 5. Tracing (proposed)
+
+Command outcomes are logged as events today. Job spans are not implemented:
 
 - One span per job; child spans per phase (`traverse`, `persist`, `enrich`).
 - `correlation_id` propagated from IPC request → job → error → UI message.

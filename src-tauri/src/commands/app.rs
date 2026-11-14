@@ -7,7 +7,7 @@ use crate::ipc::CommandResult;
 /// `API.md`: read-only, no input, no OS handle crosses the boundary.
 #[tauri::command]
 pub fn get_app_info() -> CommandResult<AppInfo> {
-    CommandResult::ok(AppInfo::current())
+    CommandResult::ok(AppInfo::current()).log_outcome("get_app_info")
 }
 
 #[cfg(test)]

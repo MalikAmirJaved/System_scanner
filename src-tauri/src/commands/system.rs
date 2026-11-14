@@ -8,14 +8,16 @@ use crate::ipc::CommandResult;
 /// runs on a blocking thread and never on the async reactor.
 #[tauri::command]
 pub async fn get_system_snapshot() -> CommandResult<SystemSnapshotDto> {
-    match tauri::async_runtime::spawn_blocking(collect_platform).await {
+    let result = match tauri::async_runtime::spawn_blocking(collect_platform).await {
         Ok(Ok(snapshot)) => CommandResult::ok(snapshot),
         Ok(Err(error)) => CommandResult::err(error),
         // The join error text can contain a panic message; do not forward it.
         Err(_) => CommandResult::err(
             AppError::new(ErrorCode::Internal).with_detail("snapshot task did not complete"),
         ),
-    }
+    };
+
+    result.log_outcome("get_system_snapshot")
 }
 
 #[cfg(windows)]

@@ -1,4 +1,5 @@
 use crate::error::AppError;
+use crate::logging::redact_detail;
 use serde::Serialize;
 
 /// Every command returns this envelope, including failures.
@@ -19,6 +20,38 @@ impl<T> CommandResult<T> {
 
     pub fn err(error: AppError) -> Self {
         Self::Err { error }
+    }
+
+    /// Records the command outcome without logging payloads, paths, or inputs.
+    ///
+    /// A failed command logs its stable code and correlation ID; the diagnostic
+    /// `detail` is logged only after best-effort path redaction.
+    #[must_use]
+    pub fn log_outcome(self, command: &'static str) -> Self {
+        match &self {
+            Self::Ok { .. } => {
+                tracing::info!(command, outcome = "ok", "command completed");
+            }
+            Self::Err { error } => {
+                tracing::warn!(
+                    command,
+                    outcome = "err",
+                    code = %error.code,
+                    correlation_id = %error.correlation_id,
+                    "command failed"
+                );
+
+                if let Some(detail) = &error.detail {
+                    tracing::info!(
+                        command,
+                        detail = %redact_detail(detail),
+                        "command failure detail"
+                    );
+                }
+            }
+        }
+
+        self
     }
 }
 

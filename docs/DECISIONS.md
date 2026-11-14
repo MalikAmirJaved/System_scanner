@@ -390,6 +390,53 @@ theme toggle (F-009) needs a provider that changes the current structure.
 
 ---
 
+## ADR-015 — Local logs: `tracing` with size-based rotation, no telemetry
+
+**Status:** Accepted · 2026-11-14
+
+**Context.** B-007 requires diagnosable failures without telemetry or a network
+path. Tauri already pulls `tracing` transitively; the app had no subscriber, so
+command outcomes and startup state were invisible in the field.
+
+**Options.**
+
+1. Keep `eprintln!` / ad-hoc file writes.
+2. Add `tracing-appender` for rotation.
+3. Add `tracing-subscriber` and own a small rotating writer.
+4. Ship logs to a remote collector (rejected: violates N-001/N-002).
+
+**Decision.**
+
+- Use **`tracing` + `tracing-subscriber`** (default features off; `fmt`, `std`).
+- Own rotation in `logging.rs`: **10 MB per file, five files, 50 MB total**.
+  Rotation shifts numbered archives and removes the oldest; the active file is
+  `system-scanner.log`. Tests use small limits via `with_limits`.
+- Log **command**, **outcome**, stable error **code**, and **correlation ID**.
+  Payloads, IPC inputs, file contents, and command lines are never logged.
+  Error `detail` is diagnostic-only, logged at info, and passes `redact_detail` (best effort:
+  `C:\Users\<name>\…` becomes `%USERPROFILE%\…`, other drive-rooted tokens
+  become `<path>`).
+- Logging is **initialized in `setup`** against Tauri's `app_log_dir()`; failure
+  is non-fatal and reported on stderr. No upload, no telemetry, no new Tauri
+  capability.
+- `tracing-appender` is unnecessary: its rotation is time-based, and the
+  requirement is size-bounded retention.
+
+**Consequences.**
+
+- Field failures now leave a bounded local trace, including the correlation ID
+  shown to the user.
+- The redaction helper is heuristic; any new log call site still needs review.
+- Four small transitive crates are added; the process-wide subscriber means
+  tests must use scoped subscribers.
+- B-006 (diagnostics view/support bundle) can now read a real log source.
+
+**Revisit if:** structured JSON logs are needed for a support tool, the file cap
+proves too small or too large on real machines, or a second process needs to
+write concurrently (single-instance assumption).
+
+---
+
 ## Template
 
 ```text

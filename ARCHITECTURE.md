@@ -33,14 +33,15 @@
 │   ports/               -> narrow capabilities          │
 │   adapters/windows/    -> windows-sys only             │
 │   ipc.rs / error.rs    -> envelope + taxonomy          │
+│   logging.rs           -> bounded, redacted file logs  │
 │   capabilities/default.json -> ["core:default"]        │
 │   CSP: default-src 'self'; no remote origins           │
 └───────────────────────┬────────────────────────────────┘
                         │
 ┌───────────────────────▼────────────────────────────────┐
-│ Rust std + tauri + serde/thiserror + windows-sys       │
-│   Three read-only commands; no storage,                │
-│   no logging, no jobs, no events                       │
+│ Rust std + tauri + serde/thiserror + tracing + windows-sys │
+│   Three read-only commands, bounded local logs;           │
+│   no storage, jobs, or events                             │
 └────────────────────────────────────────────────────────┘
 ```
 

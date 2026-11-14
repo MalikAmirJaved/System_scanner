@@ -1,6 +1,6 @@
 # Testing Strategy
 
-> **Status:** **Runners are configured; coverage is still narrow.** 32 Rust tests
+> **Status:** **Runners are configured; coverage is still narrow.** 37 Rust tests
 > and 15 frontend tests cover the IPC contract (envelope, error taxonomy, DTO
 > shapes), the snapshot and process domain rules, both native adapters'
 > structural invariants, and three UI panels. Nothing tests traversal,
@@ -14,7 +14,7 @@
 
 | Level | Tool | Configured | Tests |
 |---|---|---|---|
-| Rust unit/integration | `cargo test` | Yes | 32 (`ipc`, `error`, `dto::*`, `domain::*`, `adapters::windows::*`, `commands::*`) |
+| Rust unit/integration | `cargo test` | Yes | 37 (`ipc`, `error`, `logging`, `dto::*`, `domain::*`, `adapters::windows::*`, `commands::*`) |
 | Frontend unit | Vitest 5 + jsdom | Yes | 3 (`services/ipc.test.ts`) |
 | Frontend component | Testing Library 16 | Yes | 12 (`BackendStatus`, `ThemeToggle`, `SystemOverview`, `ProcessList`) |
 | E2E | tauri-driver / WebDriver (proposed) | No | 0 |
@@ -34,7 +34,9 @@ What the existing tests actually establish, and nothing more:
 - the process panel renders rows and the paged range, requests the next offset,
   keeps denied fields visible with their reason, recovers on refresh, and states
   when the list hit its safety cap;
-- the theme toggle writes `data-theme`, persists the choice, and restores it.
+- the theme toggle writes `data-theme`, persists the choice, and restores it;
+- the log writer enforces its file cap, rotates without losing the active file,
+  and redacts user-profile and drive-rooted paths.
 
 They do **not** establish that the UI is visually correct under WebView2; layout
 and theme appearance still need a manual smoke test.
@@ -187,7 +189,7 @@ Formal support matrix is an open decision (`docs/plan.md` §12).
 When reporting test results, state exactly what ran:
 
 ```text
-cargo test            -> 32 tests passed (ipc, error, dto::app_info,
+cargo test            -> 37 tests passed (ipc, error, logging, dto::app_info,
                          dto::system_snapshot, dto::process_list,
                          domain::system, domain::process,
                          adapters::windows::{system_info, processes},
@@ -198,5 +200,5 @@ npm run build         -> passed (tsc + vite)
 ```
 
 Never summarize "all tests pass" without stating the counts and what they cover —
-forty-seven tests that mostly assert read-only contracts say nothing about
+fifty-two tests that mostly assert read-only contracts say nothing about
 traversal, persistence, or crash recovery.

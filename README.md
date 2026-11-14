@@ -48,10 +48,11 @@ and no network dependency for core functionality.
 | Error taxonomy + correlation IDs | ✅ Implemented | `src-tauri/src/error.rs` |
 | Read-only system snapshot (OS/CPU/memory/disks/adapters) | ✅ Implemented | `domain/`, `ports/`, `adapters/windows/`, `SystemOverview.tsx` |
 | Paged process list with stable keys and per-row gaps | ✅ Implemented | `domain/process.rs`, `adapters/windows/processes.rs`, `ProcessList.tsx` |
+| Bounded, redacted local logs | ✅ Implemented | `src-tauri/src/logging.rs` |
 | Startup and service collection | ⏳ Planned | `docs/BACKLOG.md` B-043 |
 | Storage scan engine | ⏳ Planned | Release 1 |
 | SQLite persistence + migrations | ⏳ Planned | Release 1 |
-| Tests, lint config, CI | 🟡 Partial | 47 tests + ESLint/Prettier pass; CI workflow never run |
+| Tests, lint config, CI | 🟡 Partial | 52 tests + ESLint/Prettier pass; CI workflow never run |
 | Network egress | 🚫 None by design | no HTTP client dependency |
 
 Full inventory: [`docs/FEATURES.md`](docs/FEATURES.md). Gaps:

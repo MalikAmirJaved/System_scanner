@@ -25,6 +25,40 @@
 
 ---
 
+## 2026-11-14 — Local structured logging with size-based rotation (B-007)
+
+- **Agent/tool:** OpenCode (DeepSeek V4.1 Flash Free).
+- **Scope:** `src-tauri/src/logging.rs`, `lib.rs`, `ipc.rs`, `error.rs`,
+  `commands/{app,system,processes}.rs`, `Cargo.toml`/`Cargo.lock`; docs.
+- **Change:**
+  - Added a `tracing` + `tracing-subscriber` subscriber that writes to Tauri's
+    `app_log_dir()`. `logging.rs` owns rotation: 10 MB per file, five files,
+    oldest removed first; rotation is tested with small limits.
+  - `lib.rs` initializes logging in `setup` and logs the app version and log
+    path. Initialization failure is non-fatal and reported on stderr.
+  - Every command logs `command`, `outcome`, and (on failure) the stable code and
+    correlation ID through `CommandResult::log_outcome`. Payloads and inputs are
+    never logged; error `detail` is logged with `redact_detail`, which replaces
+    user-profile names and drive-rooted paths.
+  - `ErrorCode` gained a stable `as_str()`/`Display` so logs and the wire share
+    one spelling.
+- **Why:** B-007 was the last unblocked Release 0 diagnostics blocker; without
+  logs, field failures cannot be diagnosed and a support bundle (B-006) has no
+  source.
+- **Risk:**
+  - Logs are plain text on disk; no secret is logged by policy, but a future call
+    site could add one. The redaction helper only covers path-shaped tokens.
+  - `tracing-subscriber` pulls four small transitive crates; defaults were
+    disabled (no ANSI/log-bridge) to keep the tree small.
+  - A global subscriber can only be installed once; tests use scoped subscribers
+    instead of `init`.
+- **Evidence:** `cargo fmt --all -- --check`, `cargo clippy --all-targets -- -D
+  warnings`, `cargo test` (37 passed), `npm test` (15 passed), `npm run build`.
+- **Follow-up:** B-006 diagnostics view + redacted support bundle; optional
+  retention/size visibility in the UI.
+
+---
+
 ## 2026-11-14 — Renderer reskin: Tailwind CSS v4 + responsive panel grid
 
 - **Agent/tool:** OpenCode (DeepSeek V4.1 Flash Free).

@@ -80,8 +80,13 @@ cd src-tauri
 cargo check                 # Verified
 cargo fmt --all -- --check  # Verified: 0 diffs (no rustfmt.toml: defaults apply)
 cargo clippy --all-targets -- -D warnings   # Verified: 0 warnings
-cargo test                  # Verified: 32 tests pass
+cargo test                  # Verified: 37 tests pass
 ```
+
+Application logs (release and dev): Tauri's `app_log_dir()`
+(`%LOCALAPPDATA%\com.systemscanner.desktop\logs` on Windows), file
+`system-scanner.log`, rotated at 10 MB with five files kept. Logging failure is
+non-fatal and reported on stderr.
 
 | Gate                    | Command                                       | Status                                             |
 | ----------------------- | --------------------------------------------- | -------------------------------------------------- |
@@ -91,7 +96,7 @@ cargo test                  # Verified: 32 tests pass
 | Frontend format         | `npm run format:check`                      | Available — Prettier 3                            |
 | Rust format             | `cargo fmt --all -- --check`                | Available                                          |
 | Rust lint               | `cargo clippy --all-targets -- -D warnings` | Available                                          |
-| Rust tests              | `cargo test`                                | Available (32 tests)                               |
+| Rust tests              | `cargo test`                                | Available (37 tests)                               |
 | Dependency audit (JS)   | `npm audit --omit=dev`                      | Available                                          |
 | Dependency audit (Rust) | `cargo audit`                               | **Planned** — `cargo-audit` not installed |
 
