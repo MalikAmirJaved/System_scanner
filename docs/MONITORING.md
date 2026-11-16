@@ -88,7 +88,8 @@ The dashboard has an on-request diagnostics panel
 - unavailable fields with their stable reason codes;
 - a redacted support-bundle preview with an explicit copy action.
 
-It does **not** show feature availability, DB statistics (no database exists), a
+It does **not** show feature availability, database statistics or schema version
+(the database file exists but holds no user rows and no command reads it), a
 log-level filter, or redaction toggles. It never writes a file, and loading it is
 a user action, so browsing the dashboard does not read the log.
 
@@ -124,11 +125,12 @@ Command outcomes are logged as events today. Job spans are not implemented:
 
 | Check | Behavior |
 |---|---|
-| DB open + `PRAGMA quick_check` | On startup; warn if degraded |
-| Data directory writable | On startup; fall back to memory-only with banner |
+| DB open | On startup: creates the directory, configures pragmas, applies migrations, logs `database ready` with `schema_version`. A failure logs a warning and the app continues without persistence |
+| `PRAGMA quick_check` | ⏳ Not implemented |
+| Data directory writable | On startup; the open failure path logs and disables persistence. A visible memory-only banner is not implemented |
 | WebView2 present | Tauri handles; surface a clear error if missing |
-| Migration state | Must equal expected schema version |
-| Orphaned sessions | Reconciled to `interrupted` |
+| Migration state | Must equal expected schema version; a newer schema or changed checksum refuses to open |
+| Orphaned sessions | ⏳ Not implemented — no rows are written yet |
 
 ## 7. Crash handling
 
@@ -159,7 +161,7 @@ Not implemented:
 
 - a saved `.zip` or `.txt` export with a file-picker flow;
 - a `manifest.json` / `diagnostics.json` split;
-- DB statistics and job outcomes (no persistence yet);
+- DB statistics and job outcomes (schema v1 exists but no rows are written);
 - a redaction toggle or rule preview.
 
 The target shape remains:

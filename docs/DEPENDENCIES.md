@@ -1,6 +1,6 @@
 # Dependencies
 
-> **Status:** Inventory of direct dependencies as resolved on 2026-11-14.
+> **Status:** Inventory of direct dependencies as resolved on 2026-11-16.
 > License review and advisory gating are **not yet automated**.
 > **Related:** [`../TECH_STACK.md`](../TECH_STACK.md), [`DECISIONS.md`](DECISIONS.md)
 
@@ -61,6 +61,7 @@ See [`KNOWN_ISSUES.md`](KNOWN_ISSUES.md) KI-036.
 | `thiserror` | `2.0.21` | `2.0.21` | MIT OR Apache-2.0 | `AppError` `Error` impl |
 | `tracing` | `0.1` | `0.1.44` | MIT | Structured events (already transitive via Tauri; now declared directly) |
 | `tracing-subscriber` | `0.3` (`default-features = false`, `fmt`, `std`) | `0.3.23` | MIT | File subscriber for `tracing` |
+| `rusqlite` | `0.43.0` (`bundled`) | `0.43.0` | MIT | SQLite access layer for `adapters/persistence` (ADR-018) |
 | `windows-sys` (Windows target only) | `0.61.2` | `0.61.2` | MIT OR Apache-2.0 | Win32 registry, memory, volume, adapter, process, diagnostics, and last-resort dialog bindings for `adapters/windows` (B-002, B-003, B-006, B-012) |
 
 `windows-sys` features enabled: `Win32_Foundation`,
@@ -74,13 +75,20 @@ diagnostics and the UI feature adds the `MessageBoxW` startup dialog; neither ad
 a crate. The dependency is target-scoped so `domain/` and its tests still build on
 non-Windows hosts.
 
-- `Cargo.lock` currently resolves **412 packages** (full transitive tree).
+- `Cargo.lock` currently resolves **420 packages** (full transitive tree).
 - Logging adds `tracing-subscriber` plus four small transitive crates; `tracing`
   itself was already in the tree through Tauri.
 - Diagnostics added no package: token elevation and identity reads reuse
   `windows-sys`, and timestamp formatting/redaction are in-process.
 - The startup dialog added no package: `MessageBoxW` reuses `windows-sys`, and no
   dialog plugin is installed.
+- Persistence (B-020) added `rusqlite` and eight packages: `libsqlite3-sys`
+  (SQLite C sources, MIT), `cc` (build-time C compiler driver, MIT OR Apache-2.0),
+  `vcpkg` (MIT OR Apache-2.0), `hashlink`, `rsqlite-vfs`, `sqlite-wasm-rs`,
+  `fallible-iterator`, `fallible-streaming-iterator`. Building now needs a C
+  toolchain — the MSVC Build Tools already required for this project. The
+  `bundled` feature compiles SQLite into the binary, so no system SQLite is
+  required at runtime.
 - The workspace crate `system-scanner` declares **no license field**, which means
   all rights reserved by default. This must be fixed before distribution.
 
@@ -92,6 +100,7 @@ non-Windows hosts.
 | npm | 11.19.0 | `npm ci` in CI |
 | Rust stable | 1.99.1 (2026-10-13) | Edition 2024; `rust-toolchain.toml` pins the channel |
 | rustfmt / clippy | 1.10.0 / 0.1.99 | `rustup` components, declared in `rust-toolchain.toml` |
+| C compiler (MSVC) | present | Required to build bundled SQLite |
 | Tauri CLI | 2.12.4 | via devDependency |
 | WebView2 | Evergreen | OS runtime dependency |
 | MSVC Build Tools | present | Windows SDK + C++ workload |
@@ -109,7 +118,6 @@ non-Windows hosts.
 
 | Dependency | Would be used for | Gate |
 |---|---|---|
-| `rusqlite` **or** `sqlx` | SQLite | ADR-005 (B-020) |
 | `walkdir` **or** custom traversal | Directory enumeration | Decide after prototype (B-022) |
 | `sha2`, `blake3` | Hashing | Release 1 (B-028) |
 | `tempfile` (dev) | Test fixtures | First filesystem test |
@@ -164,10 +172,14 @@ and archives checksums.
 
 | License | Packages (direct) |
 |---|---|
-| MIT | react, react-dom, vite, plugin-react, vitest, jsdom, testing-library, eslint stack, prettier, tailwindcss, @tailwindcss/vite, clsx, tailwind-merge, @radix-ui/react-slot, tracing, tracing-subscriber, @types/* |
+| MIT | react, react-dom, vite, plugin-react, vitest, jsdom, testing-library, eslint stack, prettier, tailwindcss, @tailwindcss/vite, clsx, tailwind-merge, @radix-ui/react-slot, rusqlite, libsqlite3-sys (bundled SQLite), tracing, tracing-subscriber, @types/* |
 | Apache-2.0 | typescript, class-variance-authority |
 | ISC | lucide-react |
-| Apache-2.0 OR MIT | @tauri-apps/api, @tauri-apps/cli, tauri, serde, serde_json, thiserror |
+| Apache-2.0 OR MIT | @tauri-apps/api, @tauri-apps/cli, tauri, serde, serde_json, thiserror, cc, vcpkg |
+
+SQLite itself is public domain. The bundled build links it into the binary; that
+is compatible with distribution, but a full transitive license audit is still
+required.
 
 **This is not a legal review.** A full transitive license audit is required before
 distribution — see [`COMPLIANCE.md`](COMPLIANCE.md).

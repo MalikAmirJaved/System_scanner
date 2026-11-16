@@ -1,8 +1,10 @@
 # Backup Policy
 
-> **Status:** No data exists to back up yet. This policy applies **before**
-> persistence ships, so the backup path is designed in rather than bolted on.
-> **Last updated:** 2026-11-06
+> **Status:** No user data exists to back up yet. A schema-v1 database file is
+> created at startup and holds no rows; no backup path is implemented. This
+> policy is defined **before** history is written, so backup is designed in
+> rather than bolted on.
+> **Last updated:** 2026-11-16
 
 ---
 

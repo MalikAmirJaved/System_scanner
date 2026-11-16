@@ -1,6 +1,6 @@
 # Known Issues & Limitations
 
-> **Status:** Active · **Last updated:** 2026-11-14
+> **Status:** Active · **Last updated:** 2026-11-16
 >
 > This is a list of **real** limitations, not a wish list. Severity reflects user
 > impact. Each item should link to a backlog ID where one exists.
@@ -13,10 +13,10 @@
 |---|---|---|---|---|
 | KI-001 | Startup and service collection do not exist | The snapshot and process inventory cannot explain autostart entries or services | None | B-043 |
 | KI-002 | Only four read-only IPC commands exist | The UI cannot drive scans, storage views, or service actions | None | B-003, B-004 |
-| KI-003 | No persistence | No history, no scan sessions | None | B-020, B-021 |
+| KI-003 | Persistence is opened but unused | Schema v1 (`scan_sessions`) and the migration runner exist, but no IPC command reads or writes the database, and no scan-history feature exists | None needed; browsing is unaffected | B-024, B-025, B-030 |
 | KI-004 | No code signing | SmartScreen warns; tampering undetectable | Install anyway, verify hash manually | B-080 |
 | KI-005 | No license selected | Cannot be legally redistributed | Internal use only | B-084 |
-| KI-006 | Tests cover IPC, the snapshot/process/diagnostics contracts, redaction, and four UI panels | Traversal, persistence, and process actions are untested because they do not exist; no visual/theme test exists | Manual checks only | B-002, B-008 |
+| KI-006 | Tests cover IPC, the snapshot/process/diagnostics contracts, redaction, persistence migrations, and four UI panels | Traversal, scan sessions, and process actions are untested because they do not exist; no visual/theme test exists | Manual checks only | B-002, B-008, B-021 |
 | KI-007 | CI has never run on GitHub | A workflow file is not a gate; broken builds can still merge | Run the gates locally per `build.md` | B-010, B-092 |
 
 ## 2. High
@@ -26,7 +26,7 @@
 | KI-011 | IPC responses are not validated at runtime in the frontend | A DTO rename would render `undefined` instead of failing loudly | B-090; `API.md` §8 |
 | KI-012 | The support bundle has no saved-file export | The preview can be copied, but support must paste it instead of attaching a file | F-092 / B-064 |
 | KI-013 | No cancellation infrastructure | Long work would be unstoppable | Design in `SYSTEM_DESIGN.md` |
-| KI-014 | No DB recovery path | Once persistence lands, corruption risks data loss | `RECOVERY_PLAN.md` |
+| KI-014 | No DB corruption recovery or backup | A corrupt database is preserved and the app continues without persistence, but nothing renames it aside, offers export, or restores a backup; no pre-migration backup exists. Workaround: delete or move the file manually with the app closed | B-033, `RECOVERY_PLAN.md` |
 | KI-015 | No updater | Security fixes cannot reach users | `DEPLOYMENT.md` §7 |
 
 ## 3. Medium

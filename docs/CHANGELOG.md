@@ -14,6 +14,14 @@ exists. Until then, `0.x` versions may change behavior without notice.
 ## [Unreleased]
 
 ### Added
+- **Persistence foundation (implemented).** `rusqlite` 0.43 with bundled SQLite
+  opens `app_data_dir()/system-scanner.db` at startup, applies forward-only
+  migrations, and stores the handle in Tauri state. Schema **v1 adds
+  `scan_sessions`** with two indexes; no other table exists. Migrations are
+  hand-written SQL embedded via `include_str!`, recorded in `schema_migrations`
+  with FNV-1a checksums. A database from a newer build, or an edited released
+  migration, refuses to open instead of guessing. Startup failure is logged and
+  the app continues; no panel reads the database yet. ADR-018.
 - **Fatal-startup dialog + renderer error boundary (implemented).**
   `startup.rs` replaces the final `expect()`: a failed
   `tauri::Builder::run` shows a native message box with the app version, a

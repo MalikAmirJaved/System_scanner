@@ -34,10 +34,19 @@ Rules:
 - A file hash can identify known content; treat it as sensitive and never send it
   without consent.
 
-## 3. Data inventory (proposed)
+## 3. Data inventory
+
+**Implemented today:** a SQLite file is created at
+`app_data_dir()/system-scanner.db` (`%APPDATA%\com.systemscanner.desktop\`) on
+startup, containing the schema bookkeeping table and an empty `scan_sessions`
+table. **No personal data, path, or scan result is written to it yet.** Logs
+(5 × 10 MB rolling) are also written.
+
+Everything below beyond those two facts is **proposed**:
 
 | Data | Purpose | Retention default | User can delete |
 |---|---|---|---|
+| Session metadata (`scan_sessions`) | Scan history | Not enforced | Not yet exposed in UI |
 | System snapshots | Recent history | 30 days | Yes |
 | Process snapshots | Recent history | 7 days | Yes |
 | File records | Scan results | Until scan deleted / cap | Yes |
@@ -47,7 +56,9 @@ Rules:
 | Quarantine objects | Isolation | Until user purges | Yes (restore/purge) |
 | Logs | Diagnosis | 5 × 10 MB rolling | Yes |
 
-All values are proposals pending the retention decision (`docs/plan.md` §12).
+All retention values are proposals pending the retention decision
+(`docs/plan.md` §12). The database location is the Tauri default, not a final
+decision.
 
 ## 4. What never leaves the device
 
@@ -74,7 +85,10 @@ None exist. If a reputation lookup is ever added:
 
 ## 6. Deletion and user rights
 
-| Request | Implementation |
+**None of these controls exist yet.** No UI can list or delete stored data; the
+database currently holds no user rows.
+
+| Request | Implementation (target) |
 |---|---|
 | Delete scan history | Delete session rows; cascade file records/hashes |
 | Delete all data | Settings action + documented data directory |

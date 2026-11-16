@@ -1,7 +1,8 @@
 # Disaster Recovery
 
-> **Status:** No data exists yet. This plan covers machine loss, corruption, and
-> key compromise once persistence ships. **Last updated:** 2026-11-06
+> **Status:** No user data is stored yet. A schema-v1 database file is created at
+> startup, but it holds no rows. This plan covers machine loss, corruption, and
+> key compromise for when history is written. **Last updated:** 2026-11-16
 >
 > **Distinction:** [`RECOVERY_PLAN.md`](RECOVERY_PLAN.md) covers in-app failures
 > (corrupt DB, interrupted scan). This document covers losing the machine or the
@@ -93,7 +94,7 @@ Record results and gaps here:
 
 | Date | Drill | Result | Notes |
 |---|---|---|---|
-| — | — | Not run | No persistence yet |
+| — | — | Not run | No user data is stored yet; schema v1 creates an empty `scan_sessions` table |
 
 ## 8. Communication during a disaster
 

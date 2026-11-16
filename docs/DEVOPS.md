@@ -4,7 +4,7 @@
 > defines `frontend`, `rust`, and `package` jobs on `windows-latest`; every step was
 > executed locally and passes. There is still no branch protection, no release
 > automation, no SBOM, and no signing. Sections 3+ remain proposals.
-> **Last updated:** 2026-11-06
+> **Last updated:** 2026-11-16
 
 ---
 
@@ -13,7 +13,7 @@
 | Capability | Status |
 |---|---|
 | CI provider | GitHub Actions workflow committed (`.github/workflows/ci.yml`); never executed |
-| Automated tests | `npm test` (20 tests), `cargo test` (54 tests) |
+| Automated tests | `npm test` (20 tests), `cargo test` (62 tests) |
 | Automated lint/format | ESLint, Prettier, rustfmt, clippy — in the workflow and runnable locally |
 | Release automation | None |
 | Artifact storage | `upload-artifact@v4` for the NSIS installer, 14-day retention (untested) |

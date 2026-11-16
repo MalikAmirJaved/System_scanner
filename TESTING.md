@@ -1,13 +1,14 @@
 # Testing Strategy
 
-> **Status:** **Runners are configured; coverage is still narrow.** 54 Rust tests
+> **Status:** **Runners are configured; coverage is still narrow.** 62 Rust tests
 > and 20 frontend tests cover the IPC contract (envelope, error taxonomy, DTO
 > shapes), the snapshot and process domain rules, both native adapters'
-> structural invariants, logging/redaction, startup messages, four UI panels, and
-> the render error boundary. Nothing tests traversal, persistence, or end-to-end
-> flows yet, because those features do not exist. This document defines the
-> target strategy and the minimum bar for new work.
-> **Last updated:** 2026-11-14
+> structural invariants, logging/redaction, startup messages, schema creation and
+> migration-runner refusal paths, four UI panels, and the render error boundary.
+> Nothing tests traversal, scan sessions, or end-to-end flows yet, because those
+> features do not exist. This document defines the target strategy and the minimum
+> bar for new work.
+> **Last updated:** 2026-11-16
 
 ---
 
@@ -15,7 +16,7 @@
 
 | Level | Tool | Configured | Tests |
 |---|---|---|---|
-| Rust unit/integration | `cargo test` | Yes | 54 (`ipc`, `error`, `logging`, `redact`, `startup`, `dto::*`, `domain::*`, `adapters::windows::*`, `commands::*`) |
+| Rust unit/integration | `cargo test` | Yes | 62 (`ipc`, `error`, `logging`, `redact`, `startup`, `dto::*`, `domain::*`, `adapters::windows::*`, `adapters::persistence::*`, `commands::*`) |
 | Frontend unit | Vitest 5 + jsdom | Yes | 3 (`services/ipc.test.ts`) |
 | Frontend component | Testing Library 16 | Yes | 17 (`BackendStatus`, `ThemeToggle`, `SystemOverview`, `ProcessList`, `Diagnostics`, `ErrorBoundary`) |
 | E2E | tauri-driver / WebDriver (proposed) | No | 0 |
@@ -46,7 +47,13 @@ What the existing tests actually establish, and nothing more:
 - the fatal-startup message names the version, includes redacted and bounded
   detail, and lists next steps;
 - the error boundary renders children normally and replaces a crashed tree with
-  a reload screen.
+  a reload screen;
+- opening a fresh database creates `scan_sessions` at the latest schema version
+  with foreign keys enabled, a file database uses WAL and creates its parent
+  directory, reopening applies nothing new, a newer schema is refused, and an
+  edited released migration is detected by checksum;
+- the migration list starts at 1, strictly increases, ends at `SCHEMA_VERSION`,
+  and every declared checksum matches its SQL.
 
 They do **not** establish that the UI is visually correct under WebView2; layout
 and theme appearance still need a manual smoke test.
@@ -199,10 +206,11 @@ Formal support matrix is an open decision (`docs/plan.md` §12).
 When reporting test results, state exactly what ran:
 
 ```text
-cargo test            -> 54 tests passed (ipc, error, logging, redact, startup,
+cargo test            -> 62 tests passed (ipc, error, logging, redact, startup,
                          dto::{app_info, system_snapshot, process_list,
                          diagnostics}, domain::{system, process, diagnostics},
                          adapters::windows::{system_info, processes},
+                         adapters::persistence::{migrations, sqlite},
                          commands::{app, system, processes, diagnostics})
 npm test              -> 20 tests passed (7 files: ipc, BackendStatus, ThemeToggle,
                          SystemOverview, ProcessList, Diagnostics, ErrorBoundary)
@@ -210,5 +218,5 @@ npm run build         -> passed (tsc + vite)
 ```
 
 Never summarize "all tests pass" without stating the counts and what they cover —
-seventy-four tests that mostly assert read-only contracts say nothing about
-traversal, persistence, or crash recovery.
+eighty-two tests that mostly assert read-only contracts say nothing about
+traversal, scan sessions, or crash recovery.

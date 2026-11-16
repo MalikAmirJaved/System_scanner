@@ -6,7 +6,7 @@
 >
 > Only record changes that affect structure, boundaries, contracts, or process.
 > Routine edits do not belong here.
-> **Last updated:** 2026-11-14
+> **Last updated:** 2026-11-16
 
 ---
 
@@ -22,6 +22,43 @@
 - Evidence: <commands run / tests / review>
 - Follow-up: <tracked items>
 ```
+
+---
+
+## 2026-11-16 — Persistence foundation: schema v1 + migration runner (B-020, B-021)
+
+- **Agent/tool:** OpenCode (DeepSeek V4.1 Flash Free).
+- **Scope:** `src-tauri/Cargo.toml`, `src-tauri/Cargo.lock`,
+  `src-tauri/migrations/0001_initial.sql`,
+  `src-tauri/src/adapters/persistence/{mod,migrations,sqlite}.rs`,
+  `src-tauri/src/adapters/mod.rs`, `src-tauri/src/lib.rs`; `DATABASE.md`,
+  `docs/MIGRATIONS.md`, `docs/DECISIONS.md` (ADR-018), dependency/status docs.
+- **Change:**
+  - Added a third adapter family, `adapters/persistence`, as the only module that
+    may open a database. Domain code still imports no SQL or driver type.
+  - Added `rusqlite` 0.43 with `bundled` SQLite behind a `Mutex<Connection>`.
+    Opening configures WAL/NORMAL/foreign keys/busy timeout, then applies pending
+    migrations.
+  - Added hand-written forward-only migrations embedded with `include_str!` and a
+    `schema_migrations` bookkeeping table (version, name, FNV-1a checksum,
+    applied timestamp). A newer schema or a changed released migration refuses to
+    open without modifying the file.
+  - Schema v1 contains `scan_sessions` and two indexes only. Results, snapshots,
+    hashes, findings, quarantine, and audit tables are deferred to the features
+    that write them.
+  - `lib.rs` opens the database at `app_data_dir()/system-scanner.db`, logs the
+    schema version, and manages the handle. Failure is logged; startup continues.
+- **Why:** B-020/B-021 block scan history and every later persistence feature.
+- **Risk:** A C toolchain is now required to build (bundled SQLite). One
+  connection serializes writes. The app creates a database file on first launch
+  even though nothing writes rows yet.
+- **Evidence:** `cargo fmt --all -- --check`, `cargo clippy --all-targets -- -D
+  warnings`, `cargo test` (62 passed), `npm test -- --run` (20 passed),
+  `npm run build`, `npm run lint`, `npm run format:check`,
+  `npm audit --omit=dev` (0 vulnerabilities).
+- **Follow-up:** B-024 (batch writer), B-025 (job orchestration), B-030
+  (interrupted-session reconciliation), B-033 (backup), retention decision
+  (`docs/plan.md` §12).
 
 ---
 

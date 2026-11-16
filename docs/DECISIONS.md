@@ -98,7 +98,7 @@ product with its own architecture.
 
 ## ADR-005 — Persistence: SQLite, access layer undecided
 
-**Status:** Proposed · 2026-11-06
+**Status:** Superseded by ADR-018 · 2026-11-06
 
 **Context.** Local history needs transactions, indexes, and zero administration.
 
@@ -108,14 +108,14 @@ product with its own architecture.
 Rationale: one local writer, explicit SQL, smallest dependency surface, no async
 complexity in the persistence layer.
 
-**Why not decided yet.** No persistence code exists; the choice should be validated
-against the first real query set. `sqlx` compile-time checking is attractive if the
-schema grows large.
+**Resolution.** ADR-018 accepts `rusqlite` 0.43 with bundled SQLite, one
+`Mutex<Connection>`, and hand-written forward-only migrations. The original lean
+held; see ADR-018 for the implementation and consequences.
 
 **Consequences either way.** Repository layer required; migration tests required;
 DB must remain backup-able with `VACUUM INTO`.
 
-**Revisit by:** first persistence milestone (Backlog B-020).
+**Revisit by:** first persistence milestone (Backlog B-020) — resolved.
 
 ---
 
@@ -524,6 +524,66 @@ blank window. B-012 requires an actionable failure, not a silent exit.
 
 **Revisit if:** startup gains a recoverable "safe mode", or the app needs the same
 screen on a non-Windows target.
+
+---
+
+## ADR-018 — Persistence: `rusqlite` with bundled SQLite and hand-written migrations
+
+**Status:** Accepted · 2026-11-16
+
+**Context.** Release 1 needs scan sessions, results, and history. `DATABASE.md`
+proposed SQLite but no driver, schema, or migration mechanism existed
+(`DATABASE.md` §1, `docs/MIGRATIONS.md` §1). The app is a single-user, local,
+non-elevated desktop tool with one writer and small data volumes; there is no
+server, no connection pool requirement, and no async runtime beyond Tauri's.
+
+**Options.**
+
+1. `rusqlite` with the `bundled` feature — synchronous, compiled-in SQLite.
+2. `sqlx` — async, compile-time-checked queries, built-in migrations.
+3. A JSON file per domain — no SQL, no indexes, rewrite-on-write.
+4. An embedded key-value store (`sled`) — no SQL aggregation for scan results.
+
+**Decision.**
+
+- **`rusqlite` 0.43** with `bundled` SQLite, behind a `Mutex<Connection>` in
+  `adapters/persistence/sqlite.rs`. Bundled removes a system SQLite dependency
+  and keeps version behavior identical on every machine.
+- **Blocking only.** Commands that touch the database must use
+  `tauri::async_runtime::spawn_blocking`; the UI thread never waits on SQLite.
+- **Pragmas:** `journal_mode=WAL`, `synchronous=NORMAL`, `foreign_keys=ON`,
+  `busy_timeout=5000`, matching `DATABASE.md` §4.
+- **Migrations are hand-written, forward-only SQL** in `src-tauri/migrations`,
+  embedded with `include_str!`. Applied versions and FNV-1a checksums are stored
+  in `schema_migrations`. A changed checksum on a released migration, or a
+  database newer than the build, refuses to open instead of guessing.
+- **One transaction per migration**, so a failure leaves the file at the prior
+  version. No automatic pre-migration backup yet: v1 is additive, and the backup
+  requirement returns when a migration can lose data (`docs/MIGRATIONS.md` §4).
+- **No downgrade support.** An older build refuses a newer schema.
+- **Database file:** `app_data_dir()/system-scanner.db`
+  (`%APPDATA%\com.systemscanner.desktop\system-scanner.db`). Startup opens it,
+  applies migrations, and stores the handle in Tauri state. Failure is logged and
+  the app continues read-only; persistence never blocks the current panels.
+- **Schema v1 is deliberately narrow:** `scan_sessions` only. File records,
+  snapshots, and hashes land with the features that write them, because data
+  retention is still open (`docs/plan.md` §12).
+
+**Consequences.**
+
+- `rusqlite`, `libsqlite3-sys`, `cc`, and five small support crates join the
+  dependency tree; `Cargo.lock` grows from 412 to 420 packages. Building now
+  requires a C toolchain (the MSVC toolchain already required for Windows).
+- One connection serializes writes. That is correct for one local user; a second
+  writer would need a second connection or a queue.
+- The startup path creates an empty schema before any feature writes rows. This
+  is observable on disk and must be documented in the data inventory.
+- FNV-1a detects accidental edits, not forgery. It is not a security control.
+- `sqlx` remains attractive if compile-time query checking becomes valuable, but
+  its macros/offline metadata add ceremony for a small local schema.
+
+**Revisit if:** concurrent writers are required, aggregate queries outgrow
+hand-written SQL, or the bundled SQLite build becomes a distribution problem.
 
 ---
 

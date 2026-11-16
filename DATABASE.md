@@ -1,10 +1,11 @@
 # Database
 
-> **Status:** **Not implemented.** No database, driver, migration, or schema exists
-> in this repository. Everything below is a **proposal** derived from
-> [`docs/plan.md`](docs/plan.md) §4 and must be validated before implementation.
+> **Status:** **Partial.** The driver, connection setup, and forward-only migration
+> runner are **implemented**, and schema **v1 contains `scan_sessions` only**. Every
+> other table in §5 is still a **proposal** and does not exist in any database file.
+> Do not describe a proposed table as existing.
 >
-> **Last updated:** 2026-11-06
+> **Last updated:** 2026-11-16
 
 ---
 
@@ -12,15 +13,27 @@
 
 | Item | Reality |
 |---|---|
-| Engine | None |
-| Driver | None (`Cargo.toml` has only `tauri`) |
-| Schema | None |
-| Migrations | None |
-| Data directory | None created |
-| Retention | None |
+| Engine | SQLite, compiled in via `rusqlite` `bundled` |
+| Driver | `rusqlite` 0.43 — `src-tauri/src/adapters/persistence/sqlite.rs` |
+| Schema | **v1 implemented:** `scan_sessions` + two indexes (`src-tauri/migrations/0001_initial.sql`) |
+| Migrations | **Implemented** — hand-written, forward-only, embedded, checksummed (`docs/MIGRATIONS.md`) |
+| Data directory | Created at startup: `app_data_dir()/system-scanner.db` |
+| Retention | None enforced; no rows are written by any feature yet |
 
-Do not describe any table in this document as existing. When the first migration
-lands, replace this section with the applied schema version and file path.
+Schema v1 is intentionally narrow. The tables in §5 for snapshots, file records,
+hashes, findings, quarantine, and action history **do not exist** and will be added
+by the features that write them, once retention is decided (`docs/plan.md` §12).
+
+Runtime facts:
+
+- Startup opens the database, applies pending migrations, logs `schema_version`,
+  and stores the handle in Tauri state. Failure is logged and the app continues;
+  no current panel reads from the database.
+- Cutover target: `%APPDATA%\com.systemscanner.desktop\system-scanner.db`
+  (roaming app data). This is the Tauri `app_data_dir()` default and is not a
+  final retention decision — see §11.
+- The `schema_migrations` bookkeeping table is created by the runner, not by a
+  migration file.
 
 ## 2. Design goals
 
@@ -31,19 +44,24 @@ lands, replace this section with the applied schema version and file path.
 5. **Recoverable.** Corruption and interrupted migrations have defined recovery.
 6. **Minimal personal data.** Never store file contents or full command lines.
 
-## 3. Access-layer decision (open)
+## 3. Access-layer decision
+
+**Decided** — see ADR-018 in [`docs/DECISIONS.md`](docs/DECISIONS.md).
 
 | Option | Pros | Cons |
 |---|---|---|
 | `rusqlite` | Small, synchronous, explicit, easy to reason about with `spawn_blocking` | Manual SQL; no compile-time query checks |
 | `sqlx` | Async, compile-time checked queries, migrations built in | Larger compile surface; macro/offline metadata workflow |
 
-**Recommendation:** `rusqlite` with an explicit repository layer, all DB calls on
-`spawn_blocking`, WAL mode, and hand-written versioned migrations. Rationale: a
-single local writer, simple transactions, and the smallest dependency surface.
-This is a **proposal**; record the final choice in [`docs/DECISIONS.md`](docs/DECISIONS.md).
+**Chosen:** `rusqlite` 0.43 with the `bundled` feature behind a `Mutex<Connection>`,
+all database work on `spawn_blocking`, WAL mode, and hand-written versioned
+migrations. Rationale: a single local writer, simple transactions, and the
+smallest dependency surface. `sqlx` remains a reasonable future choice if
+compile-time query checking ever outweighs its build ceremony.
 
-## 4. Concurrency and durability rules (proposed)
+## 4. Concurrency and durability rules
+
+These pragmas are applied by `Database::open` before migrations run:
 
 ```sql
 PRAGMA journal_mode = WAL;      -- one writer, concurrent readers
@@ -52,20 +70,25 @@ PRAGMA foreign_keys = ON;
 PRAGMA busy_timeout = 5000;
 ```
 
-- One write connection in a dedicated task; reads may use a small pool.
-- Batched inserts inside transactions sized by measured latency, not by count guess.
+- **One write connection** guarded by a `Mutex`, owned for the process lifetime.
+  This serializes writes, which is correct for a single local user.
+- Commands that touch the database **must** call
+  `tauri::async_runtime::spawn_blocking`; the UI thread never waits on SQLite.
+- Batched inserts inside transactions sized by measured latency, not by count guess
+  (B-024, not started).
 - No long-running transaction may hold a UI-blocking path.
 - Writes are flushed at scan checkpoints so an abort loses at most one batch.
 
-## 5. Proposed schema
+## 5. Schema
 
-> Illustrative DDL. Column names/types will change. Status: **Proposed**.
+Status per table: **Implemented** (exists in schema v1) or **Proposed** (illustrative
+DDL; column names and types will change).
 
-### 5.1 `scan_sessions`
+### 5.1 `scan_sessions` — ✅ Implemented (schema v1)
 
 ```sql
 CREATE TABLE scan_sessions (
-  id                TEXT PRIMARY KEY,              -- UUID
+  id                TEXT PRIMARY KEY,              -- UUID, generated in Rust
   module            TEXT NOT NULL,                 -- system|processes|storage|security|network|diagnostics
   roots_json        TEXT NOT NULL DEFAULT '[]',    -- requested scope (validated in Rust)
   options_json      TEXT NOT NULL DEFAULT '{}',    -- concurrency, limits, policies
@@ -83,9 +106,16 @@ CREATE TABLE scan_sessions (
   error_code        TEXT,                          -- joins the app error taxonomy
   parent_session_id TEXT REFERENCES scan_sessions(id)
 );
+
+CREATE INDEX scan_sessions_started_at ON scan_sessions(started_at DESC);
+CREATE INDEX scan_sessions_module_status ON scan_sessions(module, status);
 ```
 
-### 5.2 `system_snapshots`
+No `CHECK` constraints yet: status and `module` are validated in Rust, matching the
+"IPC input is untrusted" rule. A later migration may add them once the value sets
+are frozen.
+
+### 5.2 `system_snapshots` — ⏳ Proposed
 
 ```sql
 CREATE TABLE system_snapshots (
@@ -100,7 +130,7 @@ CREATE TABLE system_snapshots (
 );
 ```
 
-### 5.3 `process_snapshots`
+### 5.3 `process_snapshots` — ⏳ Proposed
 
 ```sql
 CREATE TABLE process_snapshots (
@@ -118,7 +148,7 @@ CREATE TABLE process_snapshots (
 );
 ```
 
-### 5.4 `file_records`
+### 5.4 `file_records` — ⏳ Proposed
 
 ```sql
 CREATE TABLE file_records (
@@ -136,7 +166,7 @@ CREATE TABLE file_records (
 );
 ```
 
-### 5.5 `file_hashes`
+### 5.5 `file_hashes` — ⏳ Proposed
 
 ```sql
 CREATE TABLE file_hashes (
@@ -150,7 +180,7 @@ CREATE TABLE file_hashes (
 );
 ```
 
-### 5.6 `security_findings`
+### 5.6 `security_findings` — ⏳ Proposed
 
 ```sql
 CREATE TABLE security_findings (
@@ -169,7 +199,7 @@ CREATE TABLE security_findings (
 );
 ```
 
-### 5.7 `quarantine_items`
+### 5.7 `quarantine_items` — ⏳ Proposed
 
 ```sql
 CREATE TABLE quarantine_items (
@@ -187,7 +217,7 @@ CREATE TABLE quarantine_items (
 );
 ```
 
-### 5.8 `action_history`
+### 5.8 `action_history` — ⏳ Proposed
 
 ```sql
 CREATE TABLE action_history (
@@ -205,13 +235,21 @@ CREATE TABLE action_history (
 );
 ```
 
-## 6. Proposed indexes
+## 6. Indexes
 
-Indexes are added from measured query patterns, not speculatively. Starting set:
+Indexes are added from measured query patterns, not speculatively.
+
+**Implemented (schema v1):**
 
 | Table | Index | Serves |
 |---|---|---|
-| `scan_sessions` | `(module, started_at DESC)` | history list |
+| `scan_sessions` | `(started_at DESC)` | history list |
+| `scan_sessions` | `(module, status)` | per-module status queries |
+
+**Proposed (added with their tables):**
+
+| Table | Index | Serves |
+|---|---|---|
 | `file_records` | `(session_id, size_bytes DESC)` | largest files |
 | `file_records` | `(session_id, extension)` | type summary |
 | `file_records` | `(session_id, modified_at)` | age filters |
@@ -221,9 +259,13 @@ Indexes are added from measured query patterns, not speculatively. Starting set:
 | `security_findings` | `(classification, created_at DESC)` | findings list |
 | `action_history` | `(requested_at DESC)` | audit view |
 
-Validate with `EXPLAIN QUERY PLAN` against realistic fixtures before shipping.
+Validate with `EXPLAIN QUERY PLAN` against realistic fixtures before shipping
+(B-026, not started).
 
 ## 7. Constraints and invariants
+
+These apply to the **proposed** tables in §5.2–5.8. Schema v1 enforces only
+`scan_sessions.primary key` and the self-reference on `parent_session_id`.
 
 - `session_id` is mandatory for every file record; orphans are a bug.
 - `confidence` is bounded; no NULL confidence for a finding.
@@ -233,6 +275,8 @@ Validate with `EXPLAIN QUERY PLAN` against realistic fixtures before shipping.
 - Deleting a session cascades file records and hashes, never audit history.
 
 ## 8. Retention (proposed defaults, unapproved)
+
+**Not enforced.** No feature writes rows yet, and no deletion policy runs.
 
 | Data | Default | Notes |
 |---|---|---|
@@ -249,28 +293,38 @@ quarantine items. See [`docs/DATA_PRIVACY.md`](docs/DATA_PRIVACY.md).
 
 ## 9. Corruption and recovery
 
-| Scenario | Handling |
-|---|---|
-| `SQLITE_CORRUPT` on open | Do not delete. Rename to `app.db.corrupt-<ts>`, start fresh, surface a recovery notice, offer export of what is readable |
-| Interrupted migration | Migrations run in a transaction with a schema-version check; retry from last good version |
-| Disk full | Abort the write batch, mark session `failed` with `DISK_FULL`, keep prior history |
-| DB locked | `busy_timeout` + retry with backoff; surface a diagnostic, never hang the UI |
-| Read-only profile | Detect at startup, run in memory-only mode with a visible banner |
+| Scenario | Current behavior | Target |
+|---|---|---|
+| `SQLITE_CORRUPT` on open | The open fails, the error is logged, and the app runs without persistence | Do not delete. Rename to `app.db.corrupt-<ts>`, start fresh, surface a recovery notice, offer export of what is readable |
+| Interrupted migration | Each migration runs in one transaction, so the file stays at the previous version; the next startup retries | Retry from last good version (already true) |
+| Disk full | The failing statement errors and the transaction rolls back; the app logs and continues | Abort the write batch, mark session `failed` with `DISK_FULL`, keep prior history |
+| DB locked | `busy_timeout = 5000` makes SQLite wait, then returns an error that is logged | Surface a diagnostic, never hang the UI |
+| Read-only profile | The open fails and is logged; the app continues without persistence | Detect at startup, run in memory-only mode with a visible banner |
+| Schema newer than build | `Database::open` refuses with `NewerSchema`; the file is not modified | Same |
+| Released migration edited | `Database::open` refuses with `ChecksumMismatch`; the file is not modified | Same |
+
+Only the "current behavior" column is implemented. Corruption quarantine, the
+visible recovery notice, and the in-memory fallback banner are **not started**.
 
 See [`docs/RECOVERY_PLAN.md`](docs/RECOVERY_PLAN.md).
 
 ## 10. Backup and support export
 
-- Backup: `VACUUM INTO '<path>'` produces a consistent snapshot while the app runs.
-- Support export: redacted copy, never the raw DB, with paths normalized and
-  user names removed.
+- Backup (`VACUUM INTO`) is **not implemented** (B-033).
+- Support bundle never includes the raw DB; the current diagnostics bundle reads
+  only the log tail.
 - Details: [`docs/BACKUP_POLICY.md`](docs/BACKUP_POLICY.md).
 
 ## 11. Open questions
 
-1. `rusqlite` vs `sqlx` (blocking decision).
+1. ~~`rusqlite` vs `sqlx`~~ — resolved: `rusqlite` (ADR-018).
 2. Is file-level history retained at all by default, or only aggregates?
-3. Where exactly do DB and quarantine live — roaming or local app data?
+3. Where exactly do DB and quarantine live — roaming or local app data? The
+   database currently uses the Tauri default (`app_data_dir()`, roaming); this is
+   not a final decision.
 4. Should hashes persist across session deletion to speed up rescans?
 5. Is a tamper-evident hash chain required for `action_history`, or is plain
    append-only enough for a single-user app?
+6. How is a schema newer than the build handled for the user — refuse to start,
+   or run with a read-only view of what it understands? Currently it refuses
+   persistence only (the app still starts).

@@ -4,7 +4,7 @@
 > (some code, incomplete or unverified), `Planned` (designed, not built),
 > `Proposed` (an idea), `Not started`.
 >
-> **Last updated:** 2026-11-14
+> **Last updated:** 2026-11-16
 >
 > This inventory is the ground truth for "does this exist?". If code and this
 > table disagree, the code wins for behavior and this table must be corrected.
@@ -41,6 +41,7 @@
 | F-026 | Structured logging + rotation | 0 | ✅ Implemented — `tracing` to `app_log_dir()`, 10 MB × 5 files, redaction guard; command outcomes logged without payloads | `src-tauri/src/logging.rs`, `ipc.rs` |
 | F-027 | Startup reconciliation of interrupted jobs | 1 | ⏳ Not started | — |
 | F-028 | Runtime settings store | 1 | ⏳ Not started | — |
+| F-029 | SQLite persistence foundation (driver, schema v1, migration runner) | 1 | 🟡 Partial — `rusqlite` opens `app_data_dir()/system-scanner.db` at startup with WAL/foreign keys, applies forward-only checksummed migrations, and creates `scan_sessions`; no repository, command, or row writer exists | `src-tauri/src/adapters/persistence/`, `src-tauri/migrations/0001_initial.sql` |
 
 ## 3. System overview (Release 0)
 
@@ -149,7 +150,7 @@ Event Log summaries, crash correlation, and connection features remain Release 4
 | Status | Count |
 |---|---|
 | Implemented | 26 (23 features + 3 baseline properties) |
-| Partial | 4 (F-009 OS-follow theming; F-020 event channel; F-040 process fields; F-042 hierarchy view) |
+| Partial | 5 (F-009 OS-follow theming; F-020 event channel; F-029 persistence foundation; F-040 process fields; F-042 hierarchy view) |
 | Not started / planned | 39 |
 | Gated (requires security work) | 5 |
 | Research / proposed | 2 |
@@ -167,7 +168,10 @@ light/dark toggle. The backend writes bounded, redacted local logs for command
 outcomes and startup, and redacts the preview before returning it. A render
 failure is caught by a boundary that replaces the dashboard with a reload screen,
 and a startup failure that prevents a window from existing shows a native dialog
-and exits non-zero instead of panicking.
+and exits non-zero instead of panicking. Persistence groundwork is in place: a
+bundled-SQLite connection opens at startup, applies forward-only checksummed
+migrations, and creates schema v1 (`scan_sessions`) — but no feature writes or
+reads rows yet.
 
 The event channel, job registry, cancellation, saved-file bundle export, image
 paths, and everything that touches storage are still ahead.

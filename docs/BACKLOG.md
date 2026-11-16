@@ -1,6 +1,6 @@
 # Backlog
 
-> **Status:** Active · **Last updated:** 2026-11-14
+> **Status:** Active · **Last updated:** 2026-11-16
 >
 > Priority: **P0** blocks Release 0 / trust, **P1** needed for V1, **P2** V2+,
 > **P3** nice to have. IDs are stable; do not renumber.
@@ -43,8 +43,8 @@ Notes on the partial items:
 
 | ID | Task | Why |
 |---|---|---|
-| B-020 | Choose DB layer (`rusqlite` vs `sqlx`) + ADR | Blocks persistence |
-| B-021 | Initial schema + migration runner + tests | Blocks scan history |
+| B-020 | ✅ Choose DB layer (`rusqlite` vs `sqlx`) + ADR | Blocks persistence |
+| B-021 | ✅ Initial schema + migration runner + tests | Blocks scan history |
 | B-022 | Traversal prototype with bounded workers | Highest-risk component |
 | B-023 | Per-entry outcome taxonomy implementation | Honest partial results |
 | B-024 | Batch persistence writer | Throughput + crash safety |
@@ -57,6 +57,12 @@ Notes on the partial items:
 | B-031 | Retention enforcement + visible DB size | Bounded growth |
 | B-032 | Performance baseline on 100k/1M fixtures | Sets real budgets |
 | B-033 | Backup via `VACUUM INTO` + restore test | Data safety |
+
+Note on B-020/B-021: schema v1 contains **`scan_sessions` only**. File records,
+snapshots, hashes, findings, quarantine, and audit tables are deliberately deferred
+to the features that write them, because retention and data-location are still open
+decisions (`docs/plan.md` §12). Persistence is opened at startup but no IPC command
+reads or writes the database yet.
 
 ## P2 — V2 (Releases 2–3)
 
@@ -119,6 +125,10 @@ Notes on the partial items:
 
 | ID | Item | Completed | Evidence |
 |---|---|---|---|
+| B-021 | Schema v1 (`scan_sessions`) + forward-only migration runner, checksum drift detection, refuses newer schema | 2026-11-16 | `src-tauri/migrations/0001_initial.sql`, `src-tauri/src/adapters/persistence/`; 8 new Rust tests |
+| B-020 | DB layer chosen: `rusqlite` 0.43 `bundled`, one `Mutex<Connection>`, `spawn_blocking` for callers, WAL | 2026-11-16 | ADR-018 in `docs/DECISIONS.md`; `src-tauri/Cargo.toml` |
+| B-012 | Fatal-startup dialog (`MessageBoxW`, exit 1) + React error boundary | 2026-11-16 | `src-tauri/src/startup.rs`, `src/components/ErrorBoundary.tsx` |
+| B-006 | Diagnostics panel + redacted support bundle preview/copy | 2026-11-15 | `commands/diagnostics.rs`, `redact.rs`, `Diagnostics.tsx` |
 | B-003 | `list_processes` via port + Win32 adapter, Rust-validated paging, stable per-row identity, per-row unavailable fields | 2026-11-13 | `src-tauri/src/{domain,ports,adapters/windows,dto,commands}/process*.rs`, `ProcessList.tsx`; 32 Rust + 13 frontend tests |
 | B-091 | Module-level `#[allow(dead_code)]` removed; allowance scoped to the `ErrorCode` contract enum | 2026-11-13 | `src-tauri/src/error.rs` (clippy clean) |
 | B-005 | Manual refresh, in-progress state, last-updated time, stale-response guard | 2026-11-13 | `src/components/SystemOverview.tsx`, `SystemOverview.test.tsx` |

@@ -17,14 +17,35 @@ pub fn run() {
 
             match app.path().app_log_dir() {
                 Ok(dir) => match logging::init(&dir) {
-                    Ok(path) => tracing::info!(
+                    Ok(_) => tracing::info!(
                         version = env!("CARGO_PKG_VERSION"),
-                        log = %path.display(),
+                        log_file = logging::LOG_FILE_NAME,
                         "system-scanner starting"
                     ),
                     Err(error) => eprintln!("logging unavailable: {error}"),
                 },
                 Err(error) => eprintln!("log directory unavailable: {error}"),
+            }
+
+            // Persistence is optional for the current read-only panels. A failure
+            // is logged and the app keeps running; nothing here can destroy user
+            // data because opening only applies forward migrations.
+            match app.path().app_data_dir() {
+                Ok(directory) => {
+                    let path = directory.join(adapters::persistence::DATABASE_FILE_NAME);
+                    match adapters::persistence::Database::open(&path) {
+                        Ok(database) => {
+                            let schema_version = database.schema_version().unwrap_or(0);
+                            tracing::info!(schema_version, "database ready");
+                            app.manage(database);
+                        }
+                        Err(error) => tracing::warn!(
+                            error = %error,
+                            "database unavailable; continuing without persistence"
+                        ),
+                    }
+                }
+                Err(error) => tracing::warn!(%error, "data directory unavailable"),
             }
 
             Ok(())

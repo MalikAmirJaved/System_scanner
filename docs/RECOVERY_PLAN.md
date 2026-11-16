@@ -1,8 +1,10 @@
 # Recovery Plan
 
-> **Status:** No data or state exists to recover yet. This plan defines the
-> objectives and procedures to implement alongside persistence.
-> **Last updated:** 2026-11-06
+> **Status:** No user data or state exists to recover yet. A schema-v1 database
+> file is created at startup with an empty `scan_sessions` table. This plan
+> defines the objectives and procedures to implement alongside the features that
+> write data.
+> **Last updated:** 2026-11-16
 
 ---
 
@@ -104,7 +106,7 @@ Record: date, build, steps, result, gaps.
 
 | Date | Build | Drill | Result | Notes |
 |---|---|---|---|---|
-| — | — | — | Not run | No persistence yet |
+| — | — | — | Not run | No user data is stored yet; schema v1 creates an empty `scan_sessions` table |
 
 ## 4. User-facing guidance
 

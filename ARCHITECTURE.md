@@ -17,35 +17,37 @@
 │   src/main.tsx  -> React root                          │
 │   src/App.tsx   -> welcome screen + data panels        │
 │   src/components/ -> BackendStatus, SystemOverview,    │
-│                      ProcessList                       │
-│   src/services/ -> typed IPC adapters                  │
-│   src/App.css   -> design tokens + styles              │
-│   One invoke call site, no OS access                   │
-└───────────────────────┬────────────────────────────────┘
+│                      ProcessList, Diagnostics          │
+│   src/services/ -> typed IPC adapters                   │
+│   src/App.css   -> design tokens + styles               │
+│   One invoke call site, no OS access                    │
+└───────────────────────┬─────────────────────────────────┘
                         │ invoke(get_app_info |
-                        │   get_system_snapshot | list_processes)
-┌───────────────────────▼────────────────────────────────┐
-│ Tauri 2 runtime                                        │
-│   src-tauri/src/lib.rs  -> Builder + handler           │
-│   commands/            -> validate + delegate          │
-│   dto/                 -> versioned wire DTOs          │
-│   domain/              -> platform-neutral             │
-│   ports/               -> narrow capabilities          │
-│   adapters/windows/    -> windows-sys only             │
-│   ipc.rs / error.rs    -> envelope + taxonomy          │
-│   logging.rs           -> bounded, redacted file logs  │
-│   redact.rs            -> path/identity scrubbing      │
-│   startup.rs           -> last-resort fatal dialog     │
-│   capabilities/default.json -> ["core:default"]        │
-│   CSP: default-src 'self'; no remote origins           │
-└───────────────────────┬────────────────────────────────┘
+                        │   get_system_snapshot | list_processes |
+                        │   get_diagnostics)
+┌───────────────────────▼─────────────────────────────────┐
+│ Tauri 2 runtime                                         │
+│   src-tauri/src/lib.rs  -> Builder + handler            │
+│   commands/            -> validate + delegate           │
+│   dto/                 -> versioned wire DTOs           │
+│   domain/              -> platform-neutral              │
+│   ports/               -> narrow capabilities           │
+│   adapters/windows/    -> windows-sys only              │
+│   adapters/persistence/-> rusqlite + migrations         │
+│   ipc.rs / error.rs    -> envelope + taxonomy           │
+│   logging.rs           -> bounded, redacted file logs   │
+│   redact.rs            -> path/identity scrubbing       │
+│   startup.rs           -> last-resort fatal dialog      │
+│   capabilities/default.json -> ["core:default"]         │
+│   CSP: default-src 'self'; no remote origins            │
+└───────────────────────┬─────────────────────────────────┘
                         │
-┌───────────────────────▼────────────────────────────────┐
-│ Rust std + tauri + serde/thiserror + tracing + windows-sys │
-│   Four read-only commands, bounded local logs,             │
-│   on-request redacted diagnostics; no storage, jobs,       │
-│   or events                                               │
-└────────────────────────────────────────────────────────┘
+┌───────────────────────▼─────────────────────────────────┐
+│ Rust std + tauri + serde/thiserror + tracing + rusqlite   │
+│ + windows-sys: four read-only commands, bounded local     │
+│ logs, on-request redacted diagnostics, and an open-but-   │
+│ unused schema-v1 database; no storage, jobs, or events    │
+└───────────────────────────────────────────────────────────┘
 ```
 
 **Properties that already hold**
@@ -71,16 +73,23 @@
   stable, and keeps rows Windows refused to open with a per-field reason.
 - A failed startup shows a native dialog with a redacted detail and next steps,
   then exits 1; a render failure is caught by a boundary that offers a reload.
+- Opening the database is confined to `adapters/persistence/`. `domain/` still
+  imports no SQL and no driver type. The file is opened at startup, migrations
+  run, and the handle is stored in Tauri state.
 
 **Properties that do not hold yet**
 
-- No events, job registry, cancellation, or persistence.
+- No events, job registry, or cancellation.
+- No command reads or writes the database; schema v1 holds no user rows.
 - No startup, service, storage, or security collectors.
 - No navigation or routing.
 - Tests cover the IPC contract, the snapshot/process/diagnostics domain and DTOs,
   both Windows adapters' structural invariants, paging boundaries, logging,
-  redaction, startup message text, and the four UI panels plus the error
-  boundary. Traversal and persistence are untested because they do not exist.
+  redaction, startup message text, migration ordering/checksums, schema creation,
+  WAL mode, schema-version refusal, and the four UI panels plus the error
+  boundary. Traversal, scan sessions, and file-record persistence are untested
+  because they do not exist.
+- CI exists as a file but has never run on GitHub.
 - CI exists as a file but has never run on GitHub.
 
 ## 2. Target architecture (proposed)
@@ -177,7 +186,10 @@ first-class result in the UI.
 ### 4.3 Persistence boundary
 
 Domain workflows never embed SQL. Repositories own queries; migrations are
-versioned and forward-only. See [`DATABASE.md`](DATABASE.md) and
+versioned and forward-only. Only `adapters/persistence/` may open the database.
+The connection is synchronous, so any command that uses it must run on
+`spawn_blocking`. Schema v1 (`scan_sessions`) and the runner are implemented; no
+repository or command uses them yet. See [`DATABASE.md`](DATABASE.md) and
 [`docs/MIGRATIONS.md`](docs/MIGRATIONS.md).
 
 ### 4.4 Privilege boundary
