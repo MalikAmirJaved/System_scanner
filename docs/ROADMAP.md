@@ -43,7 +43,8 @@ requirements.
 | Production build + NSIS installer | ✅ Implemented |
 | Minimal capability set + CSP | ✅ Implemented |
 | Responsive shell + design tokens (Tailwind v4) | ✅ Implemented — 1/2/3-column panel grid |
-| App shell, navigation, routing | ⏳ Not started |
+| App shell, navigation, routing | 🟡 Panels share one dashboard; no navigation or routing |
+| Fatal-startup dialog + renderer error boundary | ✅ Implemented — native dialog on init failure; reload screen on a render failure |
 | Typed IPC boundary + DTO + error model | ✅ Implemented (`get_app_info`, `get_system_snapshot`) |
 | IPC event channel | ⏳ Not started |
 | System snapshot (OS/CPU/memory/disks/network) | ✅ Implemented — unavailable fields reported |
@@ -51,7 +52,7 @@ requirements.
 | Refresh lifecycle (manual + bounded periodic) | 🟡 Manual refresh implemented; periodic refresh not |
 | Structured logging + rotation | ✅ Implemented — 10 MB × 5 files in the app log directory; redaction test |
 | Diagnostics view + redacted support bundle | ✅ Implemented — on-request panel and preview/copy; saved-file export not implemented |
-| Tests (unit/adapter/UI) | 🟡 Partial — IPC, snapshot + process + diagnostics contracts, adapters, use cases, logging, redaction, 4 UI panels + theme toggle; 70 tests |
+| Tests (unit/adapter/UI) | 🟡 Partial — IPC, snapshot + process + diagnostics contracts, adapters, use cases, logging, redaction, startup messages, 4 UI panels + theme toggle + error boundary; 74 tests |
 | CI on Windows | 🟡 Workflow committed, never run on GitHub |
 
 **Exit criteria**

@@ -7,10 +7,11 @@ mod ipc;
 mod logging;
 mod ports;
 mod redact;
+mod startup;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    if let Err(error) = tauri::Builder::default()
         .setup(|app| {
             use tauri::Manager;
 
@@ -35,5 +36,9 @@ pub fn run() {
             commands::system::get_system_snapshot
         ])
         .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+    {
+        // No window, no IPC, possibly no log. This is the only user-visible
+        // path left, and it must not panic (see `startup.rs`).
+        startup::report_fatal(&error.to_string());
+    }
 }

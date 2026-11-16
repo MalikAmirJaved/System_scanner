@@ -14,6 +14,13 @@ exists. Until then, `0.x` versions may change behavior without notice.
 ## [Unreleased]
 
 ### Added
+- **Fatal-startup dialog + renderer error boundary (implemented).**
+  `startup.rs` replaces the final `expect()`: a failed
+  `tauri::Builder::run` shows a native message box with the app version, a
+  redacted, length-bounded detail, and next steps, then exits with status 1.
+  `src/components/ErrorBoundary.tsx` catches a render failure and shows a reload
+  screen instead of a blank window. No new crate; the dialog uses the existing
+  `windows-sys` dependency (`Win32_UI_WindowsAndMessaging`).
 - **Local diagnostics + redacted support bundle (implemented).**
   `get_diagnostics` returns app/Tauri versions, OS build and architecture,
   elevation, log size, and a bounded (256 KiB) log tail. `redact.rs` replaces

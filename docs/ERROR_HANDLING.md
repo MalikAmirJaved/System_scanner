@@ -148,8 +148,12 @@ Backoff: 100 ms, 300 ms, 900 ms (cap), jittered. Never retry `INVALID_INPUT`,
 
 - Panics are **bugs**, not a control-flow mechanism.
 - No `unwrap()`/`expect()` on input in command or worker paths.
-- The only accepted `expect()` is "cannot construct the app" at startup, which
-  should become a user-visible fatal-error dialog.
+- There is no accepted `expect()` on the startup path. A failed
+  `tauri::Builder::run` calls `startup::report_fatal`, which shows a native dialog
+  with the version, a redacted detail, and next steps, then exits with status 1
+  (`src-tauri/src/startup.rs`).
+- A render failure is caught by `ErrorBoundary` (`src/components/ErrorBoundary.tsx`),
+  which replaces the dashboard with a reload screen instead of a blank window.
 - Next launch reconciles interrupted sessions.
 
 ## 9. Logging and correlation

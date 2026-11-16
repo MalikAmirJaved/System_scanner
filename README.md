@@ -46,6 +46,7 @@ and no network dependency for core functionality.
 | Tailwind v4 responsive shell, theme toggle, shared primitives | ✅ Implemented | `src/App.tsx`, `src/components/ThemeToggle.tsx`, `src/styles/globals.css` |
 | Typed IPC command surface | ✅ Implemented | `src-tauri/src/ipc.rs`, `commands/`, `src/services/ipc.ts` |
 | Error taxonomy + correlation IDs | ✅ Implemented | `src-tauri/src/error.rs` |
+| Fatal-startup dialog + renderer error boundary | ✅ Implemented | `src-tauri/src/startup.rs`, `src/components/ErrorBoundary.tsx` |
 | Read-only system snapshot (OS/CPU/memory/disks/adapters) | ✅ Implemented | `domain/`, `ports/`, `adapters/windows/`, `SystemOverview.tsx` |
 | Paged process list with stable keys and per-row gaps | ✅ Implemented | `domain/process.rs`, `adapters/windows/processes.rs`, `ProcessList.tsx` |
 | Bounded, redacted local logs | ✅ Implemented | `src-tauri/src/logging.rs` |
@@ -53,7 +54,7 @@ and no network dependency for core functionality.
 | Startup and service collection | ⏳ Planned | `docs/BACKLOG.md` B-043 |
 | Storage scan engine | ⏳ Planned | Release 1 |
 | SQLite persistence + migrations | ⏳ Planned | Release 1 |
-| Tests, lint config, CI | 🟡 Partial | 70 tests + ESLint/Prettier pass; CI workflow never run |
+| Tests, lint config, CI | 🟡 Partial | 74 tests + ESLint/Prettier pass; CI workflow never run |
 | Network egress | 🚫 None by design | no HTTP client dependency |
 
 Full inventory: [`docs/FEATURES.md`](docs/FEATURES.md). Gaps:

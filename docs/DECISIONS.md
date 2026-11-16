@@ -484,6 +484,49 @@ structured JSON, or redaction needs to cover a new class of identifier.
 
 ---
 
+## ADR-017 — Fatal startup and render failures: native dialog + React boundary
+
+**Status:** Accepted · 2026-11-14
+
+**Context.** `lib.rs` ended with `.expect("error while running tauri application")`.
+In a release build (`panic = "abort"`, `windows_subsystem = "windows"`) that means a
+failing startup exits without any window, console, or message. A render exception
+has the same effect inside WebView2: React unmounts the tree and the user sees a
+blank window. B-012 requires an actionable failure, not a silent exit.
+
+**Options.**
+
+1. Keep `expect()` and rely on the log file.
+2. Add a Tauri dialog plugin and show the error from the setup hook.
+3. Draw a native `MessageBoxW` when the event loop fails, and catch render errors
+   in a React error boundary.
+4. Try to create a second window purely to display the failure.
+
+**Decision.**
+
+- The startup path calls `startup::report_fatal`, which builds a message (app
+  version, redacted and 400-char-bounded detail, three next steps), shows a
+  `MessageBoxW` through the existing `windows-sys` dependency, and exits 1.
+- The detail is passed through `redact::redact_text` before display, so a startup
+  error cannot show a full path even locally.
+- The renderer wraps `<App />` in `ErrorBoundary`, which shows a reload screen
+  with the error message and the log file name. It performs no IPC and no
+  clipboard access.
+- No new crate, plugin, or capability. No second window and no dialog-on-dialog
+  path.
+
+**Consequences.**
+
+- Option 4 was rejected because window creation is exactly what can fail.
+- The message text is unit-tested; the modal dialog itself is verified manually.
+- The boundary cannot restore a broken subtree without a reload, which is
+  acceptable for a bug this severe.
+
+**Revisit if:** startup gains a recoverable "safe mode", or the app needs the same
+screen on a non-Windows target.
+
+---
+
 ## Template
 
 ```text

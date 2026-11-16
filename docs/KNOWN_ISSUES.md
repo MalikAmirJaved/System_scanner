@@ -23,7 +23,6 @@
 
 | ID | Issue | Impact | Notes |
 |---|---|---|---|
-| KI-010 | Startup failure calls `expect()` | A fatal error exits with a panic message, no UI | `src-tauri/src/lib.rs` |
 | KI-011 | IPC responses are not validated at runtime in the frontend | A DTO rename would render `undefined` instead of failing loudly | B-090; `API.md` §8 |
 | KI-012 | The support bundle has no saved-file export | The preview can be copied, but support must paste it instead of attaching a file | F-092 / B-064 |
 | KI-013 | No cancellation infrastructure | Long work would be unstoppable | Design in `SYSTEM_DESIGN.md` |

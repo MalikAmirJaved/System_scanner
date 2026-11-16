@@ -69,7 +69,7 @@ Notes:
 ```powershell
 # --- Frontend ---
 npm run build               # Verified: `tsc` type-check (noEmit) + `vite build`
-npm test                    # Verified: Vitest run, 6 files / 18 tests
+npm test                    # Verified: Vitest run, 7 files / 20 tests
 npm run lint                # Verified: ESLint 10 flat config, 0 problems
 npm run format:check        # Verified: Prettier check (code only, see .prettierignore)
 npx tsc --noEmit            # Verified: type-check only
@@ -80,7 +80,7 @@ cd src-tauri
 cargo check                 # Verified
 cargo fmt --all -- --check  # Verified: 0 diffs (no rustfmt.toml: defaults apply)
 cargo clippy --all-targets -- -D warnings   # Verified: 0 warnings
-cargo test                  # Verified: 52 tests pass
+cargo test                  # Verified: 54 tests pass
 ```
 
 Application logs (release and dev): Tauri's `app_log_dir()`
@@ -96,7 +96,7 @@ non-fatal and reported on stderr.
 | Frontend format         | `npm run format:check`                      | Available — Prettier 3                            |
 | Rust format             | `cargo fmt --all -- --check`                | Available                                          |
 | Rust lint               | `cargo clippy --all-targets -- -D warnings` | Available                                          |
-| Rust tests              | `cargo test`                                | Available (52 tests)                               |
+| Rust tests              | `cargo test`                                | Available (54 tests)                               |
 | Dependency audit (JS)   | `npm audit --omit=dev`                      | Available                                          |
 | Dependency audit (Rust) | `cargo audit`                               | **Planned** — `cargo-audit` not installed |
 

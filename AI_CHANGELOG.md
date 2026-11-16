@@ -25,6 +25,38 @@
 
 ---
 
+## 2026-11-14 — Fatal-startup dialog + renderer error boundary (B-012)
+
+- **Agent/tool:** OpenCode (DeepSeek V4.1 Flash Free).
+- **Scope:** `src-tauri/src/{lib.rs,startup.rs,adapters/windows/dialog.rs}`,
+  `Cargo.toml`; `src/main.tsx`, `src/components/ErrorBoundary.tsx`; docs.
+- **Change:**
+  - Replaced the final `expect()` in `lib.rs` with `startup::report_fatal`: the
+    last-resort path builds a message (version, redacted and length-bounded
+    detail, next steps), shows a native `MessageBoxW` dialog, and exits 1.
+  - Added `startup.rs` (pure message assembly + platform dispatch) and a narrow
+    `adapters/windows/dialog.rs`. This is the only UI the Rust core draws itself,
+    and only when Tauri has no window.
+  - Added `ErrorBoundary` and wrapped the app in `main.tsx`, so a render failure
+    shows a reload screen instead of unmounting to a blank window.
+  - Enabled the existing `windows-sys` feature `Win32_UI_WindowsAndMessaging`.
+    No new crate; `Cargo.lock` is unchanged.
+- **Why:** B-012/F-008. A panic message and a silent exit are not actionable, and
+  a blank window looks like a hang.
+- **Risk:**
+  - The dialog is modal and blocking; it is only reachable after the event loop
+    failed, so it cannot block normal use.
+  - The dialog and the boundary are not exercised by an automated test that opens
+    a real window; message formatting is unit-tested, the dialog call is not.
+  - The boundary cannot recover the failed subtree without a reload.
+- **Evidence:** `cargo fmt --all -- --check`, `cargo clippy --all-targets -- -D
+  warnings`, `cargo test` (54 passed), `npm test` (20 passed), `npm run build`,
+  `npm run lint`, `npm run format:check`, `npm audit --omit=dev` (0).
+- **Follow-up:** manually trigger a startup failure and confirm the dialog text
+  and layout under WebView2; a crash log with a correlation ID remains open.
+
+---
+
 ## 2026-11-14 — Diagnostics view + redacted support bundle (B-006)
 
 - **Agent/tool:** OpenCode (DeepSeek V4.1 Flash Free).

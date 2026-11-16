@@ -134,6 +134,10 @@ Command outcomes are logged as events today. Job spans are not implemented:
 
 - `panic = "abort"` means no in-process recovery. The next launch detects the
   missing clean-shutdown marker and marks the session `interrupted`.
+- A startup failure that prevents a window shows a native message box with the
+  version, a redacted error detail, and next steps, then exits non-zero
+  (`startup.rs`). A render failure is caught by the renderer boundary, which
+  offers a reload instead of a blank window.
 - Crash reporting is **off**. If it is ever added: opt-in, previewable payload,
   no file paths, no memory dumps.
 - A local crash log with the panic message and correlation ID is acceptable and

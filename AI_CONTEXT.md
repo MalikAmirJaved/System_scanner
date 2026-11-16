@@ -34,14 +34,14 @@ Architecture: [`ARCHITECTURE.md`](ARCHITECTURE.md).
 | Styles | Tailwind CSS v4 via `@tailwindcss/vite`; tokens in `src/styles/globals.css` | `vite.config.ts` |
 | Rust deps | `tauri 2`, `serde`, `serde_json`, `thiserror`, `tracing`/`tracing-subscriber`, `windows-sys 0.61` (Windows target) | `Cargo.toml` |
 | Release profile | LTO, `codegen-units=1`, `opt-level=3`, `panic=abort`, `strip` | `Cargo.toml` |
-| Rust files | `main.rs`, `lib.rs`, `ipc.rs`, `error.rs`, `logging.rs`, `redact.rs`, `dto/`, `commands/`, `domain/`, `ports/`, `adapters/windows/` | `src-tauri/src/` |
+| Rust files | `main.rs`, `lib.rs`, `ipc.rs`, `error.rs`, `logging.rs`, `redact.rs`, `startup.rs`, `dto/`, `commands/`, `domain/`, `ports/`, `adapters/windows/` | `src-tauri/src/` |
 | IPC commands | `get_app_info`, `get_system_snapshot`, `list_processes`, `get_diagnostics` (all read-only) | `src-tauri/src/commands/` |
 | Wire format | envelope `{status, data|error}`; DTO fields camelCase; codes snake_case | `API.md` §1–§2 |
 | Frontend IPC | `src/services/ipc.ts` is the only `invoke` call site | `src/services/` |
 | Database | **none** | — |
-| Tests | 52 Rust + 18 frontend (`npm test`, `cargo test`) | `src/**/*.test.ts(x)`, `#[cfg(test)]` |
+| Tests | 54 Rust + 20 frontend (`npm test`, `cargo test`) | `src/**/*.test.ts(x)`, `#[cfg(test)]` |
 | CI | `.github/workflows/ci.yml` (**never run on GitHub**) | `.github/` |
-| Frontend | shell header + backend status + system snapshot + paged process list + on-request diagnostics in a responsive 1/2/3-column grid | `src/App.tsx`, `src/components/`, `src/components/ui/button.tsx` |
+| Frontend | shell header + backend status + system snapshot + paged process list + on-request diagnostics in a responsive 1/2/3-column grid, inside an `ErrorBoundary` | `src/App.tsx`, `src/components/`, `src/components/ui/button.tsx` |
 
 If any of these change, update this table in the same commit.
 
@@ -90,6 +90,7 @@ Avoid: "clean", "infected", "optimize", "fix" for anything that is not verified.
 | Add or change a design token | `src/styles/globals.css` (`@theme` / `@theme inline`) |
 | Log a backend event | `tracing::info!`/`warn!` at the call site; subscriber and rotation live in `src-tauri/src/logging.rs` |
 | Redact diagnostic text | `src-tauri/src/redact.rs` (shape rules + literal secrets); add a test for every new field that reaches a bundle |
+| Report a startup or render failure | `src-tauri/src/startup.rs` (native dialog, exits 1) and `src/components/ErrorBoundary.tsx` (reload screen); never sprinkle `expect()` back in |
 | Call Rust from the UI | `src/services/` (implemented) — never in a component |
 | Define an IPC command | `src-tauri/src/commands/` (implemented) |
 | Orchestrate jobs/cancellation | `src-tauri/src/app/` (planned) |

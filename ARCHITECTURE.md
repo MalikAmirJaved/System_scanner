@@ -35,6 +35,7 @@
 │   ipc.rs / error.rs    -> envelope + taxonomy          │
 │   logging.rs           -> bounded, redacted file logs  │
 │   redact.rs            -> path/identity scrubbing      │
+│   startup.rs           -> last-resort fatal dialog     │
 │   capabilities/default.json -> ["core:default"]        │
 │   CSP: default-src 'self'; no remote origins           │
 └───────────────────────┬────────────────────────────────┘
@@ -68,16 +69,18 @@
   of fabricating zero or empty values.
 - `list_processes` validates `offset`/`limit` in Rust, orders by PID so pages are
   stable, and keeps rows Windows refused to open with a per-field reason.
+- A failed startup shows a native dialog with a redacted detail and next steps,
+  then exits 1; a render failure is caught by a boundary that offers a reload.
 
 **Properties that do not hold yet**
 
 - No events, job registry, cancellation, or persistence.
 - No startup, service, storage, or security collectors.
-- No navigation, routing, or app-level error screen.
+- No navigation or routing.
 - Tests cover the IPC contract, the snapshot/process/diagnostics domain and DTOs,
-  both Windows adapters' structural invariants, paging boundaries, logging and
-  redaction, and the four UI panels. Traversal and persistence are untested
-  because they do not exist.
+  both Windows adapters' structural invariants, paging boundaries, logging,
+  redaction, startup message text, and the four UI panels plus the error
+  boundary. Traversal and persistence are untested because they do not exist.
 - CI exists as a file but has never run on GitHub.
 
 ## 2. Target architecture (proposed)

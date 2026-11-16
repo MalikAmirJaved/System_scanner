@@ -27,7 +27,7 @@
 | B-009 | ✅ Add ESLint + Prettier | Consistency before the codebase grows | `npm run lint` / `format` pass |
 | B-010 | 🟡 Add Windows CI (fmt, clippy, test, build) | No automation today | PRs blocked on failing checks |
 | B-011 | 🟡 Add `rust-toolchain.toml` | Reproducible builds | Local and CI compilers match |
-| B-012 | Fatal-startup error screen | `expect()` today | Init failure shows an actionable dialog, not a silent exit |
+| B-012 | ✅ Fatal-startup error screen | `expect()` today | Init failure shows an actionable dialog, not a silent exit |
 
 Notes on the partial items:
 

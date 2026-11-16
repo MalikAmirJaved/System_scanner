@@ -22,7 +22,7 @@
 | F-005 | Minimal capability set (`core:default`) | 0 | ✅ Implemented | `capabilities/default.json` |
 | F-006 | Application shell + design tokens | 0 | ✅ Implemented | `src/App.tsx`, `src/styles/globals.css` |
 | F-007 | In-app navigation and routing | 0 | ⏳ Not started | — |
-| F-008 | Error boundary + fatal-startup screen | 0 | ⏳ Not started | `lib.rs` uses `expect()` |
+| F-008 | Error boundary + fatal-startup screen | 0 | ✅ Implemented — renderer boundary shows a reload screen; a failed Tauri startup shows a native dialog with a redacted detail, then exits 1 | `src/components/ErrorBoundary.tsx`, `src-tauri/src/startup.rs` |
 | F-009 | Theming (light/dark/system) | 5 | 🟡 Partial — manual light/dark toggle persisted in `localStorage`; no OS-preference follow | `src/components/ThemeToggle.tsx`, `src/styles/globals.css` |
 | F-010 | Accessible keyboard navigation | 0 | ⏳ Not started — focus-visible styling and semantic table/landmarks only | `src/styles/globals.css` |
 | F-011 | Window state persistence | 5 | ⏳ Not started | — |
@@ -148,9 +148,9 @@ Event Log summaries, crash correlation, and connection features remain Release 4
 
 | Status | Count |
 |---|---|
-| Implemented | 25 (22 features + 3 baseline properties) |
+| Implemented | 26 (23 features + 3 baseline properties) |
 | Partial | 4 (F-009 OS-follow theming; F-020 event channel; F-040 process fields; F-042 hierarchy view) |
-| Not started / planned | 40 |
+| Not started / planned | 39 |
 | Gated (requires security work) | 5 |
 | Research / proposed | 2 |
 
@@ -164,7 +164,10 @@ preview. Panels have loading, error, retry, refresh, paging, and per-field
 unavailable reasons. The renderer uses Tailwind CSS v4 design tokens, a
 responsive panel grid that reflows from one to three columns, and a persisted
 light/dark toggle. The backend writes bounded, redacted local logs for command
-outcomes and startup, and redacts the preview before returning it.
+outcomes and startup, and redacts the preview before returning it. A render
+failure is caught by a boundary that replaces the dashboard with a reload screen,
+and a startup failure that prevents a window from existing shows a native dialog
+and exits non-zero instead of panicking.
 
 The event channel, job registry, cancellation, saved-file bundle export, image
 paths, and everything that touches storage are still ahead.
