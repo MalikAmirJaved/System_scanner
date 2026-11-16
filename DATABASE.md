@@ -29,7 +29,7 @@ Runtime facts:
 - Startup opens the database, applies pending migrations, logs `schema_version`,
   and stores the handle in Tauri state. Failure is logged and the app continues;
   no current panel reads from the database.
-- Cutover target: `%APPDATA%\com.systemscanner.desktop\system-scanner.db`
+- Location: `%APPDATA%\com.systemscanner.desktop\system-scanner.db`
   (roaming app data). This is the Tauri `app_data_dir()` default and is not a
   final retention decision — see §11.
 - The `schema_migrations` bookkeeping table is created by the runner, not by a
