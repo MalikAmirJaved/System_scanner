@@ -25,6 +25,29 @@
 
 ---
 
+## 2026-11-17 — Scan session persistence, counters only (B-024 minimal)
+
+- **Agent/tool:** Cursor agent.
+- **Scope:** new `ports/sessions.rs`, `adapters/persistence/sessions.rs`,
+  `migrations/0002_scan_session_results.sql`; `migrations.rs` (`SCHEMA_VERSION`
+  2); `sqlite.rs` (`connection` visibility, v1 -> v2 test); `app/jobs.rs`
+  (optional store, `unix_ms` made public); `lib.rs` (supervisor built in `setup`
+  after the database, `mark_interrupted`, `try_state` in the window hook); docs.
+- **Change:** a counters-only session row per scan behind a port, written
+  best-effort; startup marks leftover open rows `interrupted`. `database` is now
+  managed as `Arc<Database>` (nothing read the old `Database` state).
+- **Why:** a scan with no recorded outcome cannot be told from a crash, and the
+  retention decision (plan §12) blocks storing paths, so only the session is
+  stored.
+- **Risk:** rows accumulate without limit (KI-050); a failed write leaves no row
+  or a stale `running` row (KI-051); the job ID is process-local and is the
+  primary key. `files_denied` also counts denied directories.
+- **Evidence:** see the session report (fmt, clippy, cargo test, npm build/test).
+- **Follow-up:** retention decision, a read port and history view, per-entry
+  persistence (rest of B-024) with its own ADR and schema version.
+
+---
+
 ## 2026-11-17 — Scan job orchestration, backend only (B-025)
 
 - **Agent/tool:** Cursor agent.

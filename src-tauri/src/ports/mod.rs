@@ -3,6 +3,7 @@
 pub mod diagnostics;
 mod probe;
 pub mod processes;
+pub mod sessions;
 pub mod system_info;
 
 pub use probe::ProbeError;

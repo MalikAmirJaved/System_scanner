@@ -1,10 +1,10 @@
 # Data Privacy
 
-> **Status:** A SQLite file is created at startup and a traversal prototype keeps
-> paths in memory, but no personal data, path, or scan result is persisted or
-> exported today. This document defines the privacy rules **before** persistence
-> exists.
-> **Last updated:** 2026-11-16
+> **Status:** A SQLite file is created at startup. Each scan writes one
+> `scan_sessions` row of aggregate counters, timestamps, and status. **No path,
+> file name, or per-entry data is persisted or exported.** Traversal keeps paths
+> in memory only. Retention and a delete control are not decided or built.
+> **Last updated:** 2026-11-17
 
 ---
 
@@ -40,14 +40,19 @@ Rules:
 
 **Implemented today:** a SQLite file is created at
 `app_data_dir()/system-scanner.db` (`%APPDATA%\com.systemscanner.desktop\`) on
-startup, containing the schema bookkeeping table and an empty `scan_sessions`
-table. **No personal data, path, or scan result is written to it yet.** Logs
-(5 × 10 MB rolling) are also written.
+startup, containing the schema bookkeeping table and `scan_sessions`. Each scan
+(B-024, minimal) inserts one row: ID, module `storage`, start/finish time, status,
+completeness, aggregate counters, the traversal budgets as JSON, engine and policy
+version, and a cancel reason or error code. **`roots_json` stays `'[]'`: scan
+roots, file paths, and names are never stored.** Rows accumulate with no
+retention limit and no in-app delete until the plan §12 decision is made (this is
+an unenforced default, tracked as KI-050). Logs (5 × 10 MB rolling) are also
+written.
 
-**Traversal prototype (implemented, not wired):** full file paths are held in
-memory for the lifetime of a traversal and discarded when the stream ends. They
-are not logged, exported, sent over IPC, or written to the database. Log call
-sites never receive a path from this module.
+**Traversal (implemented):** full file paths are held in memory for the lifetime
+of a traversal and discarded as entries are counted. They are not logged,
+exported, sent over IPC, or written to the database. IPC returns aggregate
+counters only. Log call sites never receive a path from this module.
 
 Everything below beyond those two facts is **proposed**:
 

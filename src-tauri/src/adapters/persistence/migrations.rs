@@ -7,7 +7,7 @@
 //! startup instead of silently skipping the change.
 
 /// Highest schema version this build understands.
-pub const SCHEMA_VERSION: u32 = 1;
+pub const SCHEMA_VERSION: u32 = 2;
 
 /// One immutable schema change.
 pub struct Migration {
@@ -18,12 +18,22 @@ pub struct Migration {
 }
 
 /// Ordered migration list. Versions must be unique and strictly increasing.
-pub const MIGRATIONS: &[Migration] = &[Migration {
-    version: 1,
-    name: "initial_schema",
-    checksum: checksum(include_str!("../../../migrations/0001_initial.sql")),
-    sql: include_str!("../../../migrations/0001_initial.sql"),
-}];
+pub const MIGRATIONS: &[Migration] = &[
+    Migration {
+        version: 1,
+        name: "initial_schema",
+        checksum: checksum(include_str!("../../../migrations/0001_initial.sql")),
+        sql: include_str!("../../../migrations/0001_initial.sql"),
+    },
+    Migration {
+        version: 2,
+        name: "scan_session_results",
+        checksum: checksum(include_str!(
+            "../../../migrations/0002_scan_session_results.sql"
+        )),
+        sql: include_str!("../../../migrations/0002_scan_session_results.sql"),
+    },
+];
 
 /// FNV-1a over the migration text.
 ///

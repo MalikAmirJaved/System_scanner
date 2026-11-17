@@ -69,7 +69,8 @@ hashing, aggregated paginated views, recommendations only.
 
 **Foundation landed early (B-020, B-021):** `rusqlite` with bundled SQLite, a
 `Mutex<Connection>` opened at startup, forward-only checksummed migrations, and
-schema v1 containing `scan_sessions` only. No scan feature writes to it yet.
+schema v2 containing `scan_sessions` only. A scan writes one counters-only row
+(no paths); nothing reads history back, and per-entry persistence is not started.
 
 **Traversal prototype landed early (B-022):** a read-only walker with a fixed
 worker pool, a bounded entry channel, cooperative cancellation, depth/entry

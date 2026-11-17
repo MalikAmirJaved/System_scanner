@@ -367,8 +367,9 @@ Proposed events for Release 0 (none emitted today):
 
 ### 4.1 Scan jobs (implemented, B-025; in memory, no UI caller)
 
-Three commands drive one read-only traversal. State lives in memory only: no
-session row is written (B-024) and no frontend wrapper exists yet
+Three commands drive one read-only traversal. Live state is in memory; the
+final counters are also written as one `scan_sessions` row (best-effort, no paths;
+`DATABASE.md` §5.1), but no command reads history back and no frontend wrapper exists yet
 (`src/services/` does not call these).
 
 | Command | Input | Data |

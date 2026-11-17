@@ -39,9 +39,9 @@ Architecture: [`ARCHITECTURE.md`](ARCHITECTURE.md).
 | IPC events | `scan:progress`, `scan:completed`, `scan:failed`, `scan:cancelled` (aggregate counters only, paced to 10/s) | `API.md` §4.1, `src-tauri/src/app/jobs.rs` |
 | Wire format | envelope `{status, data|error}`; DTO fields camelCase; codes snake_case | `API.md` §1–§2 |
 | Frontend IPC | `src/services/ipc.ts` is the only `invoke` call site | `src/services/` |
-| Database | SQLite schema **v1** (`scan_sessions`) via `rusqlite`; file at `app_data_dir()/system-scanner.db`, opened at startup, **read by no command yet** | `src-tauri/src/adapters/persistence/`, `src-tauri/migrations/` |
+| Database | SQLite schema **v2** (`scan_sessions`) via `rusqlite`; file at `app_data_dir()/system-scanner.db`, opened at startup. One counters-only row is written per scan through the `ScanSessionStore` port (best-effort); leftover open rows become `interrupted` at startup. **No paths stored; no command reads rows back** | `src-tauri/src/adapters/persistence/`, `src-tauri/migrations/` |
 | Traversal | Bounded worker prototype with cancellation, depth/entry budgets, an outcome per entry with stable codes, and a derived `Completeness` verdict (B-023); driven by an in-memory scan job (B-025); **no UI or DB caller** | `src-tauri/src/adapters/filesystem/traversal.rs`, `src-tauri/src/domain/traversal.rs` |
-| Tests | 107 Rust + 20 frontend (`npm test`, `cargo test`) | `src/**/*.test.ts(x)`, `#[cfg(test)]` |
+| Tests | 118 Rust + 20 frontend (`npm test`, `cargo test`) | `src/**/*.test.ts(x)`, `#[cfg(test)]` |
 | CI | `.github/workflows/ci.yml` (**never run on GitHub**) | `.github/` |
 | Frontend | shell header + backend status + system snapshot + paged process list + on-request diagnostics in a responsive 1/2/3-column grid, inside an `ErrorBoundary` | `src/App.tsx`, `src/components/`, `src/components/ui/button.tsx` |
 
@@ -54,15 +54,17 @@ If any of these change, update this table in the same commit.
   working set. It does **not** read image paths, command lines, CPU usage, or
   session IDs (ADR-013), and it is not sortable or searchable.
 - Neither command reads services, startup entries, files, or event logs.
-- Jobs exist only for the scan: one at a time, in memory, lost on restart. No
-  generic job registry, no scan history, and no resumption.
+- Jobs exist only for the scan: one at a time. Live state is in memory; the final
+  counters are also written as one session row. No generic job registry, no
+  history view, and no resumption.
 - No startup/service collectors and no storage UI. `start_scan` runs the
   traversal and reports aggregate counters over `scan:*` events, but no frontend
-  code calls it, there is no folder picker, and nothing is persisted or queryable
-  (`get_scan_summary`, `query_files` do not exist).
+  code calls it, there is no folder picker, and file-level data is neither
+  persisted nor queryable (`get_scan_summary`, `query_files` do not exist).
 - No scan history, repositories, or IPC command that reads the database.
-  `adapters/persistence` exists, schema v1 creates `scan_sessions`, and startup
-  opens the file — but **no rows are written or read**.
+  `adapters/persistence` exists and a finished scan writes one `scan_sessions`
+  row, but **no command reads rows back**, there is no history UI, no per-entry
+  storage, no retention policy, and no delete control.
 - No saved-file diagnostics export and no log viewer or level filter. The
   in-app preview/copy of a redacted support bundle exists (B-006); logs remain
   local files.

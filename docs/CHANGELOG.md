@@ -14,6 +14,12 @@ exists. Until then, `0.x` versions may change behavior without notice.
 ## [Unreleased]
 
 ### Added
+- **Scan sessions persisted, counters only (B-024 minimal).** Each scan writes one
+  `scan_sessions` row (status, completeness, aggregate counters, budgets; **no
+  paths or roots**) through a `ScanSessionStore` port. Schema is now v2
+  (`0002_scan_session_results.sql`, additive). Sessions left open by a crash or
+  kill are marked `interrupted` at the next startup. Writes are best-effort. No
+  command reads sessions, and per-entry persistence is not started. See ADR-021.
 - **In-memory scan jobs (B-025; backend only, no UI).** `start_scan`,
   `cancel_scan`, and `get_scan_status` drive one read-only traversal at a time;
   `scan:progress` (paced to 10/s), `scan:completed`, `scan:cancelled`, and

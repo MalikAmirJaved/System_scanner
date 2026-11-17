@@ -682,8 +682,8 @@ reach the UI.
 
 **Consequences.**
 
-- Scan state is lost on restart and the next scan replaces the last result
-  (KI-050).
+- Live scan state is lost on restart and the next scan replaces the last result;
+  the final counters are persisted separately by ADR-021.
 - Roots are caller-supplied and shape-checked only; device-namespace and UNC
   roots are not rejected (KI-049, B-040).
 - Starting a scan stats each root while the slot lock is held; a dead network
@@ -697,6 +697,50 @@ reach the UI.
 **Revisit if:** concurrent scans are required, B-024 needs session rows tied to
 job IDs, or event delivery to a slow renderer must be acknowledged rather than
 paced.
+
+---
+
+## ADR-021 — Scan sessions: counters-only rows through a port, best-effort
+
+**Status:** Accepted · 2026-11-17
+
+**Context.** B-024 asked for persistence of scan results. Storing file paths and
+sizes needs the retention decision still open in `docs/plan.md` §12, and
+`AGENTS.md` §8 forbids guessing on data retention. A scan with no recorded
+outcome, however, cannot be told apart from one that crashed.
+
+**Decision.** Persist the **session only**, never entries.
+
+- `ports/sessions.rs` defines `ScanSessionStore` (`begin`, `finish`,
+  `mark_interrupted`) and plain records. `Database` implements it in
+  `adapters/persistence/sessions.rs`; `app/jobs.rs` depends on the trait, not on
+  SQLite.
+- Migration `0002_scan_session_results.sql` adds the completeness verdict and the
+  counters schema v1 lacked. Additive; v1 rows are preserved.
+- Stored: ID, module, times, status, completeness, aggregate counters, the
+  budgets as JSON, engine/policy version, cancel reason, error code. **Not
+  stored:** roots, paths, names. `roots_json` stays `'[]'`.
+- `begin` runs before the drain thread starts and `finish` runs before the
+  terminal event, so a listener never sees an event ahead of its row. An ended
+  row is never overwritten (`WHERE status IN ('queued','running','cancelling')`).
+- Writes are **best-effort**: failure is logged by the adapter and never changes
+  the job outcome or refuses a scan.
+- At startup `mark_interrupted` sets rows left open by a previous run to
+  `interrupted` and logs the count. The supervisor is built after the database
+  opens, with or without a store.
+
+**Consequences.**
+
+- Rows accumulate with no limit and no delete control (KI-050); a scan can have no
+  row or a stale `running` row until the next startup (KI-051).
+- No command reads sessions yet, so history is invisible to the UI.
+- Job IDs are process-local (`scan-<millis>-<seq>`) and used as the primary key; a
+  collision is refused rather than overwritten.
+- Per-entry persistence (the rest of B-024) stays blocked on retention and needs
+  its own ADR and schema version.
+
+**Revisit if:** retention is decided, a history view needs a read port, or
+sessions must be tied to a persisted job registry across restarts.
 
 ---
 

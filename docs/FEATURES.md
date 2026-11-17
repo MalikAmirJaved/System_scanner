@@ -41,7 +41,7 @@
 | F-026 | Structured logging + rotation | 0 | ✅ Implemented — `tracing` to `app_log_dir()`, 10 MB × 5 files, redaction guard; command outcomes logged without payloads | `src-tauri/src/logging.rs`, `ipc.rs` |
 | F-027 | Startup reconciliation of interrupted jobs | 1 | ⏳ Not started | — |
 | F-028 | Runtime settings store | 1 | ⏳ Not started | — |
-| F-029 | SQLite persistence foundation (driver, schema v1, migration runner) | 1 | 🟡 Partial — `rusqlite` opens `app_data_dir()/system-scanner.db` at startup with WAL/foreign keys, applies forward-only checksummed migrations, and creates `scan_sessions`; no repository, command, or row writer exists | `src-tauri/src/adapters/persistence/`, `src-tauri/migrations/0001_initial.sql` |
+| F-029 | SQLite persistence foundation (driver, schema v1, migration runner) | 1 | 🟡 Partial — `rusqlite` opens `app_data_dir()/system-scanner.db` at startup with WAL/foreign keys, applies forward-only checksummed migrations, and creates `scan_sessions` (schema v2); the scan supervisor writes one counters-only row per scan through the `ScanSessionStore` port and marks leftover open rows `interrupted` at startup. No command reads rows, and no per-entry data or retention policy exists | `src-tauri/src/adapters/persistence/`, `src-tauri/migrations/0001_initial.sql`, `0002_scan_session_results.sql` |
 
 ## 3. System overview (Release 0)
 
@@ -178,8 +178,8 @@ failure is caught by a boundary that replaces the dashboard with a reload screen
 and a startup failure that prevents a window from existing shows a native dialog
 and exits non-zero instead of panicking. Persistence groundwork is in place: a
 bundled-SQLite connection opens at startup, applies forward-only checksummed
-migrations, and creates schema v1 (`scan_sessions`) — but no feature writes or
-reads rows yet. A traversal prototype now streams filesystem entries through a
+migrations, and creates schema v2 (`scan_sessions`); a scan writes one
+counters-only row, but nothing reads rows back. A traversal prototype now streams filesystem entries through a
 bounded channel with a fixed worker count, cooperative cancellation, depth/entry
 budgets, and an explicit outcome per entry; it is not yet reachable from the UI.
 

@@ -46,9 +46,9 @@
 ┌───────────────────────▼─────────────────────────────────┐
 │ Rust std + tauri + serde/thiserror + tracing + rusqlite   │
 │ + windows-sys: seven read-only commands, bounded local    │
-│ logs, on-request redacted diagnostics, an open-but-unused │
-│ schema-v1 database, and an in-memory scan job with paced  │
-│ events (no UI, no persistence, no storage views)          │
+│ logs, on-request redacted diagnostics, a schema-v2        │
+│ database holding one counters-only row per scan, and a    │
+│ scan job with paced events (no UI, no storage views)      │
 └───────────────────────────────────────────────────────────┘
 ```
 
@@ -87,8 +87,9 @@
 **Properties that do not hold yet**
 
 - No events, job registry, or cancellation at the job level.
-- No command reads or writes the database; schema v1 holds no user rows.
-- No IPC command, UI, or persistence path consumes the traversal prototype.
+- No command reads the database. The scan supervisor writes one counters-only
+  `scan_sessions` row per scan (schema v2); no path or file-level row exists.
+- No UI consumes the traversal; only the three scan commands do.
 - No startup, service, storage summary, or security collectors.
 - No navigation or routing.
 - Tests cover the IPC contract, the snapshot/process/diagnostics domain and DTOs,
@@ -197,8 +198,9 @@ first-class result in the UI.
 Domain workflows never embed SQL. Repositories own queries; migrations are
 versioned and forward-only. Only `adapters/persistence/` may open the database.
 The connection is synchronous, so any command that uses it must run on
-`spawn_blocking`. Schema v1 (`scan_sessions`) and the runner are implemented; no
-repository or command uses them yet. See [`DATABASE.md`](DATABASE.md) and
+`spawn_blocking`. Schema v2 (`scan_sessions`) and the runner are implemented; the
+`ScanSessionStore` port (`ports/sessions.rs`) is the only repository, written by
+the scan supervisor from its own thread, and no command reads it yet. See [`DATABASE.md`](DATABASE.md) and
 [`docs/MIGRATIONS.md`](docs/MIGRATIONS.md).
 
 ### 4.4 Privilege boundary

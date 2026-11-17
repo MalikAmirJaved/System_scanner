@@ -1,7 +1,8 @@
 # Database
 
 > **Status:** **Partial.** The driver, connection setup, and forward-only migration
-> runner are **implemented**, and schema **v1 contains `scan_sessions` only**. Every
+> runner are **implemented**, and schema **v2 contains `scan_sessions` only** (v2
+> adds result columns; a scan job writes one row per scan, counters only). Every
 > other table in §5 is still a **proposal** and does not exist in any database file.
 > Do not describe a proposed table as existing.
 >
@@ -15,10 +16,12 @@
 |---|---|
 | Engine | SQLite, compiled in via `rusqlite` `bundled` |
 | Driver | `rusqlite` 0.43 — `src-tauri/src/adapters/persistence/sqlite.rs` |
-| Schema | **v1 implemented:** `scan_sessions` + two indexes (`src-tauri/migrations/0001_initial.sql`) |
+| Schema | **v2 implemented:** `scan_sessions` + two indexes (`0001_initial.sql`), plus the result columns from `0002_scan_session_results.sql` |
 | Migrations | **Implemented** — hand-written, forward-only, embedded, checksummed (`docs/MIGRATIONS.md`) |
 | Data directory | Created at startup: `app_data_dir()/system-scanner.db` |
-| Retention | None enforced; no rows are written by any feature yet |
+| Retention | **None enforced.** Each scan inserts one `scan_sessions` row (status, timestamps, aggregate counters, completeness; **no paths**, `roots_json` stays `'[]'`). Rows accumulate until a retention policy and a delete control exist (`docs/plan.md` §12) |
+| Writers | `Database` implements the `ScanSessionStore` port (`begin`, `finish`, `mark_interrupted`); the scan supervisor calls it best-effort, so a failed write never stops a scan. Nothing reads sessions back over IPC yet |
+| Crash recovery | At startup, rows still `queued`/`running`/`cancelling` are set to `interrupted` with a `finished_at` |
 
 Schema v1 is intentionally narrow. The tables in §5 for snapshots, file records,
 hashes, findings, quarantine, and action history **do not exist** and will be added
@@ -75,7 +78,8 @@ PRAGMA busy_timeout = 5000;
 - Commands that touch the database **must** call
   `tauri::async_runtime::spawn_blocking`; the UI thread never waits on SQLite.
 - Batched inserts inside transactions sized by measured latency, not by count guess
-  (B-024, not started).
+  (B-024 per-entry batching, not started; only the one-row-per-scan session
+  writer exists).
 - No long-running transaction may hold a UI-blocking path.
 - Writes are flushed at scan checkpoints so an abort loses at most one batch.
 
@@ -84,7 +88,17 @@ PRAGMA busy_timeout = 5000;
 Status per table: **Implemented** (exists in schema v1) or **Proposed** (illustrative
 DDL; column names and types will change).
 
-### 5.1 `scan_sessions` — ✅ Implemented (schema v1)
+### 5.1 `scan_sessions` — ✅ Implemented (schema v1 + v2 columns)
+
+Schema v2 (`0002_scan_session_results.sql`) adds, all additive:
+`completeness TEXT` (`complete|partial|truncated|cancelled`, `NULL` until
+finished), `entries_seen`, `directories_seen`, `reparse_points_seen`,
+`files_disappeared`, `files_unsupported` (all `INTEGER NOT NULL DEFAULT 0`).
+Mapping from the traversal counters: `files_seen` = files, `files_skipped` =
+skipped, `files_denied` = denied (denied directories count too), `files_failed` =
+failed, `bytes_seen` = bytes. The `id` is the in-process job ID
+(`scan-<millis hex>-<seq hex>`), not a UUID, and a repeated ID is refused. A row
+that has ended is never rewritten.
 
 ```sql
 CREATE TABLE scan_sessions (

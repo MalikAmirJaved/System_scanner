@@ -4,6 +4,7 @@
 //! when a use case needs stored data; nothing in `domain/` imports `rusqlite`.
 
 pub mod migrations;
+mod sessions;
 mod sqlite;
 
-pub use sqlite::{DATABASE_FILE_NAME, Database};
+pub use sqlite::{DATABASE_FILE_NAME, Database, StoreError};

@@ -38,6 +38,7 @@ Migrations apply to:
 ```text
 src-tauri/migrations/
   0001_initial.sql
+  0002_scan_session_results.sql   # additive: completeness + extra counters
 ```
 
 Rules:
@@ -95,7 +96,7 @@ Additional rules:
 | DB from a newer app version | Refuses, explains, does not downgrade | ✅ `a_newer_schema_is_refused_without_changes` |
 | Released migration edited | Refuses on checksum mismatch | ✅ `a_changed_released_migration_is_detected` |
 | Migration list invariants | Versions start at 1, strictly increase, end at `SCHEMA_VERSION`; checksums match SQL | ✅ `migrations.rs` tests |
-| Each released version | Upgrades to latest, data intact | ⏳ Not applicable — only v1 exists |
+| Each released version | Upgrades to latest, data intact | ✅ v1 → v2 (`a_v1_database_upgrades_to_v2_without_losing_rows`); only this one upgrade path exists, and no installer has been built from v1 to test a real upgrade |
 | Interrupted migration | DB unchanged, retry succeeds | ⏳ Not covered by a test; guaranteed by the transaction |
 | Corrupt DB | Detected, preserved, recovery path offered | ⏳ Not started |
 | Read-only data directory | Clear error, no partial write | ⏳ Not started |

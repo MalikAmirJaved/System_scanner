@@ -26,6 +26,7 @@ use crate::dto::scan::{
     ScanProgressEvent, ScanStatusDto,
 };
 use crate::error::{AppError, ErrorCode};
+use crate::ports::sessions::{ScanSessionStore, SessionFinish, SessionStart};
 
 /// Receives events from the drain thread. It must not block for long: a slow
 /// sink stalls the walk through the bounded channel (that is the backpressure).
@@ -34,6 +35,10 @@ pub type EventSink = Arc<dyn Fn(ScanEvent) + Send + Sync>;
 /// Why a job was cancelled; published in `scan:cancelled`.
 const REASON_USER: &str = "user_requested";
 const REASON_SHUTDOWN: &str = "shutdown";
+
+/// Version of the traversal policy recorded with each session (reparse points
+/// never followed, depth 64, entry ceiling). Bump when that policy changes.
+const POLICY_VERSION: &str = "traversal-1";
 
 static JOB_SEQ: AtomicU64 = AtomicU64::new(1);
 
@@ -74,6 +79,7 @@ struct JobRecord {
 pub struct Supervisor {
     slot: Arc<Mutex<Option<JobRecord>>>,
     tuning: ScanTuning,
+    store: Option<Arc<dyn ScanSessionStore>>,
 }
 
 impl Default for Supervisor {
@@ -91,7 +97,17 @@ impl Supervisor {
         Self {
             slot: Arc::new(Mutex::new(None)),
             tuning,
+            store: None,
         }
+    }
+
+    /// Record sessions in `store`. Persistence is best-effort: a failed write is
+    /// logged and the scan carries on, because the app also runs without a
+    /// database.
+    #[must_use]
+    pub fn with_store(mut self, store: Arc<dyn ScanSessionStore>) -> Self {
+        self.store = Some(store);
+        self
     }
 
     /// Validate, claim the slot, and start the walk. Returns the job ID at once.
@@ -140,12 +156,30 @@ impl Supervisor {
         *slot = Some(record);
         drop(slot);
 
+        // Written before the drain thread exists, so `finish` can never reach the
+        // store ahead of `begin`. The options hold budgets only, never a path.
+        if let Some(store) = &self.store {
+            let options = serde_json::json!({
+                "maxEntries": max_entries,
+                "workers": self.tuning.workers,
+                "channelCapacity": self.tuning.channel_capacity,
+            });
+            let _ = store.begin(&SessionStart {
+                id: id.clone(),
+                started_at_ms: unix_ms(),
+                options_json: options.to_string(),
+                engine_version: env!("CARGO_PKG_VERSION"),
+                policy_version: POLICY_VERSION,
+            });
+        }
+
         let shared = Arc::clone(&self.slot);
         let interval = self.tuning.progress_interval_ms;
         let job_id = id.clone();
+        let store = self.store.clone();
         let spawned = thread::Builder::new()
             .name("scan-drain".into())
-            .spawn(move || drain(shared, job_id, traversal, sink, interval, started));
+            .spawn(move || drain(shared, job_id, traversal, sink, interval, started, store));
 
         if spawned.is_err() {
             // The closure (and the traversal inside it) was dropped, which stops
@@ -154,6 +188,20 @@ impl Supervisor {
             if let Some(job) = slot.as_mut().filter(|job| job.id == id) {
                 job.error_code = Some(ErrorCode::Internal);
                 transition(job, JobState::Failed);
+            }
+            drop(slot);
+            if let Some(store) = &self.store {
+                let _ = store.finish(
+                    &id,
+                    &SessionFinish {
+                        status: JobState::Failed.code(),
+                        finished_at_ms: unix_ms(),
+                        completeness: None,
+                        counters: TraversalSummary::default(),
+                        cancel_reason: None,
+                        error_code: Some(ErrorCode::Internal.as_str()),
+                    },
+                );
             }
             return Err(AppError::new(ErrorCode::Internal));
         }
@@ -225,6 +273,7 @@ fn drain(
     sink: EventSink,
     interval_ms: u64,
     started: Instant,
+    store: Option<Arc<dyn ScanSessionStore>>,
 ) {
     let mut gate = ProgressGate::new(interval_ms);
     let mut seen = TraversalSummary::default();
@@ -259,7 +308,7 @@ fn drain(
     let result = traversal.join();
     let elapsed = elapsed_ms(started);
 
-    let event = {
+    let (event, finish) = {
         let mut guard = lock(&slot);
         let Some(job) = guard.as_mut().filter(|job| job.id == id) else {
             return;
@@ -272,8 +321,22 @@ fn drain(
                 let completeness = summary.completeness();
                 job.counters = summary.clone();
                 job.completeness = Some(completeness);
-                if completeness == Completeness::Cancelled {
-                    transition(job, JobState::Cancelled);
+                let cancelled = completeness == Completeness::Cancelled;
+                let state = if cancelled {
+                    JobState::Cancelled
+                } else {
+                    JobState::Completed
+                };
+                transition(job, state);
+                let finish = SessionFinish {
+                    status: state.code(),
+                    finished_at_ms: unix_ms(),
+                    completeness: Some(completeness.code()),
+                    counters: summary.clone(),
+                    cancel_reason: cancelled.then_some(job.cancel_reason),
+                    error_code: None,
+                };
+                let event = if cancelled {
                     ScanEvent::Cancelled(ScanCancelledEvent {
                         job_id: id.clone(),
                         reason: job.cancel_reason,
@@ -281,23 +344,41 @@ fn drain(
                         elapsed_ms: elapsed,
                     })
                 } else {
-                    transition(job, JobState::Completed);
                     ScanEvent::Completed(ScanCompletedEvent::new(
                         id.clone(),
                         &summary,
                         completeness,
                         elapsed,
                     ))
-                }
+                };
+                (event, finish)
             }
             Err(_) => {
                 let error = AppError::new(ErrorCode::Internal);
                 job.error_code = Some(error.code);
                 transition(job, JobState::Failed);
-                ScanEvent::Failed(ScanFailedEvent::new(id.clone(), &error))
+                let finish = SessionFinish {
+                    status: JobState::Failed.code(),
+                    finished_at_ms: unix_ms(),
+                    completeness: None,
+                    counters: seen,
+                    cancel_reason: None,
+                    error_code: Some(error.code.as_str()),
+                };
+                (
+                    ScanEvent::Failed(ScanFailedEvent::new(id.clone(), &error)),
+                    finish,
+                )
             }
         }
     };
+
+    // Stored before the event is sent, so a listener that reads the database
+    // after `scan:completed` sees the final row. A failed write is logged by the
+    // adapter and does not change the job outcome.
+    if let Some(store) = &store {
+        let _ = store.finish(&id, &finish);
+    }
 
     tracing::info!(job_id = %id, event = event.name(), "scan finished");
     sink(event);
@@ -337,6 +418,15 @@ fn next_job_id() -> String {
         .map(|elapsed| elapsed.as_millis())
         .unwrap_or(0);
     format!("scan-{millis:x}-{seq:04x}")
+}
+
+/// Unix milliseconds UTC; `0` if the clock is before the epoch.
+pub fn unix_ms() -> i64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .ok()
+        .and_then(|elapsed| i64::try_from(elapsed.as_millis()).ok())
+        .unwrap_or(0)
 }
 
 fn elapsed_ms(started: Instant) -> u64 {
@@ -444,6 +534,163 @@ mod tests {
             channel_capacity: 1,
             progress_interval_ms: 0,
         }
+    }
+
+    use crate::ports::sessions::SessionStoreError;
+
+    #[derive(Default)]
+    struct RecordingStore {
+        calls: Mutex<Vec<String>>,
+        starts: Mutex<Vec<SessionStart>>,
+        finishes: Mutex<Vec<(String, SessionFinish)>>,
+        fail: bool,
+    }
+
+    impl ScanSessionStore for RecordingStore {
+        fn begin(&self, start: &SessionStart) -> Result<(), SessionStoreError> {
+            lock(&self.calls).push("begin".into());
+            lock(&self.starts).push(start.clone());
+            if self.fail {
+                Err(SessionStoreError)
+            } else {
+                Ok(())
+            }
+        }
+
+        fn finish(&self, id: &str, finish: &SessionFinish) -> Result<(), SessionStoreError> {
+            lock(&self.calls).push("finish".into());
+            lock(&self.finishes).push((id.to_owned(), finish.clone()));
+            if self.fail {
+                Err(SessionStoreError)
+            } else {
+                Ok(())
+            }
+        }
+
+        fn mark_interrupted(&self, _now_ms: i64) -> Result<usize, SessionStoreError> {
+            Ok(0)
+        }
+    }
+
+    #[test]
+    fn a_finished_scan_is_recorded_begin_then_finish_without_paths() {
+        let temp = TempDir::new("store");
+        let root = temp.0.join("root");
+        tree(&root, 2, 3);
+        let store = Arc::new(RecordingStore::default());
+        let supervisor = Supervisor::with_tuning(fast()).with_store(store.clone());
+        let (sink, _) = collector(0);
+
+        let id = supervisor
+            .start(vec![root], 5_000, sink)
+            .expect("scan must start");
+        wait_terminal(&supervisor, &id);
+        // The status flips just before the store write; wait for the write.
+        for _ in 0..2_000 {
+            if !lock(&store.finishes).is_empty() {
+                break;
+            }
+            thread::sleep(Duration::from_millis(5));
+        }
+
+        assert_eq!(*lock(&store.calls), ["begin", "finish"]);
+        let starts = lock(&store.starts);
+        assert_eq!(starts[0].id, id);
+        assert!(starts[0].options_json.contains("\"maxEntries\":5000"));
+        assert!(
+            !starts[0].options_json.contains("system-scanner-jobs"),
+            "no path may be stored"
+        );
+        let finishes = lock(&store.finishes);
+        assert_eq!(finishes[0].0, id);
+        assert_eq!(finishes[0].1.status, "completed");
+        assert_eq!(finishes[0].1.completeness, Some("complete"));
+        assert_eq!(finishes[0].1.counters.files, 6);
+        assert_eq!(finishes[0].1.cancel_reason, None);
+    }
+
+    #[test]
+    fn a_cancelled_scan_is_recorded_with_its_reason() {
+        let temp = TempDir::new("store-cancel");
+        let root = temp.0.join("root");
+        tree(&root, 30, 10);
+        let store = Arc::new(RecordingStore::default());
+        let supervisor = Supervisor::with_tuning(stalled()).with_store(store.clone());
+        let (sink, events) = collector(20);
+
+        let id = supervisor
+            .start(vec![root], 10_000, sink)
+            .expect("scan must start");
+        wait_for_progress(&events);
+        supervisor.cancel(Some(&id));
+        wait_terminal(&supervisor, &id);
+        for _ in 0..2_000 {
+            if !lock(&store.finishes).is_empty() {
+                break;
+            }
+            thread::sleep(Duration::from_millis(5));
+        }
+
+        let finishes = lock(&store.finishes);
+        assert_eq!(finishes[0].1.status, "cancelled");
+        assert_eq!(finishes[0].1.completeness, Some("cancelled"));
+        assert_eq!(finishes[0].1.cancel_reason, Some("user_requested"));
+    }
+
+    #[test]
+    fn a_failing_store_never_breaks_the_scan() {
+        let temp = TempDir::new("store-fail");
+        let root = temp.0.join("root");
+        tree(&root, 2, 2);
+        let store = Arc::new(RecordingStore {
+            fail: true,
+            ..RecordingStore::default()
+        });
+        let supervisor = Supervisor::with_tuning(fast()).with_store(store);
+        let (sink, events) = collector(0);
+
+        let id = supervisor
+            .start(vec![root], 1_000, sink)
+            .expect("a store failure must not refuse the scan");
+        let status = wait_terminal(&supervisor, &id);
+
+        assert_eq!(status.state, "completed");
+        assert_eq!(status.counters.files, 4);
+        for _ in 0..2_000 {
+            if matches!(lock(&events).last(), Some(ScanEvent::Completed(_))) {
+                return;
+            }
+            thread::sleep(Duration::from_millis(5));
+        }
+        panic!("the completed event must still be sent");
+    }
+
+    #[test]
+    fn a_real_database_ends_the_session_so_nothing_is_left_open() {
+        use crate::adapters::persistence::Database;
+
+        let temp = TempDir::new("store-real");
+        let root = temp.0.join("root");
+        tree(&root, 2, 2);
+        let database =
+            Arc::new(Database::open(&temp.0.join("test.db")).expect("database must open"));
+        let supervisor = Supervisor::with_tuning(fast()).with_store(database.clone());
+        let (sink, events) = collector(0);
+
+        let id = supervisor
+            .start(vec![root], 1_000, sink)
+            .expect("scan must start");
+        wait_terminal(&supervisor, &id);
+        for _ in 0..2_000 {
+            if matches!(lock(&events).last(), Some(ScanEvent::Completed(_))) {
+                break;
+            }
+            thread::sleep(Duration::from_millis(5));
+        }
+
+        // `finish` runs before the event, so the row is already closed. An
+        // unfinished `begin` would be reported here as one interrupted session.
+        assert_eq!(database.mark_interrupted(unix_ms()).unwrap(), 0);
     }
 
     #[test]

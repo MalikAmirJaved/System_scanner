@@ -130,7 +130,7 @@ Command outcomes are logged as events today. Job spans are not implemented:
 | Data directory writable | On startup; the open failure path logs and disables persistence. A visible memory-only banner is not implemented |
 | WebView2 present | Tauri handles; surface a clear error if missing |
 | Migration state | Must equal expected schema version; a newer schema or changed checksum refuses to open |
-| Orphaned sessions | ⏳ Not implemented — no rows are written yet |
+| Orphaned sessions | 🟡 Partial — open rows are marked `interrupted` at startup and the count is logged as a warning; no metric, no UI |
 
 ## 7. Crash handling
 

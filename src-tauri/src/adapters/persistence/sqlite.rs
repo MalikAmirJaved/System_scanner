@@ -97,7 +97,7 @@ impl Database {
     }
 
     #[cfg(test)]
-    fn open_in_memory() -> Result<Self, StoreError> {
+    pub(super) fn open_in_memory() -> Result<Self, StoreError> {
         let connection = Connection::open_in_memory().map_err(StoreError::Open)?;
         Self::from_connection(connection)
     }
@@ -114,7 +114,7 @@ impl Database {
         Ok(database)
     }
 
-    fn connection(&self) -> Result<MutexGuard<'_, Connection>, StoreError> {
+    pub(super) fn connection(&self) -> Result<MutexGuard<'_, Connection>, StoreError> {
         self.connection.lock().map_err(|_| StoreError::Poisoned)
     }
 
@@ -313,6 +313,47 @@ mod tests {
                 SCHEMA_VERSION + 1
             )
         );
+    }
+
+    #[test]
+    fn a_v1_database_upgrades_to_v2_without_losing_rows() {
+        use crate::adapters::persistence::migrations::checksum;
+
+        let connection = Connection::open_in_memory().unwrap();
+        connection.execute_batch(BOOKKEEPING_TABLE).unwrap();
+        let first = &MIGRATIONS[0];
+        connection.execute_batch(first.sql).unwrap();
+        connection
+            .execute(
+                "INSERT INTO schema_migrations (version, name, checksum, applied_at_ms)
+                 VALUES (1, ?1, ?2, 0)",
+                rusqlite::params![first.name, checksum(first.sql)],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "INSERT INTO scan_sessions
+                   (id, module, status, started_at, engine_version, policy_version, files_seen)
+                 VALUES ('old', 'storage', 'completed', 1, '0.1.0', 'p1', 7)",
+                [],
+            )
+            .unwrap();
+
+        let database = Database::from_connection(connection).expect("upgrade must succeed");
+
+        assert_eq!(database.schema_version().unwrap(), 2);
+        let (files, entries, completeness): (i64, i64, Option<String>) = database
+            .connection()
+            .unwrap()
+            .query_row(
+                "SELECT files_seen, entries_seen, completeness FROM scan_sessions WHERE id = 'old'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .unwrap();
+        assert_eq!(files, 7, "existing counters survive");
+        assert_eq!(entries, 0, "new counters default to zero");
+        assert_eq!(completeness, None, "an old row has no verdict");
     }
 
     #[test]

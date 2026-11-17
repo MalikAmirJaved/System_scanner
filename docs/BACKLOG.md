@@ -47,7 +47,7 @@ Notes on the partial items:
 | B-021 | ✅ Initial schema + migration runner + tests | Blocks scan history |
 | B-022 | ✅ Traversal prototype with bounded workers | Highest-risk component |
 | B-023 | ✅ Per-entry outcome taxonomy implementation | Honest partial results |
-| B-024 | Batch persistence writer | Throughput + crash safety |
+| B-024 | 🟡 Batch persistence writer. **Minimal slice done** (one counters-only `scan_sessions` row per scan, interrupted-at-startup recovery, schema v2). **Remaining:** per-entry batch writes, which are blocked on the retention decision (`docs/plan.md` §12) | Throughput + crash safety |
 | B-025 | ✅ Scan job orchestration + cancellation (in-memory slice) | Responsiveness |
 | B-026 | Aggregation queries + indexes + query-plan tests | UI scale |
 | B-027 | Duplicate pipeline (size → fingerprint → hash) | Avoid wasted hashing |
@@ -133,6 +133,7 @@ unit mapping, not by a live ACL fixture.
 
 | ID | Item | Completed | Evidence |
 |---|---|---|---|
+| B-024 (minimal) | `ScanSessionStore` port + SQLite writer: one counters-only `scan_sessions` row per scan, begin/finish best-effort, startup marks open rows `interrupted`; migration `0002_scan_session_results.sql` (schema v2). No paths, no per-entry rows, no read command | 2026-11-17 | `src-tauri/src/ports/sessions.rs`, `src-tauri/src/adapters/persistence/sessions.rs`, `src-tauri/migrations/0002_scan_session_results.sql`; 11 new Rust tests |
 | B-025 | In-memory scan job supervisor: one scan at a time, `start_scan`/`cancel_scan`/`get_scan_status`, paced `scan:*` events (counters only), shutdown cancel. No UI, no picker, no persistence (B-024) | 2026-11-17 | `src-tauri/src/app/jobs.rs`, `src-tauri/src/domain/job.rs`, `src-tauri/src/dto/scan.rs`, `src-tauri/src/commands/scan.rs`; 24 new Rust tests |
 | B-023 | Outcome taxonomy finished: stable snake_case codes for outcomes/skip reasons, derived `Completeness` verdict (`complete`/`partial`/`truncated`/`cancelled`), live denied-ACL fixture | 2026-11-17 | `src-tauri/src/domain/traversal.rs`, `src-tauri/src/adapters/filesystem/traversal.rs`; 4 new Rust tests. Not persisted or sent over IPC yet |
 | B-022 | Bounded, cancellable traversal prototype: std-only walker, work queue + bounded channel, depth/entry budgets, reparse points never followed | 2026-11-16 | `src-tauri/src/domain/traversal.rs`, `src-tauri/src/adapters/filesystem/traversal.rs`; 16 new Rust tests |

@@ -53,7 +53,7 @@ and no network dependency for core functionality.
 | On-request diagnostics + redacted bundle preview | ✅ Implemented (preview/copy; no saved-file export) | `src-tauri/src/commands/diagnostics.rs`, `src/components/Diagnostics.tsx` |
 | Startup and service collection | ⏳ Planned | `docs/BACKLOG.md` B-043 |
 | Storage scan engine | 🟡 Partial — bounded, cancellable read-only traversal prototype (`adapters/filesystem`); no IPC/UI/DB wiring, reparse points never followed | `src-tauri/src/adapters/filesystem/traversal.rs`, `src-tauri/src/domain/traversal.rs` |
-| SQLite persistence + migrations | 🟡 Partial — schema v1 (`scan_sessions`) and the forward-only migration runner exist; no command reads or writes the database | `src-tauri/src/adapters/persistence/`, `src-tauri/migrations/` |
+| SQLite persistence + migrations | 🟡 Partial — schema v2 (`scan_sessions`) and the forward-only migration runner exist; a scan writes one counters-only row; no command reads the database | `src-tauri/src/adapters/persistence/`, `src-tauri/migrations/` |
 | Tests, lint config, CI | 🟡 Partial | 98 tests + ESLint/Prettier pass; CI workflow never run |
 | Network egress | 🚫 None by design | no HTTP client dependency |
 
@@ -86,7 +86,7 @@ Full inventory: [`docs/FEATURES.md`](docs/FEATURES.md). Gaps:
 | UI | React + TypeScript | 19.1 / ~6.0.3 |
 | Bundler | Vite | ^8.0.16 |
 | Styling | Tailwind CSS v4 + shadcn-style local primitives | 4.3.5 |
-| Persistence | SQLite via `rusqlite` 0.43 (`bundled`) | schema v1; no rows written yet |
+| Persistence | SQLite via `rusqlite` 0.43 (`bundled`) | schema v2; one counters-only row per scan |
 | Installer | NSIS | x64 |
 
 Rationale, alternatives, and rejected options: [`TECH_STACK.md`](TECH_STACK.md).

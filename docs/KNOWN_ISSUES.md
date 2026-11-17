@@ -13,7 +13,7 @@
 |---|---|---|---|---|
 | KI-001 | Startup and service collection do not exist | The snapshot and process inventory cannot explain autostart entries or services | None | B-043 |
 | KI-002 | Seven read-only IPC commands exist; none of the three scan commands has a frontend caller | The UI cannot drive scans, storage views, or service actions | None | B-004, B-003 |
-| KI-003 | Persistence is opened but unused | Schema v1 (`scan_sessions`) and the migration runner exist, but no IPC command reads or writes the database, and no scan-history feature exists | None needed; browsing is unaffected | B-024, B-025, B-030 |
+| KI-003 | Persistence is write-only and minimal | Schema v2 holds `scan_sessions`; a scan writes one counters-only row, but no IPC command reads history, no UI shows it, and nothing stores per-entry data | None needed; browsing is unaffected | B-024 (per-entry), B-030 |
 | KI-004 | No code signing | SmartScreen warns; tampering undetectable | Install anyway, verify hash manually | B-080 |
 | KI-005 | No license selected | Cannot be legally redistributed | Internal use only | B-084 |
 | KI-006 | Tests cover IPC, the snapshot/process/diagnostics contracts, redaction, persistence migrations, the traversal prototype, and four UI panels | Scan sessions, IPC/UI wiring for traversal, and process actions are untested because they do not exist; no visual/theme test exists | Manual checks only | B-002, B-008, B-021, B-022 |
@@ -25,9 +25,10 @@
 |---|---|---|---|
 | KI-011 | IPC responses are not validated at runtime in the frontend | A DTO rename would render `undefined` instead of failing loudly | B-090; `API.md` §8 |
 | KI-012 | The support bundle has no saved-file export | The preview can be copied, but support must paste it instead of attaching a file | F-092 / B-064 |
-| KI-013 | Cancellation exists only for the scan job | `cancel_scan` and window-close cancel work for one in-memory scan; there is no general job registry, no cancel for other work, and no interrupted-session recovery | Design in `SYSTEM_DESIGN.md`; B-024 for session state |
+| KI-013 | Cancellation exists only for the scan job | `cancel_scan` and window-close cancel work for one in-memory scan; there is no general job registry and no cancel for other work. A killed process leaves its session row open until the next startup marks it `interrupted`; nothing resumes it | Design in `SYSTEM_DESIGN.md` |
 | KI-049 | Scan roots are caller-supplied and not restricted beyond shape checks | Any absolute path, including device-namespace and UNC roots, can be walked read-only; reparse points are never followed; only counters are returned | No UI calls it yet; threat-model review is B-040 (`docs/ACCESS_CONTROL.md`) |
-| KI-050 | Scan state is lost on restart and history is not kept | A scan result exists only while the app runs; the last job's counters are replaced by the next scan | By design until B-024 |
+| KI-050 | `scan_sessions` rows have no retention limit and no delete control | Each scan adds a counters-only row (no paths) that stays forever; the live job state still resets on restart | Delete the database file with the app closed; a retention policy and UI need the `docs/plan.md` §12 decision |
+| KI-051 | Session persistence is best-effort | A failed `begin`/`finish` write is logged and the scan still reports normally, so a scan can exist with no row, or a row can stay `running` until the next startup marks it `interrupted` | Intentional: the app must work without a database; check the log for `scan session` warnings |
 | KI-014 | No DB corruption recovery or backup | A corrupt database is preserved and the app continues without persistence, but nothing renames it aside, offers export, or restores a backup; no pre-migration backup exists. Workaround: delete or move the file manually with the app closed | B-033, `RECOVERY_PLAN.md` |
 | KI-015 | No updater | Security fixes cannot reach users | `DEPLOYMENT.md` §7 |
 
