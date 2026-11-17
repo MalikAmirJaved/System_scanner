@@ -39,8 +39,8 @@ Architecture: [`ARCHITECTURE.md`](ARCHITECTURE.md).
 | Wire format | envelope `{status, data|error}`; DTO fields camelCase; codes snake_case | `API.md` §1–§2 |
 | Frontend IPC | `src/services/ipc.ts` is the only `invoke` call site | `src/services/` |
 | Database | SQLite schema **v1** (`scan_sessions`) via `rusqlite`; file at `app_data_dir()/system-scanner.db`, opened at startup, **read by no command yet** | `src-tauri/src/adapters/persistence/`, `src-tauri/migrations/` |
-| Traversal | Bounded worker prototype with cancellation, depth/entry budgets, and an outcome per entry; **no IPC/UI/DB caller yet** | `src-tauri/src/adapters/filesystem/traversal.rs`, `src-tauri/src/domain/traversal.rs` |
-| Tests | 78 Rust + 20 frontend (`npm test`, `cargo test`) | `src/**/*.test.ts(x)`, `#[cfg(test)]` |
+| Traversal | Bounded worker prototype with cancellation, depth/entry budgets, an outcome per entry with stable codes, and a derived `Completeness` verdict (B-023); **no IPC/UI/DB caller yet** | `src-tauri/src/adapters/filesystem/traversal.rs`, `src-tauri/src/domain/traversal.rs` |
+| Tests | 83 Rust + 20 frontend (`npm test`, `cargo test`) | `src/**/*.test.ts(x)`, `#[cfg(test)]` |
 | CI | `.github/workflows/ci.yml` (**never run on GitHub**) | `.github/` |
 | Frontend | shell header + backend status + system snapshot + paged process list + on-request diagnostics in a responsive 1/2/3-column grid, inside an `ErrorBoundary` | `src/App.tsx`, `src/components/`, `src/components/ui/button.tsx` |
 

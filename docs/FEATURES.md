@@ -81,7 +81,7 @@ commands/processes.rs}`, `src/components/ProcessList.tsx`, `API.md` §3.3.
 |---|---|---|
 | F-050 | Drive discovery + selection | ⏳ Not started |
 | F-051 | Cancellable directory traversal | 🟡 Partial — bounded worker prototype in `adapters/filesystem`, cooperative cancel, depth/entry budgets; no IPC, UI, or persistence wiring |
-| F-052 | Per-entry outcome reporting | 🟡 Partial — `ok`/`skipped`/`denied`/`disappeared`/`unsupported`/`failed` produced by the traversal prototype; not rendered or persisted |
+| F-052 | Per-entry outcome reporting | 🟡 Partial — `ok`/`skipped`/`denied`/`disappeared`/`unsupported`/`failed` produced by the traversal prototype, with stable codes and a derived `complete`/`partial`/`truncated`/`cancelled` verdict (B-023); not rendered, persisted, or sent over IPC |
 | F-053 | Large-file summary | ⏳ Not started |
 | F-054 | Extension/type summary | ⏳ Not started |
 | F-055 | Age filters | ⏳ Not started |

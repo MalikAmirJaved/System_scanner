@@ -41,6 +41,67 @@ pub enum EntryOutcome {
     Failed,
 }
 
+impl SkipReason {
+    /// Stable snake_case code for persistence and IPC. Never rename a value.
+    pub fn code(self) -> &'static str {
+        match self {
+            Self::DepthLimit => "depth_limit",
+            Self::ReparsePoint => "reparse_point",
+        }
+    }
+}
+
+impl EntryOutcome {
+    /// Stable snake_case code for persistence and IPC. Never rename a value.
+    pub fn code(self) -> &'static str {
+        match self {
+            Self::Ok => "ok",
+            Self::Skipped(_) => "skipped",
+            Self::Denied => "denied",
+            Self::Disappeared => "disappeared",
+            Self::Unsupported => "unsupported",
+            Self::Failed => "failed",
+        }
+    }
+
+    /// The skip reason, when this outcome is a skip.
+    pub fn skip_reason(self) -> Option<SkipReason> {
+        match self {
+            Self::Skipped(reason) => Some(reason),
+            _ => None,
+        }
+    }
+}
+
+/// How much of the requested tree a traversal actually covered.
+///
+/// Derived from counters, never stored separately, so it cannot disagree with
+/// them. "Complete" is a claim about coverage, not about correctness of sizes.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Completeness {
+    /// Every observed entry was read successfully and nothing stopped the walk.
+    Complete,
+    /// The walk finished, but some entries were skipped, denied, gone,
+    /// unsupported, or failed. Totals understate the tree.
+    Partial,
+    /// The entry budget stopped the walk early.
+    Truncated,
+    /// The user cancelled the walk.
+    Cancelled,
+}
+
+impl Completeness {
+    /// Stable snake_case code for persistence and IPC. Never rename a value.
+    pub fn code(self) -> &'static str {
+        match self {
+            Self::Complete => "complete",
+            Self::Partial => "partial",
+            Self::Truncated => "truncated",
+            Self::Cancelled => "cancelled",
+        }
+    }
+}
+
 /// One observed filesystem entry.
 ///
 /// Paths stay in memory for the lifetime of the stream; the prototype does not
@@ -136,6 +197,29 @@ impl TraversalSummary {
             }
             EntryOutcome::Unsupported => self.unsupported = self.unsupported.saturating_add(1),
             EntryOutcome::Failed => self.failed = self.failed.saturating_add(1),
+        }
+    }
+
+    /// Entries that were observed but not read successfully.
+    pub fn unread(&self) -> u64 {
+        self.skipped
+            .saturating_add(self.denied)
+            .saturating_add(self.disappeared)
+            .saturating_add(self.unsupported)
+            .saturating_add(self.failed)
+    }
+
+    /// Coverage verdict. Cancellation outranks the budget, which outranks
+    /// per-entry problems, because each hides more of the tree than the next.
+    pub fn completeness(&self) -> Completeness {
+        if self.cancelled {
+            Completeness::Cancelled
+        } else if self.truncated {
+            Completeness::Truncated
+        } else if self.unread() > 0 {
+            Completeness::Partial
+        } else {
+            Completeness::Complete
         }
     }
 
@@ -259,6 +343,67 @@ mod tests {
         assert_eq!(normalized.max_depth, 4096);
         assert_eq!(normalized.max_entries, None);
         assert_eq!(TraversalLimits::default().max_entries, None);
+    }
+
+    #[test]
+    fn outcome_codes_are_stable_and_distinct() {
+        let outcomes = [
+            EntryOutcome::Ok,
+            EntryOutcome::Skipped(SkipReason::DepthLimit),
+            EntryOutcome::Denied,
+            EntryOutcome::Disappeared,
+            EntryOutcome::Unsupported,
+            EntryOutcome::Failed,
+        ];
+        let codes: Vec<&str> = outcomes.iter().map(|outcome| outcome.code()).collect();
+        assert_eq!(
+            codes,
+            [
+                "ok",
+                "skipped",
+                "denied",
+                "disappeared",
+                "unsupported",
+                "failed"
+            ]
+        );
+        assert_eq!(SkipReason::DepthLimit.code(), "depth_limit");
+        assert_eq!(SkipReason::ReparsePoint.code(), "reparse_point");
+        assert_eq!(
+            EntryOutcome::Skipped(SkipReason::ReparsePoint).skip_reason(),
+            Some(SkipReason::ReparsePoint)
+        );
+        assert_eq!(EntryOutcome::Denied.skip_reason(), None);
+    }
+
+    #[test]
+    fn completeness_reflects_what_was_actually_covered() {
+        let mut summary = TraversalSummary::default();
+        assert_eq!(summary.completeness(), Completeness::Complete);
+
+        summary.record(&entry(EntryKind::File, EntryOutcome::Ok, Some(1)));
+        assert_eq!(summary.completeness(), Completeness::Complete);
+
+        for outcome in [
+            EntryOutcome::Skipped(SkipReason::ReparsePoint),
+            EntryOutcome::Denied,
+            EntryOutcome::Disappeared,
+            EntryOutcome::Unsupported,
+            EntryOutcome::Failed,
+        ] {
+            let mut partial = TraversalSummary::default();
+            partial.record(&entry(EntryKind::File, outcome, None));
+            assert_eq!(partial.completeness(), Completeness::Partial, "{outcome:?}");
+            assert_eq!(partial.unread(), 1);
+        }
+
+        summary.denied = 1;
+        summary.truncated = true;
+        assert_eq!(summary.completeness(), Completeness::Truncated);
+        summary.cancelled = true;
+        assert_eq!(summary.completeness(), Completeness::Cancelled);
+        assert_eq!(Completeness::Partial.code(), "partial");
+        assert_eq!(Completeness::Cancelled.code(), "cancelled");
     }
 
     #[test]

@@ -25,6 +25,25 @@
 
 ---
 
+## 2026-11-17 — Traversal outcome taxonomy finished (B-023)
+
+- **Agent/tool:** Cursor agent.
+- **Scope:** `src-tauri/src/domain/traversal.rs`,
+  `src-tauri/src/adapters/filesystem/traversal.rs`; status docs.
+- **Change:** Added `code()` on `EntryOutcome`, `SkipReason`, and a new
+  `Completeness` enum; added `TraversalSummary::unread()` and `completeness()`
+  (cancelled > truncated > partial > complete). Added a Windows live test that
+  denies directory listing with `icacls` and restores it on drop.
+- **Why:** B-024 and B-025 need stable codes and an honest coverage verdict
+  before schema and IPC shapes are fixed.
+- **Risk:** The verdict is derived, so it cannot drift from the counters. The
+  `icacls` test mutates an ACL inside its own temp directory only; a Drop guard
+  removes the deny entry. No dependency, IPC, UI, or database change.
+- **Evidence:** see the commands recorded in the session report.
+- **Follow-up:** KI-048 (stream read errors have no entry), KI-046 (CI proof).
+
+---
+
 ## 2026-11-16 — Traversal prototype: bounded workers + outcome taxonomy (B-022)
 
 - **Agent/tool:** OpenCode (DeepSeek V4.1 Flash Free).

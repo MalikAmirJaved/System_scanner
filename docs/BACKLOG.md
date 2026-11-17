@@ -46,7 +46,7 @@ Notes on the partial items:
 | B-020 | ✅ Choose DB layer (`rusqlite` vs `sqlx`) + ADR | Blocks persistence |
 | B-021 | ✅ Initial schema + migration runner + tests | Blocks scan history |
 | B-022 | ✅ Traversal prototype with bounded workers | Highest-risk component |
-| B-023 | Per-entry outcome taxonomy implementation | Honest partial results |
+| B-023 | ✅ Per-entry outcome taxonomy implementation | Honest partial results |
 | B-024 | Batch persistence writer | Throughput + crash safety |
 | B-025 | Scan job orchestration + cancellation | Responsiveness |
 | B-026 | Aggregation queries + indexes + query-plan tests | UI scale |
@@ -133,6 +133,7 @@ unit mapping, not by a live ACL fixture.
 
 | ID | Item | Completed | Evidence |
 |---|---|---|---|
+| B-023 | Outcome taxonomy finished: stable snake_case codes for outcomes/skip reasons, derived `Completeness` verdict (`complete`/`partial`/`truncated`/`cancelled`), live denied-ACL fixture | 2026-11-17 | `src-tauri/src/domain/traversal.rs`, `src-tauri/src/adapters/filesystem/traversal.rs`; 4 new Rust tests. Not persisted or sent over IPC yet |
 | B-022 | Bounded, cancellable traversal prototype: std-only walker, work queue + bounded channel, depth/entry budgets, reparse points never followed | 2026-11-16 | `src-tauri/src/domain/traversal.rs`, `src-tauri/src/adapters/filesystem/traversal.rs`; 16 new Rust tests |
 | B-021 | Schema v1 (`scan_sessions`) + forward-only migration runner, checksum drift detection, refuses newer schema | 2026-11-16 | `src-tauri/migrations/0001_initial.sql`, `src-tauri/src/adapters/persistence/`; 8 new Rust tests |
 | B-020 | DB layer chosen: `rusqlite` 0.43 `bundled`, one `Mutex<Connection>`, `spawn_blocking` for callers, WAL | 2026-11-16 | ADR-018 in `docs/DECISIONS.md`; `src-tauri/Cargo.toml` |

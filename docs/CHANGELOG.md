@@ -14,6 +14,11 @@ exists. Until then, `0.x` versions may change behavior without notice.
 ## [Unreleased]
 
 ### Added
+- **Traversal outcome taxonomy completed (B-023; implemented, not wired).**
+  Stable snake_case codes for entry outcomes and skip reasons, a derived
+  `Completeness` verdict (`complete`/`partial`/`truncated`/`cancelled`) computed
+  from the counters, and a live denied-directory test. No IPC, UI, or database
+  change.
 - **Bounded traversal prototype (implemented, not wired).** `domain/traversal`
   defines entry kinds, skip reasons, the outcome taxonomy, limits, and counters;
   `adapters/filesystem/traversal` walks roots with a fixed worker pool, an

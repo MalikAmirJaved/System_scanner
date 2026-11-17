@@ -505,7 +505,7 @@ Use this checklist as the project’s execution tracker. Check an item only when
 - [x] Stream directory entries through bounded queues; do not retain the full tree in memory. *(B-022: one work queue plus a fixed-capacity channel.)*
 - [ ] Implement cooperative cancellation at enumeration, enrichment, persistence, and reporting boundaries. *(Enumeration only: `Traversal::cancel`; the other boundaries do not exist yet.)*
 - [x] Add explicit per-entry outcomes for success, skipped, inaccessible, disappeared, unsupported, and failed. *(B-022 vocabulary; not rendered or persisted.)*
-- [ ] Ensure one inaccessible file does not abort the entire scan unless the selected policy requires it. *(Counters and continuation are implemented; a live denied-ACL fixture is still missing — KI-046.)*
+- [x] Ensure one inaccessible file does not abort the entire scan unless the selected policy requires it. *(B-023: a live denied-ACL fixture (Windows, `icacls`) proves a denied directory is reported, its contents are not counted, and the walk continues as `partial`. Not yet exercised through a job or IPC.)*
 - [ ] Batch persistence in transactions sized by measured memory and latency budgets.
 - [ ] Add resumable or safely discardable scan-session recovery after process termination or power loss.
 - [ ] Add index/query-plan tests for the actual filter/sort/grouping UI queries.

@@ -985,6 +985,100 @@ mod tests {
         fs::remove_dir(&link).expect("junction must be removable");
     }
 
+    /// Denies directory listing to the current user and restores it on drop,
+    /// so the temp directory stays deletable even if an assertion fails.
+    #[cfg(windows)]
+    struct DeniedListing {
+        path: PathBuf,
+        user: String,
+    }
+
+    #[cfg(windows)]
+    impl DeniedListing {
+        fn apply(path: &Path) -> Self {
+            let user = std::env::var("USERNAME").expect("USERNAME must be set");
+            let guard = Self {
+                path: path.to_path_buf(),
+                user,
+            };
+            let output = std::process::Command::new("icacls")
+                .arg(path)
+                .arg("/deny")
+                .arg(format!("{}:(RD)", guard.user))
+                .output()
+                .expect("icacls must be available");
+            assert!(
+                output.status.success(),
+                "deny ACE must be applied: {}",
+                String::from_utf8_lossy(&output.stdout)
+            );
+            guard
+        }
+    }
+
+    #[cfg(windows)]
+    impl Drop for DeniedListing {
+        fn drop(&mut self) {
+            let _ = std::process::Command::new("icacls")
+                .arg(&self.path)
+                .arg("/remove:d")
+                .arg(&self.user)
+                .output();
+        }
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn a_directory_the_user_cannot_list_is_denied_and_the_walk_is_partial() {
+        use crate::domain::traversal::Completeness;
+
+        let temp = TempDir::new("denied");
+        let root = temp.0.join("root");
+        let locked = root.join("locked");
+        fs::create_dir_all(&locked).expect("fixture dir");
+        write_file(&root.join("readable.txt"), 4);
+        write_file(&locked.join("secret.txt"), 9);
+        let _guard = DeniedListing::apply(&locked);
+
+        let (entries, summary) =
+            collect(Traversal::start(request(&root)).expect("start must succeed"));
+
+        let denied = entries
+            .iter()
+            .find(|entry| entry.path == locked)
+            .expect("the locked directory must be reported");
+        assert_eq!(denied.outcome, EntryOutcome::Denied);
+        assert!(
+            !entries
+                .iter()
+                .any(|entry| entry.path.ends_with("secret.txt"))
+        );
+        assert_eq!(summary.denied, 1);
+        assert_eq!(summary.bytes, 4, "denied contents must not be counted");
+        assert_eq!(summary.completeness(), Completeness::Partial);
+    }
+
+    #[test]
+    fn a_clean_walk_is_complete_and_a_budget_stopped_one_is_truncated() {
+        use crate::domain::traversal::Completeness;
+
+        let temp = TempDir::new("completeness");
+        let root = temp.0.join("root");
+        fs::create_dir_all(&root).expect("fixture dir");
+        write_file(&root.join("a.bin"), 1);
+
+        let (_, summary) = collect(Traversal::start(request(&root)).expect("start must succeed"));
+        assert_eq!(summary.completeness(), Completeness::Complete);
+
+        let limits = TraversalLimits {
+            max_depth: 64,
+            max_entries: Some(1),
+        };
+        let (_, summary) =
+            collect(Traversal::start(request_with(&root, limits)).expect("start must succeed"));
+        assert_eq!(summary.completeness(), Completeness::Truncated);
+    }
+
     #[test]
     fn requests_are_validated_before_any_thread_starts() {
         let temp = TempDir::new("validate");
