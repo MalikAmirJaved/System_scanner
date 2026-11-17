@@ -48,7 +48,7 @@
 │ + windows-sys: seven read-only commands, bounded local    │
 │ logs, on-request redacted diagnostics, a schema-v2        │
 │ database holding one counters-only row per scan, and a    │
-│ scan job with paced events (no UI, no storage views)      │
+│ scan job with paced events and a counters-only scan panel │
 └───────────────────────────────────────────────────────────┘
 ```
 
@@ -89,16 +89,17 @@
 - No events, job registry, or cancellation at the job level.
 - No command reads the database. The scan supervisor writes one counters-only
   `scan_sessions` row per scan (schema v2); no path or file-level row exists.
-- No UI consumes the traversal; only the three scan commands do.
+- The UI shows scan counters only: no file list, treemap, or folder picker.
 - No startup, service, storage summary, or security collectors.
 - No navigation or routing.
 - Tests cover the IPC contract, the snapshot/process/diagnostics domain and DTOs,
   both Windows adapters' structural invariants, paging boundaries, logging,
   redaction, startup message text, migration ordering/checksums, schema creation,
   WAL mode, schema-version refusal, traversal outcomes/budgets/cancellation/long
-  and Unicode paths/junction loops, and the four UI panels plus the error
-  boundary. Scan sessions, file-record persistence, and UI wiring for traversal
-  are untested because they do not exist.
+  and Unicode paths/junction loops, and the five UI panels plus the error
+  boundary, plus the scan job, session rows, and the scan panel against mocked IPC.
+  File-record persistence is untested because it does not exist, and no test runs
+  the real app end to end.
 - CI exists as a file but has never run on GitHub.
 - CI exists as a file but has never run on GitHub.
 

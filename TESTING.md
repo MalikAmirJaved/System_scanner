@@ -1,15 +1,18 @@
 # Testing Strategy
 
-> **Status:** **Runners are configured; coverage is still narrow.** 78 Rust tests
-> and 20 frontend tests cover the IPC contract (envelope, error taxonomy, DTO
+> **Status:** **Runners are configured; coverage is still narrow.** 120 Rust tests
+> and 45 frontend tests cover the IPC contract (envelope, error taxonomy, DTO
 > shapes), the snapshot and process domain rules, both native adapters'
-> structural invariants, logging/redaction, startup messages, schema creation and
-> migration-runner refusal paths, the traversal prototype (outcomes, budgets,
-> cancellation, long/Unicode paths, junction loops), four UI panels, and the
-> render error boundary. Nothing tests scan sessions, IPC/UI wiring for traversal,
-> or end-to-end flows yet, because those features do not exist. This document
-> defines the target strategy and the minimum bar for new work.
-> **Last updated:** 2026-11-16
+> structural invariants, logging/redaction, startup messages, schema creation,
+> v1 to v2 migration and runner refusal paths, the traversal (outcomes, budgets,
+> cancellation, long/Unicode paths, junction loops, a live denied-ACL fixture),
+> the scan job supervisor and session rows, root validation, five UI panels
+> (including the scan panel, its event/status reducer, and its service wrapper),
+> and the render error boundary. **Every UI and IPC test uses mocked IPC.** No test
+> launches the Tauri app, so event delivery, capabilities, and real cancellation
+> are unverified end to end (KI-052). This document defines the target strategy
+> and the minimum bar for new work.
+> **Last updated:** 2026-11-17
 
 ---
 

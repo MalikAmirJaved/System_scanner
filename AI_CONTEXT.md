@@ -35,15 +35,15 @@ Architecture: [`ARCHITECTURE.md`](ARCHITECTURE.md).
 | Rust deps | `tauri 2`, `serde`, `serde_json`, `thiserror`, `tracing`/`tracing-subscriber`, `rusqlite 0.43` (bundled SQLite), `windows-sys 0.61` (Windows target) | `Cargo.toml` |
 | Release profile | LTO, `codegen-units=1`, `opt-level=3`, `panic=abort`, `strip` | `Cargo.toml` |
 | Rust files | `main.rs`, `lib.rs`, `ipc.rs`, `error.rs`, `logging.rs`, `redact.rs`, `startup.rs`, `dto/`, `commands/`, `domain/`, `ports/`, `app/`, `adapters/windows/`, `adapters/persistence/`, `adapters/filesystem/` | `src-tauri/src/` |
-| IPC commands | `get_app_info`, `get_system_snapshot`, `list_processes`, `get_diagnostics`, plus `start_scan`, `cancel_scan`, `get_scan_status` (B-025). All read-only; the scan commands have **no frontend caller** | `src-tauri/src/commands/` |
+| IPC commands | `get_app_info`, `get_system_snapshot`, `list_processes`, `get_diagnostics`, plus `start_scan`, `cancel_scan`, `get_scan_status` (B-025). All read-only; the scan commands are called by `ScanPanel` through `src/services/scan.ts` | `src-tauri/src/commands/` |
 | IPC events | `scan:progress`, `scan:completed`, `scan:failed`, `scan:cancelled` (aggregate counters only, paced to 10/s) | `API.md` §4.1, `src-tauri/src/app/jobs.rs` |
 | Wire format | envelope `{status, data|error}`; DTO fields camelCase; codes snake_case | `API.md` §1–§2 |
 | Frontend IPC | `src/services/ipc.ts` is the only `invoke` call site | `src/services/` |
 | Database | SQLite schema **v2** (`scan_sessions`) via `rusqlite`; file at `app_data_dir()/system-scanner.db`, opened at startup. One counters-only row is written per scan through the `ScanSessionStore` port (best-effort); leftover open rows become `interrupted` at startup. **No paths stored; no command reads rows back** | `src-tauri/src/adapters/persistence/`, `src-tauri/migrations/` |
-| Traversal | Bounded worker prototype with cancellation, depth/entry budgets, an outcome per entry with stable codes, and a derived `Completeness` verdict (B-023); driven by an in-memory scan job (B-025); **no UI or DB caller** | `src-tauri/src/adapters/filesystem/traversal.rs`, `src-tauri/src/domain/traversal.rs` |
-| Tests | 118 Rust + 20 frontend (`npm test`, `cargo test`) | `src/**/*.test.ts(x)`, `#[cfg(test)]` |
+| Traversal | Bounded worker prototype with cancellation, depth/entry budgets, an outcome per entry with stable codes, and a derived `Completeness` verdict (B-023); driven by an in-memory scan job (B-025) shown in the Storage scan panel; **persisted only as a counters-only session row** | `src-tauri/src/adapters/filesystem/traversal.rs`, `src-tauri/src/domain/traversal.rs` |
+| Tests | 120 Rust + 45 frontend (`npm test`, `cargo test`) | `src/**/*.test.ts(x)`, `#[cfg(test)]` |
 | CI | `.github/workflows/ci.yml` (**never run on GitHub**) | `.github/` |
-| Frontend | shell header + backend status + system snapshot + paged process list + on-request diagnostics in a responsive 1/2/3-column grid, inside an `ErrorBoundary` | `src/App.tsx`, `src/components/`, `src/components/ui/button.tsx` |
+| Frontend | shell header + backend status + system snapshot + paged process list + storage scan panel (roots text box, start/cancel, live counts, completeness verdict; no folder picker) + on-request diagnostics in a responsive 1/2/3-column grid, inside an `ErrorBoundary` | `src/App.tsx`, `src/components/`, `src/components/ui/button.tsx` |
 
 If any of these change, update this table in the same commit.
 
@@ -57,10 +57,11 @@ If any of these change, update this table in the same commit.
 - Jobs exist only for the scan: one at a time. Live state is in memory; the final
   counters are also written as one session row. No generic job registry, no
   history view, and no resumption.
-- No startup/service collectors and no storage UI. `start_scan` runs the
-  traversal and reports aggregate counters over `scan:*` events, but no frontend
-  code calls it, there is no folder picker, and file-level data is neither
-  persisted nor queryable (`get_scan_summary`, `query_files` do not exist).
+- No startup/service collectors and no storage views. The Storage scan panel
+  starts, cancels, and shows aggregate counters from `scan:*` events, but there
+  is no folder picker (roots are typed), no file list or treemap, and file-level
+  data is neither persisted nor queryable (`get_scan_summary`, `query_files` do
+  not exist).
 - No scan history, repositories, or IPC command that reads the database.
   `adapters/persistence` exists and a finished scan writes one `scan_sessions`
   row, but **no command reads rows back**, there is no history UI, no per-entry
@@ -68,8 +69,8 @@ If any of these change, update this table in the same commit.
 - No saved-file diagnostics export and no log viewer or level filter. The
   in-app preview/copy of a redacted support bundle exists (B-006); logs remain
   local files.
-- No app shell navigation or routing — one screen with four panels (backend
-  status, system snapshot, process inventory, diagnostics).
+- No app shell navigation or routing — one screen with five panels (backend
+  status, system snapshot, process inventory, storage scan, diagnostics).
 - No runtime validation of IPC response payloads in the frontend.
 - No auto-updater, code signing, or telemetry.
 - No network access of any kind.

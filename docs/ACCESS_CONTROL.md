@@ -75,10 +75,17 @@ absolute) and the scan stays a standard-user operation. Directories the user
 cannot read are reported as `denied`, never bypassed, and the response carries
 only aggregate counters, never paths.
 
-**Gap:** device-namespace roots (`\\.\`, `\\?\GLOBALROOT`) and arbitrary UNC
-paths are not rejected yet; they are walked read-only like any other absolute
-path, and reparse points are never followed. A deny-list or an allow-list tied to
-a folder picker belongs to the B-040 threat-model review.
+Device-namespace roots are rejected in Rust (`dto/scan.rs`): `\\.\...`, `\??\...`,
+and any `\\?\` path that is not a drive (`\\?\C:\`) or UNC (`\\?\UNC\...`) form,
+including `\\?\GLOBALROOT\...` and `\\?\Volume{...}\`. Forward slashes are
+normalized first.
+
+**Remaining gap:** arbitrary UNC shares and any other absolute path are still
+accepted and walked read-only (reparse points are never followed). Whether to
+restrict roots further, for example with an allow-list tied to a folder picker or
+a block on network paths, is a product decision for the B-040 threat-model
+review. Reserved DOS device names inside a normal path (`C:\dir\CON`) and the
+ACL of the root are not checked beyond what the OS returns.
 
 ## 5. Layer 4 — Protected paths
 

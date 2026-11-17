@@ -12,11 +12,11 @@
 | ID | Issue | Impact | Workaround | Tracked |
 |---|---|---|---|---|
 | KI-001 | Startup and service collection do not exist | The snapshot and process inventory cannot explain autostart entries or services | None | B-043 |
-| KI-002 | Seven read-only IPC commands exist; none of the three scan commands has a frontend caller | The UI cannot drive scans, storage views, or service actions | None | B-004, B-003 |
+| KI-002 | Seven read-only IPC commands exist; the UI can drive a scan but has no storage views or service actions | A scan shows counters only: no file list, sizes by folder, or treemap, and no folder picker | None | B-004, B-050 |
 | KI-003 | Persistence is write-only and minimal | Schema v2 holds `scan_sessions`; a scan writes one counters-only row, but no IPC command reads history, no UI shows it, and nothing stores per-entry data | None needed; browsing is unaffected | B-024 (per-entry), B-030 |
 | KI-004 | No code signing | SmartScreen warns; tampering undetectable | Install anyway, verify hash manually | B-080 |
 | KI-005 | No license selected | Cannot be legally redistributed | Internal use only | B-084 |
-| KI-006 | Tests cover IPC, the snapshot/process/diagnostics contracts, redaction, persistence migrations, the traversal prototype, and four UI panels | Scan sessions, IPC/UI wiring for traversal, and process actions are untested because they do not exist; no visual/theme test exists | Manual checks only | B-002, B-008, B-021, B-022 |
+| KI-006 | Tests cover IPC, the snapshot/process/diagnostics contracts, redaction, persistence migrations, the traversal prototype, and five UI panels, and the scan view reducer | Process actions are untested because they do not exist; the scan panel is tested against mocked IPC only (never against the running app); no visual/theme test exists | Manual checks only | B-002, B-008, B-021, B-022 |
 | KI-007 | CI has never run on GitHub | A workflow file is not a gate; broken builds can still merge | Run the gates locally per `build.md` | B-010, B-092 |
 
 ## 2. High
@@ -26,7 +26,7 @@
 | KI-011 | IPC responses are not validated at runtime in the frontend | A DTO rename would render `undefined` instead of failing loudly | B-090; `API.md` §8 |
 | KI-012 | The support bundle has no saved-file export | The preview can be copied, but support must paste it instead of attaching a file | F-092 / B-064 |
 | KI-013 | Cancellation exists only for the scan job | `cancel_scan` and window-close cancel work for one in-memory scan; there is no general job registry and no cancel for other work. A killed process leaves its session row open until the next startup marks it `interrupted`; nothing resumes it | Design in `SYSTEM_DESIGN.md` |
-| KI-049 | Scan roots are caller-supplied and not restricted beyond shape checks | Any absolute path, including device-namespace and UNC roots, can be walked read-only; reparse points are never followed; only counters are returned | No UI calls it yet; threat-model review is B-040 (`docs/ACCESS_CONTROL.md`) |
+| KI-049 | Scan roots are caller-supplied and only shape-checked plus a device-namespace block | Device and NT-namespace roots are refused, but any other absolute path, including UNC shares, can be walked read-only; reparse points are never followed; only counters are returned | No UI calls it yet; whether to restrict roots further is a B-040 decision (`docs/ACCESS_CONTROL.md`) |
 | KI-050 | `scan_sessions` rows have no retention limit and no delete control | Each scan adds a counters-only row (no paths) that stays forever; the live job state still resets on restart | Delete the database file with the app closed; a retention policy and UI need the `docs/plan.md` §12 decision |
 | KI-051 | Session persistence is best-effort | A failed `begin`/`finish` write is logged and the scan still reports normally, so a scan can exist with no row, or a row can stay `running` until the next startup marks it `interrupted` | Intentional: the app must work without a database; check the log for `scan session` warnings |
 | KI-014 | No DB corruption recovery or backup | A corrupt database is preserved and the app continues without persistence, but nothing renames it aside, offers export, or restores a backup; no pre-migration backup exists. Workaround: delete or move the file manually with the app closed | B-033, `RECOVERY_PLAN.md` |
@@ -40,7 +40,7 @@
 | KI-021 | Release uses `panic = "abort"` | No unwinding; a panic kills the app | Intentional for size; requires disciplined error handling |
 | KI-022 | Only NSIS x64 bundle | No MSI, no ARM64, no portable | `tauri.conf.json` |
 | KI-023 | No accessibility verification | Unknown keyboard/screen-reader quality | B-066 |
-| KI-024 | Only one screen | No navigation or routing; all four panels share one view | B-004 |
+| KI-024 | Only one screen | No navigation or routing; all five panels share one view | B-004 |
 | KI-025 | No OS-preference theming | Light/dark is manual only; the app ignores the Windows light/dark setting | F-009 |
 | KI-026 | `gen/schemas` is gitignored | Capability autocomplete missing on fresh clones | Regenerated by build |
 | KI-027 | `rust-toolchain.toml` pins `stable`, not an exact compiler version | Local and CI can drift within stable | B-011 |
@@ -64,7 +64,9 @@
 | KI-041 | Working set is `access_denied` for processes owned by another account | SYSTEM and other-user rows show no memory figure | Expected without elevation; the app will not request elevation for a read-only view |
 | KI-042 | The process list is sorted by PID and has no search or filter | Locating a process by name means paging through the list | Deliberate: no unvalidated sort enum. A client-side filter over the current page would be misleading, so it waits for a Rust-side query |
 | KI-043 | Support-bundle redaction is best-effort | A pattern the redactor does not recognize (for example a bare personal name or an unusual path form) could reach the preview | No log call site may rely on redaction alone; the preview is user-initiated and reviewable before copying. Extend rules with tests when a new field is logged |
-| KI-044 | Traversal has no UI caller and persists nothing | `start_scan` drives it over IPC (B-025), but no frontend code calls it and no entry is stored, so F-051/F-052 remain partial | Tests are the only exerciser until B-004 (shell) and B-024 (persistence) |
+| KI-044 | Traversal results are counters only | The Storage scan panel shows aggregate counts; no entry is stored or listed, so F-051/F-052 remain partial | Per-entry persistence waits on the retention decision (B-024) |
+| KI-052 | The scan panel has not been exercised in the running app | Its tests mock the IPC layer, so event delivery over real Tauri, the capability for `listen`, and a real cancel are unverified end to end. `core:default` is confirmed from the generated manifest to include `allow-listen` | Run `npm run tauri dev`, scan a small folder, cancel a second scan, and watch the log |
+| KI-053 | Scan roots are typed, not picked | A mistyped or relative path is refused only after the request; there is no picker, no drive list (F-050), and no remembered roots | Folder picker needs a dialog plugin and capability review |
 | KI-045 | Reparse points are skipped, never followed | Files behind a junction, symlink, or OneDrive/cloud placeholder are counted as `skipped` and their contents are not scanned; totals can understate disk usage | Deliberate for prototype safety (ADR-019). Following needs a visited set by volume + file ID |
 | KI-046 | Denied-directory fixture is Windows-only and unproven in CI | B-023 added a live test that denies listing via `icacls` and restores it on drop; it passed locally on one machine, but CI has never run and the test is `#[cfg(windows)]` | Run `cargo test` locally; confirm on the first CI run |
 | KI-048 | A failed directory-stream read is counted but has no entry | `read_dir` item errors increment `failed` without a `FileEntry`, so `entries` can be lower than the sum of outcomes and the path is unknown | Rare; surface per-directory when persistence (B-024) needs exact accounting |

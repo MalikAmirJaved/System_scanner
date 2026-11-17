@@ -13,6 +13,21 @@ exists. Until then, `0.x` versions may change behavior without notice.
 
 ## [Unreleased]
 
+### Added (UI)
+- **Storage scan panel.** Type one or more absolute folder paths, start a
+  read-only scan, watch live file/size/skipped counts, and cancel. A finished scan
+  shows a Complete, Partial, Truncated, or Cancelled verdict with what that does
+  and does not cover. Counts only: no file names or paths are shown, there is no
+  folder picker, and the panel has not yet been exercised in the running app
+  (KI-052). New `src/services/scan.ts` is the only wrapper for the scan commands
+  and `scan:*` events; no capability change.
+
+### Security
+- **`start_scan` refuses device and NT-namespace roots** (`\\.\...`, `\??\...`,
+  and `\\?\` forms that are not a drive or UNC, such as `\\?\GLOBALROOT\...`).
+  Ordinary drives, UNC shares, and extended-length drive/UNC paths are still
+  accepted. Further root restrictions remain an open B-040 decision (KI-049).
+
 ### Added
 - **Scan sessions persisted, counters only (B-024 minimal).** Each scan writes one
   `scan_sessions` row (status, completeness, aggregate counters, budgets; **no

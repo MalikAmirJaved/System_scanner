@@ -82,7 +82,7 @@ Full analysis: [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md).
 | No telemetry | no analytics dependency | |
 | Minimal dependency set | `docs/DEPENDENCIES.md` §3 | Small attack surface; `cargo audit` gate not automated |
 | No elevation manifest | `tauri.conf.json` | Runs as the invoking user |
-| Read-only filesystem traversal | `src-tauri/src/adapters/filesystem/traversal.rs` | Validates roots/limits, bounded workers and channel, never follows reparse points; reachable over IPC via `start_scan` (B-025), returns counters only, no UI caller |
+| Read-only filesystem traversal | `src-tauri/src/adapters/filesystem/traversal.rs` | Validates roots/limits, bounded workers and channel, never follows reparse points; reachable over IPC via `start_scan` (B-025), returns counters only; called from the Storage scan panel (typed roots) |
 
 ## 6. Known gaps (must close before any public release)
 
@@ -92,7 +92,7 @@ Full analysis: [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md).
 | No updater / signed update channel | Users stay on vulnerable builds | `docs/RELEASE_POLICY.md` |
 | No dependency advisory gate in CI | Silent vulnerable transitive deps | `docs/DEVOPS.md` |
 | No SBOM | Unverifiable supply chain | `docs/DEVOPS.md` |
-| No threat-model review of file operations | Read-only traversal exists (B-022) and is reachable over IPC via `start_scan` (B-025) with caller-supplied roots, without a formal B-040 review; device-namespace and UNC roots are not rejected; path/TOCTOU risk grows when write paths land | `docs/THREAT_MODEL.md`, `docs/ACCESS_CONTROL.md` |
+| No threat-model review of file operations | Read-only traversal exists (B-022) and is reachable over IPC via `start_scan` (B-025) with caller-supplied roots, without a formal B-040 review; device-namespace roots are rejected but arbitrary UNC and other absolute roots are accepted; path/TOCTOU risk grows when write paths land | `docs/THREAT_MODEL.md`, `docs/ACCESS_CONTROL.md` |
 | No audit trail implementation | No accountability for control operations | `docs/AUDIT_LOGGING.md` |
 | No security contact published | Slow disclosure | `docs/INCIDENT_RESPONSE.md` |
 | CSP allows `style-src 'unsafe-inline'` | Style injection if XSS exists | Revisit when styling changes |

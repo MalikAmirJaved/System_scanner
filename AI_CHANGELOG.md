@@ -25,6 +25,48 @@
 
 ---
 
+## 2026-11-17 — Storage scan panel (first UI caller of the scan commands)
+
+- **Agent/tool:** Cursor agent.
+- **Scope:** new `src/services/scan.ts`, `src/lib/scanView.ts`,
+  `src/components/ScanPanel.tsx` and their tests; `src/App.tsx`; status docs.
+- **Change:** a panel that starts, cancels, and watches one scan. A pure reducer
+  (`applyEvent`, `applyStatus`) enforces event ordering: a job is adopted only
+  while starting, other jobs' events and non-newer `seq` are dropped, and
+  `get_scan_status` is applied after start, after cancel, and on mount.
+  `subscribeToScan` is the first use of the Tauri event API; it unsubscribes
+  partial subscriptions on failure.
+- **Why:** the backend scan had no way to be used; this makes it testable by a
+  person and fixes the event/status contract the UI relies on.
+- **Risk:** no capability change (`core:default` includes `allow-listen`,
+  checked in the generated manifest). The panel shows counters only. Tests mock
+  IPC, so real event delivery and cancel are unverified (KI-052). Typed roots, no
+  picker (KI-053). `emit` is also allowed to the page by `core:default`; nothing
+  in the backend listens to UI-emitted events.
+- **Evidence:** see the session report.
+- **Follow-up:** run the app (KI-052), a picker with a capability review, a
+  history read port, and per-entry persistence after the retention decision.
+
+---
+
+## 2026-11-17 — Scan root hardening: device namespaces refused (KI-049)
+
+- **Agent/tool:** Cursor agent.
+- **Scope:** `src-tauri/src/dto/scan.rs` (`is_device_namespace`, two tests);
+  security/access/API/known-issue docs.
+- **Change:** `StartScanRequest::parse` rejects `\\.\`, `\??\`, and `\\?\` paths
+  that are not a drive or UNC form, after normalizing `/` to `\`. No dependency,
+  capability, or IPC shape change.
+- **Why:** untrusted IPC supplies roots; closing the device namespace before any UI
+  can call the command is the cheapest part of KI-049.
+- **Risk:** `\\?\Volume{GUID}\` is a legitimate volume path and is now refused
+  (conservative). UNC shares remain accepted. Reserved DOS names in normal paths
+  and root ACLs are not checked; Windows resolves them.
+- **Evidence:** see the session report.
+- **Follow-up:** B-040 decision on UNC and an allow-list tied to a folder picker.
+
+---
+
 ## 2026-11-17 — Scan session persistence, counters only (B-024 minimal)
 
 - **Agent/tool:** Cursor agent.

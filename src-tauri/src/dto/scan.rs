@@ -48,6 +48,9 @@ impl StartScanRequest {
             if root.len() > MAX_ROOT_BYTES {
                 return Err("a root path is too long");
             }
+            if is_device_namespace(&root) {
+                return Err("device and NT-namespace paths are not allowed");
+            }
             roots.push(PathBuf::from(root));
         }
 
@@ -62,6 +65,40 @@ impl StartScanRequest {
 
         Ok(ParsedScanRequest { roots, max_entries })
     }
+}
+
+/// Whether a root addresses a device or NT object namespace instead of a
+/// filesystem location.
+///
+/// Rejected: `\\.\...` (device namespace), `\??\...` (NT namespace), and any
+/// `\\?\` path that is not a drive (`\\?\C:\`) or UNC (`\\?\UNC\server\share`)
+/// form, such as `\\?\GLOBALROOT\...` or `\\?\Volume{...}\`. Plain drives, plain
+/// UNC shares, and the extended-length drive/UNC forms stay allowed. Pure string
+/// logic, so it behaves the same on every host and in tests.
+fn is_device_namespace(root: &str) -> bool {
+    let normalized = root.replace('/', "\\");
+
+    if normalized.starts_with("\\??\\") || normalized == "\\??" {
+        return true;
+    }
+    if normalized == "\\\\." || normalized.starts_with("\\\\.\\") {
+        return true;
+    }
+
+    let Some(rest) = normalized.strip_prefix("\\\\?\\") else {
+        return normalized == "\\\\?";
+    };
+
+    let bytes = rest.as_bytes();
+    let is_drive = bytes.len() >= 2
+        && bytes[0].is_ascii_alphabetic()
+        && bytes[1] == b':'
+        && (bytes.len() == 2 || bytes[2] == b'\\');
+    let is_unc = rest
+        .get(..4)
+        .is_some_and(|prefix| prefix.eq_ignore_ascii_case("UNC\\"));
+
+    !(is_drive || is_unc)
 }
 
 /// Data of `start_scan`.
@@ -272,6 +309,47 @@ mod tests {
             let message = input.parse().expect_err("must be rejected");
             assert_eq!(message, expected);
             assert!(!message.contains("bad"));
+        }
+    }
+
+    #[test]
+    fn device_and_nt_namespace_roots_are_rejected() {
+        for root in [
+            r"\\.\PhysicalDrive0",
+            r"\\.\C:",
+            "//./C:/",
+            r"\\.",
+            r"\??\C:\",
+            r"\\?\GLOBALROOT\Device\HarddiskVolume1",
+            r"\\?\Volume{01234567-89ab-cdef-0123-456789abcdef}\",
+            r"\\?\pipe\name",
+            r"\\?\",
+            r"\\?\1:\",
+        ] {
+            assert_eq!(
+                request(&[root], None).parse().unwrap_err(),
+                "device and NT-namespace paths are not allowed",
+                "{root} must be refused"
+            );
+        }
+    }
+
+    #[test]
+    fn drives_shares_and_extended_length_forms_stay_allowed() {
+        for root in [
+            r"C:\",
+            r"C:\Users\someone",
+            r"\\server\share\folder",
+            r"\\?\C:\very\long\path",
+            r"\\?\c:",
+            r"\\?\UNC\server\share",
+            r"\\?\unc\server\share",
+            r"D:/forward/slashes",
+        ] {
+            assert!(
+                request(&[root], None).parse().is_ok(),
+                "{root} must be accepted"
+            );
         }
     }
 

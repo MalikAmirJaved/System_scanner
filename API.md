@@ -365,12 +365,15 @@ Proposed events for Release 0 (none emitted today):
 
 ## 4. Release 1 (storage)
 
-### 4.1 Scan jobs (implemented, B-025; in memory, no UI caller)
+### 4.1 Scan jobs (implemented, B-025; driven by the Storage scan panel)
 
 Three commands drive one read-only traversal. Live state is in memory; the
 final counters are also written as one `scan_sessions` row (best-effort, no paths;
-`DATABASE.md` §5.1), but no command reads history back and no frontend wrapper exists yet
-(`src/services/` does not call these).
+`DATABASE.md` §5.1), but no command reads history back. The frontend wrapper is
+`src/services/scan.ts` (the only place that calls these commands or subscribes
+to `scan:*`; `listen` is allowed by `core:default`), used by
+`src/components/ScanPanel.tsx`. The panel treats events as live hints and
+`get_scan_status` as the source of truth after start, after cancel, and on mount.
 
 | Command | Input | Data |
 |---|---|---|
@@ -379,7 +382,8 @@ final counters are also written as one `scan_sessions` row (best-effort, no path
 | `get_scan_status` | `{ jobId?: string }` | `ScanStatusDto` |
 
 - `start_scan` validates in Rust before any filesystem access: 1–64 roots, each
-  non-empty, no NUL, at most 32,767 bytes, and absolute. `maxEntries` must be 1 to
+  non-empty, no NUL, at most 32,767 bytes, not a device or NT-namespace path
+  (`\\.\`, `\??\`, or a `\\?\` form that is not a drive or UNC), and absolute. `maxEntries` must be 1 to
   100,000,000 (omitted = the ceiling, so no scan is unbounded). Unknown request
   fields are rejected. Errors never echo the offending path.
 - Errors: `invalid_input` (bad request), `busy` (a scan is queued, running, or

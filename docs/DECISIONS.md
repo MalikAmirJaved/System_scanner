@@ -684,8 +684,8 @@ reach the UI.
 
 - Live scan state is lost on restart and the next scan replaces the last result;
   the final counters are persisted separately by ADR-021.
-- Roots are caller-supplied and shape-checked only; device-namespace and UNC
-  roots are not rejected (KI-049, B-040).
+- Roots are caller-supplied and shape-checked, with device and NT-namespace roots
+  refused; UNC shares and other absolute paths are accepted (KI-049, B-040).
 - Starting a scan stats each root while the slot lock is held; a dead network
   mapping can delay `get_scan_status` for that moment. `start_scan` runs the
   start on a blocking thread so the async runtime is not stalled.

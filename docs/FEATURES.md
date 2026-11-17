@@ -80,7 +80,7 @@ commands/processes.rs}`, `src/components/ProcessList.tsx`, `API.md` §3.3.
 | ID | Feature | Status |
 |---|---|---|
 | F-050 | Drive discovery + selection | ⏳ Not started |
-| F-051 | Cancellable directory traversal | 🟡 Partial — bounded worker prototype in `adapters/filesystem`, cooperative cancel, depth/entry budgets; driven by an in-memory scan job with `start_scan`/`cancel_scan`/`get_scan_status` and `scan:*` events (B-025). No UI, folder picker, or persistence |
+| F-051 | Cancellable directory traversal | 🟡 Partial — bounded worker prototype in `adapters/filesystem`, cooperative cancel, depth/entry budgets; driven by an in-memory scan job with `start_scan`/`cancel_scan`/`get_scan_status` and `scan:*` events (B-025), shown in a Storage scan panel with typed-in roots, start/cancel, live counts, and a completeness verdict. No folder picker, file list, or per-entry persistence |
 | F-052 | Per-entry outcome reporting | 🟡 Partial — `ok`/`skipped`/`denied`/`disappeared`/`unsupported`/`failed` produced by the traversal prototype, with stable codes and a derived `complete`/`partial`/`truncated`/`cancelled` verdict (B-023); surfaced over IPC only as aggregate counters and the verdict (B-025); per-entry outcomes are not rendered or persisted |
 | F-053 | Large-file summary | ⏳ Not started |
 | F-054 | Extension/type summary | ⏳ Not started |
@@ -94,8 +94,9 @@ commands/processes.rs}`, `src/components/ProcessList.tsx`, `API.md` §3.3.
 
 F-051 and F-052 ship as the B-022 walker plus the B-025 in-memory job: one scan at
 a time, start/cancel/status commands, and paced progress events carrying
-aggregate counters only. There is no UI, no folder picker, no persisted session,
-and reparse points are not followed. Drive discovery, summaries, and
+aggregate counters only, surfaced by the Storage scan panel. There is no folder
+picker, no file list, no per-entry persistence, and reparse points are not
+followed. Drive discovery, summaries, and
 duplicate detection remain not started.
 
 ## 6. Security intelligence (Release 3)
@@ -164,7 +165,7 @@ Event Log summaries, crash correlation, and connection features remain Release 4
 Implemented since the scaffold: the typed IPC envelope, the error taxonomy with
 correlation IDs, four versioned DTOs, four read-only inspection commands (`get_app_info`,
 `get_system_snapshot`, `list_processes`, `get_diagnostics`), three scan-job
-commands with `scan:*` events and no UI (`start_scan`, `cancel_scan`,
+commands with `scan:*` events and a Storage scan panel (`start_scan`, `cancel_scan`,
 `get_scan_status`), the
 port/domain/Windows-adapter split for system information, processes, and
 diagnostics, and UI views for backend status, the system snapshot, the paged

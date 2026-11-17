@@ -2,6 +2,7 @@ import "./styles/globals.css";
 import { BackendStatus } from "./components/BackendStatus";
 import { Diagnostics } from "./components/Diagnostics";
 import { ProcessList } from "./components/ProcessList";
+import { ScanPanel } from "./components/ScanPanel";
 import { SystemOverview } from "./components/SystemOverview";
 import { ThemeToggle } from "./components/ThemeToggle";
 
@@ -34,13 +35,14 @@ export default function App() {
 
       <main className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
         <h1 className="sr-only">
-          System overview, backend status, process inventory, and diagnostics
+          System overview, backend status, process inventory, storage scan, and diagnostics
         </h1>
 
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
           <SystemOverview className="sm:col-span-2" />
           <BackendStatus />
           <ProcessList className="sm:col-span-2 lg:col-span-3" />
+          <ScanPanel className="sm:col-span-2 lg:col-span-3" />
           <Diagnostics className="sm:col-span-2 lg:col-span-3" />
         </div>
       </main>
