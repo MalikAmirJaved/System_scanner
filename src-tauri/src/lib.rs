@@ -1,4 +1,5 @@
 mod adapters;
+mod app;
 mod commands;
 mod domain;
 mod dto;
@@ -12,6 +13,17 @@ mod startup;
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     if let Err(error) = tauri::Builder::default()
+        .manage(app::jobs::Supervisor::new())
+        .on_window_event(|window, event| {
+            // No scan may keep running once its window is gone.
+            if let tauri::WindowEvent::Destroyed = event {
+                use tauri::Manager;
+                window
+                    .app_handle()
+                    .state::<app::jobs::Supervisor>()
+                    .shutdown();
+            }
+        })
         .setup(|app| {
             use tauri::Manager;
 
@@ -54,6 +66,9 @@ pub fn run() {
             commands::app::get_app_info,
             commands::diagnostics::get_diagnostics,
             commands::processes::list_processes,
+            commands::scan::cancel_scan,
+            commands::scan::get_scan_status,
+            commands::scan::start_scan,
             commands::system::get_system_snapshot
         ])
         .run(tauri::generate_context!())

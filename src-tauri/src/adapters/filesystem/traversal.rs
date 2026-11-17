@@ -159,10 +159,13 @@ impl Traversal {
         &self.events
     }
 
-    /// Ask the walk to stop at the next entry boundary.
-    pub fn cancel(&self) {
-        self.queue.cancelled.store(true, Ordering::SeqCst);
-        self.queue.signal.notify_all();
+    /// A cloneable handle that asks the walk to stop at the next entry
+    /// boundary. Usable from another thread while the caller keeps draining
+    /// [`Traversal::events`].
+    pub fn cancel_handle(&self) -> CancelHandle {
+        CancelHandle {
+            queue: Arc::clone(&self.queue),
+        }
     }
 
     /// Stop the walk if it is still running, then report the counters.
@@ -176,6 +179,19 @@ impl Traversal {
             Ok(result) => result,
             Err(_) => Err(TraversalError::WorkerPanicked),
         }
+    }
+}
+
+/// Cancels one traversal. Cheap to clone; safe to call any number of times,
+/// including after the walk has finished.
+#[derive(Clone)]
+pub struct CancelHandle {
+    queue: Arc<Queue>,
+}
+
+impl CancelHandle {
+    pub fn cancel(&self) {
+        self.queue.cancel();
     }
 }
 
@@ -256,6 +272,11 @@ impl Queue {
         let mut state = lock(&self.state);
         state.active = state.active.saturating_sub(1);
         drop(state);
+        self.signal.notify_all();
+    }
+
+    fn cancel(&self) {
+        self.cancelled.store(true, Ordering::SeqCst);
         self.signal.notify_all();
     }
 
@@ -865,7 +886,7 @@ mod tests {
             channel_capacity: 1,
         })
         .expect("start must succeed");
-        traversal.cancel();
+        traversal.cancel_handle().cancel();
 
         let (entries, summary) = collect(traversal);
 
@@ -892,7 +913,7 @@ mod tests {
         for entry in traversal.events() {
             entries.push(entry);
         }
-        traversal.cancel();
+        traversal.cancel_handle().cancel();
 
         let summary = traversal.join().expect("traversal must finish");
 

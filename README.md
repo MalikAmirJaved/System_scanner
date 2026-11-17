@@ -129,7 +129,7 @@ system-scanner/
 │  ├─ src/ipc.rs            # CommandResult envelope
 │  ├─ src/error.rs          # ErrorCode taxonomy + AppError + correlation IDs
 │  ├─ src/dto/              # versioned AppInfo + SystemSnapshot + ProcessList DTOs
-│  ├─ src/commands/         # thin command layer (four read-only commands)
+│  ├─ src/commands/         # thin command layer (seven read-only commands)
 │  ├─ src/domain/           # platform-neutral models + use cases (no Windows)
 │  ├─ src/ports/            # narrow capability traits
 │  ├─ src/adapters/windows/ # all Win32 access (windows-sys)

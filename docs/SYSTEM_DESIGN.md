@@ -135,7 +135,8 @@ budget is reported as `truncated`. Reparse points are **not followed at all**, s
 volume+file-ID cycle detection is unnecessary today; adding it is a precondition
 for following them. One `symlink_metadata` call classifies each entry and is
 repeated before a directory is opened (TOCTOU guard on the path, not an identity
-check). Scan sessions, batching, and progress events do not exist yet.
+check). Since B-025 an in-memory job (`app/jobs.rs`) drives the walk with paced
+`scan:*` events (ADR-020). Scan sessions and batching do not exist yet.
 
 ### 4.3 Deduplication
 

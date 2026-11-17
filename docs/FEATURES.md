@@ -80,8 +80,8 @@ commands/processes.rs}`, `src/components/ProcessList.tsx`, `API.md` §3.3.
 | ID | Feature | Status |
 |---|---|---|
 | F-050 | Drive discovery + selection | ⏳ Not started |
-| F-051 | Cancellable directory traversal | 🟡 Partial — bounded worker prototype in `adapters/filesystem`, cooperative cancel, depth/entry budgets; no IPC, UI, or persistence wiring |
-| F-052 | Per-entry outcome reporting | 🟡 Partial — `ok`/`skipped`/`denied`/`disappeared`/`unsupported`/`failed` produced by the traversal prototype, with stable codes and a derived `complete`/`partial`/`truncated`/`cancelled` verdict (B-023); not rendered, persisted, or sent over IPC |
+| F-051 | Cancellable directory traversal | 🟡 Partial — bounded worker prototype in `adapters/filesystem`, cooperative cancel, depth/entry budgets; driven by an in-memory scan job with `start_scan`/`cancel_scan`/`get_scan_status` and `scan:*` events (B-025). No UI, folder picker, or persistence |
+| F-052 | Per-entry outcome reporting | 🟡 Partial — `ok`/`skipped`/`denied`/`disappeared`/`unsupported`/`failed` produced by the traversal prototype, with stable codes and a derived `complete`/`partial`/`truncated`/`cancelled` verdict (B-023); surfaced over IPC only as aggregate counters and the verdict (B-025); per-entry outcomes are not rendered or persisted |
 | F-053 | Large-file summary | ⏳ Not started |
 | F-054 | Extension/type summary | ⏳ Not started |
 | F-055 | Age filters | ⏳ Not started |
@@ -92,9 +92,10 @@ commands/processes.rs}`, `src/components/ProcessList.tsx`, `API.md` §3.3.
 | F-060 | Scan session history | ⏳ Not started |
 | F-061 | Treemap/sunburst visualization + text alternative | ⏳ Not started |
 
-F-051 and F-052 ship only as the B-022 prototype: a bounded, cancellable walker
-with an explicit outcome per entry. It is not exposed over IPC, has no UI, writes
-no rows, and does not follow reparse points. Drive discovery, summaries, and
+F-051 and F-052 ship as the B-022 walker plus the B-025 in-memory job: one scan at
+a time, start/cancel/status commands, and paced progress events carrying
+aggregate counters only. There is no UI, no folder picker, no persisted session,
+and reparse points are not followed. Drive discovery, summaries, and
 duplicate detection remain not started.
 
 ## 6. Security intelligence (Release 3)
@@ -161,8 +162,10 @@ Event Log summaries, crash correlation, and connection features remain Release 4
 | Research / proposed | 2 |
 
 Implemented since the scaffold: the typed IPC envelope, the error taxonomy with
-correlation IDs, four versioned DTOs, four read-only commands (`get_app_info`,
-`get_system_snapshot`, `list_processes`, `get_diagnostics`), the
+correlation IDs, four versioned DTOs, four read-only inspection commands (`get_app_info`,
+`get_system_snapshot`, `list_processes`, `get_diagnostics`), three scan-job
+commands with `scan:*` events and no UI (`start_scan`, `cancel_scan`,
+`get_scan_status`), the
 port/domain/Windows-adapter split for system information, processes, and
 diagnostics, and UI views for backend status, the system snapshot, the paged
 process inventory, and on-request diagnostics with a redacted support-bundle

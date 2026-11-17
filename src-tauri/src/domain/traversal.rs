@@ -41,6 +41,9 @@ pub enum EntryOutcome {
     Failed,
 }
 
+// The per-entry codes have no production caller until entries are persisted
+// (B-024); scan jobs only report aggregate counters. Scoped to these impls.
+#[allow(dead_code)]
 impl SkipReason {
     /// Stable snake_case code for persistence and IPC. Never rename a value.
     pub fn code(self) -> &'static str {
@@ -51,6 +54,7 @@ impl SkipReason {
     }
 }
 
+#[allow(dead_code)]
 impl EntryOutcome {
     /// Stable snake_case code for persistence and IPC. Never rename a value.
     pub fn code(self) -> &'static str {
@@ -114,12 +118,6 @@ pub struct FileEntry {
     pub outcome: EntryOutcome,
     pub size_bytes: Option<u64>,
     pub modified_at_ms: Option<i64>,
-}
-
-impl FileEntry {
-    pub fn is_directory(&self) -> bool {
-        self.kind == EntryKind::Directory
-    }
 }
 
 /// Traversal budgets.

@@ -132,11 +132,15 @@ Use temporary directories and generated fixtures. Required scenarios:
 | Duplicate candidates | Size filter first, hash only when eligible |
 | DB disk-full simulation | Session marked failed, prior data intact |
 
-Covered by the B-022 prototype today: empty directory, junction/reparse loop,
-Unicode + long path (> 260), and cancellation (asserted at start). Permission
-denied, file deleted mid-scan, locked file, interrupted session, duplicate
-candidates, and DB disk-full still require scan sessions or an enrichment stage
-and are untested.
+Covered today by the B-022 walker and the B-023/B-025 job layer: empty directory,
+junction/reparse loop, Unicode + long path (> 260), cancellation at start and
+mid-walk through the job supervisor, permission denied (live `icacls` fixture,
+Windows only), missing root, entry-budget truncation, busy second scan, shutdown
+cancel, progress `seq` and pacing, and request validation. File deleted
+mid-scan, locked file, interrupted session, duplicate candidates, and DB
+disk-full still require scan sessions or an enrichment stage and are untested.
+The job tests use temporary fixture trees only; no real user data is scanned, and
+they are wall-clock-tolerant (polling with a 10 s ceiling), not timing-exact.
 
 The prototype deliberately has **no new crate**: enumeration uses `std::fs`, and
 `walkdir` is no longer planned (`docs/DEPENDENCIES.md` §6).

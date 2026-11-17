@@ -647,6 +647,59 @@ follow reparse points (visited-set design required), or a benchmark on the
 
 ---
 
+## ADR-020 — Scan job supervisor: one in-memory slot, drain thread, paced events
+
+**Status:** Accepted · 2026-11-17
+
+**Context.** B-025 had to connect the traversal to IPC without persistence
+(B-024) or a UI. Constraints: every long operation is bounded and cancellable,
+IPC input is untrusted, events must not flood the renderer, and no path may
+reach the UI.
+
+**Decision.** No new dependency.
+
+- `app/jobs.rs` owns a `Mutex<Option<JobRecord>>`: **one scan at a time**; a second
+  `start_scan` returns `busy` while the job is queued, running, or cancelling.
+  The previous terminal job is kept until replaced so `get_scan_status` stays
+  authoritative after the events are gone.
+- `domain/job.rs` is the pure state machine (`queued -> running ->
+  cancelling -> completed | failed | cancelled`, terminal states immutable).
+  `cancelling -> completed` is legal: a walk that finished before it saw the
+  cancel is reported as completed, not cancelled.
+- One named **drain thread** per job consumes the entry channel, counts entries,
+  and drops them, so memory is independent of tree size. Budgets (4 workers, a
+  1,024-entry channel, `maxEntries` ceiling of 100,000,000) are chosen in Rust.
+- Progress is paced by `ProgressGate` (default 100 ms, at most 10 events/s); the
+  first entry is always due and terminal events are always sent. `seq` counts
+  progress events per job from 1.
+- Events go through an injected `EventSink` closure; the command layer supplies
+  `AppHandle::emit`. The supervisor therefore has no Tauri types and is tested
+  with a plain collector.
+- Cancellation uses a cloneable `CancelHandle` onto the traversal queue.
+  `WindowEvent::Destroyed` calls `Supervisor::shutdown` (reason `shutdown`).
+- Responses and events carry **aggregate counters only**. Validation errors use
+  fixed messages and never echo a path.
+
+**Consequences.**
+
+- Scan state is lost on restart and the next scan replaces the last result
+  (KI-050).
+- Roots are caller-supplied and shape-checked only; device-namespace and UNC
+  roots are not rejected (KI-049, B-040).
+- Starting a scan stats each root while the slot lock is held; a dead network
+  mapping can delay `get_scan_status` for that moment. `start_scan` runs the
+  start on a blocking thread so the async runtime is not stalled.
+- The drain thread is detached. On process exit it is not joined; shutdown relies
+  on cancellation plus process teardown, not a graceful flush (nothing is
+  persisted yet).
+- A failed `read_dir` stream item is still counted without an entry (KI-048).
+
+**Revisit if:** concurrent scans are required, B-024 needs session rows tied to
+job IDs, or event delivery to a slow renderer must be acknowledged rather than
+paced.
+
+---
+
 ## Template
 
 ```text

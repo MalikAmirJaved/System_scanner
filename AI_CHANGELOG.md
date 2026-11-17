@@ -25,6 +25,31 @@
 
 ---
 
+## 2026-11-17 — Scan job orchestration, backend only (B-025)
+
+- **Agent/tool:** Cursor agent.
+- **Scope:** new `src-tauri/src/app/{mod,jobs}.rs`, `domain/job.rs`,
+  `dto/scan.rs`, `commands/scan.rs`; `lib.rs` (managed `Supervisor`, window
+  `Destroyed` hook, three handlers); `adapters/filesystem/traversal.rs`
+  (`CancelHandle`, removed `Traversal::cancel`); removed the scoped
+  `#[allow(dead_code)]` on `domain::traversal` and `adapters::filesystem`; docs.
+- **Change:** one in-memory scan slot with a pure state machine, a drain thread
+  that counts and drops entries, progress paced by `ProgressGate`, an injected
+  `EventSink`, and `start_scan`/`cancel_scan`/`get_scan_status`. Added a new
+  layer, `app/`, for orchestration (previously "planned"). Removed unused
+  `FileEntry::is_directory`; the per-entry `code()`/`skip_reason()` helpers keep a
+  narrowly scoped `#[allow(dead_code)]` until B-024 persists entries.
+- **Why:** it is the first step that connects the traversal to IPC, and it
+  settles job and event shapes before the schema and UI depend on them.
+- **Risk:** untrusted IPC now supplies filesystem roots (KI-049); device and UNC
+  roots are not rejected. Scan state is lost on restart (KI-050). The drain
+  thread is detached at exit. Job tests poll with wall-clock tolerance.
+- **Evidence:** see the session report (fmt, clippy, cargo test, npm build/test).
+- **Follow-up:** B-024 (session rows, schema v2), B-004/B-050 (UI and picker),
+  B-040 (root policy), B-032 (stress baseline), KI-048.
+
+---
+
 ## 2026-11-17 — Traversal outcome taxonomy finished (B-023)
 
 - **Agent/tool:** Cursor agent.

@@ -4,6 +4,7 @@ use crate::ports::ProbeError;
 pub mod app;
 pub mod diagnostics;
 pub mod processes;
+pub mod scan;
 pub mod system;
 
 /// Converts a capability-probe failure into the published IPC error shape.

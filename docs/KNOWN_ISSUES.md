@@ -12,7 +12,7 @@
 | ID | Issue | Impact | Workaround | Tracked |
 |---|---|---|---|---|
 | KI-001 | Startup and service collection do not exist | The snapshot and process inventory cannot explain autostart entries or services | None | B-043 |
-| KI-002 | Only four read-only IPC commands exist | The UI cannot drive scans, storage views, or service actions | None | B-003, B-004 |
+| KI-002 | Seven read-only IPC commands exist; none of the three scan commands has a frontend caller | The UI cannot drive scans, storage views, or service actions | None | B-004, B-003 |
 | KI-003 | Persistence is opened but unused | Schema v1 (`scan_sessions`) and the migration runner exist, but no IPC command reads or writes the database, and no scan-history feature exists | None needed; browsing is unaffected | B-024, B-025, B-030 |
 | KI-004 | No code signing | SmartScreen warns; tampering undetectable | Install anyway, verify hash manually | B-080 |
 | KI-005 | No license selected | Cannot be legally redistributed | Internal use only | B-084 |
@@ -25,7 +25,9 @@
 |---|---|---|---|
 | KI-011 | IPC responses are not validated at runtime in the frontend | A DTO rename would render `undefined` instead of failing loudly | B-090; `API.md` §8 |
 | KI-012 | The support bundle has no saved-file export | The preview can be copied, but support must paste it instead of attaching a file | F-092 / B-064 |
-| KI-013 | No cancellation infrastructure | Long work would be unstoppable | Design in `SYSTEM_DESIGN.md` |
+| KI-013 | Cancellation exists only for the scan job | `cancel_scan` and window-close cancel work for one in-memory scan; there is no general job registry, no cancel for other work, and no interrupted-session recovery | Design in `SYSTEM_DESIGN.md`; B-024 for session state |
+| KI-049 | Scan roots are caller-supplied and not restricted beyond shape checks | Any absolute path, including device-namespace and UNC roots, can be walked read-only; reparse points are never followed; only counters are returned | No UI calls it yet; threat-model review is B-040 (`docs/ACCESS_CONTROL.md`) |
+| KI-050 | Scan state is lost on restart and history is not kept | A scan result exists only while the app runs; the last job's counters are replaced by the next scan | By design until B-024 |
 | KI-014 | No DB corruption recovery or backup | A corrupt database is preserved and the app continues without persistence, but nothing renames it aside, offers export, or restores a backup; no pre-migration backup exists. Workaround: delete or move the file manually with the app closed | B-033, `RECOVERY_PLAN.md` |
 | KI-015 | No updater | Security fixes cannot reach users | `DEPLOYMENT.md` §7 |
 
@@ -61,7 +63,7 @@
 | KI-041 | Working set is `access_denied` for processes owned by another account | SYSTEM and other-user rows show no memory figure | Expected without elevation; the app will not request elevation for a read-only view |
 | KI-042 | The process list is sorted by PID and has no search or filter | Locating a process by name means paging through the list | Deliberate: no unvalidated sort enum. A client-side filter over the current page would be misleading, so it waits for a Rust-side query |
 | KI-043 | Support-bundle redaction is best-effort | A pattern the redactor does not recognize (for example a bare personal name or an unusual path form) could reach the preview | No log call site may rely on redaction alone; the preview is user-initiated and reviewable before copying. Extend rules with tests when a new field is logged |
-| KI-044 | Traversal prototype has no caller | The walker cannot be exercised from the UI or IPC, and no entry is persisted, so F-051/F-052 remain partial | None needed until B-025; unit/integration tests are the only exerciser |
+| KI-044 | Traversal has no UI caller and persists nothing | `start_scan` drives it over IPC (B-025), but no frontend code calls it and no entry is stored, so F-051/F-052 remain partial | Tests are the only exerciser until B-004 (shell) and B-024 (persistence) |
 | KI-045 | Reparse points are skipped, never followed | Files behind a junction, symlink, or OneDrive/cloud placeholder are counted as `skipped` and their contents are not scanned; totals can understate disk usage | Deliberate for prototype safety (ADR-019). Following needs a visited set by volume + file ID |
 | KI-046 | Denied-directory fixture is Windows-only and unproven in CI | B-023 added a live test that denies listing via `icacls` and restores it on drop; it passed locally on one machine, but CI has never run and the test is `#[cfg(windows)]` | Run `cargo test` locally; confirm on the first CI run |
 | KI-048 | A failed directory-stream read is counted but has no entry | `read_dir` item errors increment `failed` without a `FileEntry`, so `entries` can be lower than the sum of outcomes and the path is unknown | Rare; surface per-directory when persistence (B-024) needs exact accounting |

@@ -353,9 +353,9 @@ Tests: `src-tauri/src/redact.rs` (shape rules and literal secrets),
 `src-tauri/src/dto/diagnostics.rs` (wire shape and gaps),
 `src/components/Diagnostics.test.tsx` (on-demand load, error/retry, copy).
 
-### 3.5 Events (proposed, none emitted today)
+### 3.5 Events (Release 0 events proposed; scan events implemented in §4.1)
 
-Proposed events for Release 0:
+Proposed events for Release 0 (none emitted today):
 
 | Event | Payload |
 |---|---|
@@ -363,13 +363,67 @@ Proposed events for Release 0:
 | `system:refresh_failed` | `{ error }` |
 | `log:record` | redacted structured record (opt-in stream) |
 
-## 4. Proposed commands — Release 1 (storage)
+## 4. Release 1 (storage)
+
+### 4.1 Scan jobs (implemented, B-025; in memory, no UI caller)
+
+Three commands drive one read-only traversal. State lives in memory only: no
+session row is written (B-024) and no frontend wrapper exists yet
+(`src/services/` does not call these).
+
+| Command | Input | Data |
+|---|---|---|
+| `start_scan` | `{ roots: string[], maxEntries?: number }` | `{ jobId }` |
+| `cancel_scan` | `{ jobId?: string }` | `{ accepted: bool }` |
+| `get_scan_status` | `{ jobId?: string }` | `ScanStatusDto` |
+
+- `start_scan` validates in Rust before any filesystem access: 1–64 roots, each
+  non-empty, no NUL, at most 32,767 bytes, and absolute. `maxEntries` must be 1 to
+  100,000,000 (omitted = the ceiling, so no scan is unbounded). Unknown request
+  fields are rejected. Errors never echo the offending path.
+- Errors: `invalid_input` (bad request), `busy` (a scan is queued, running, or
+  cancelling; retryable). The ID is returned immediately; the walk runs on
+  background threads with fixed Rust-chosen budgets (4 workers, 1,024-entry
+  channel).
+- `cancel_scan` is idempotent: `accepted` is `true` while the job is running or
+  cancelling and `false` when there is nothing to cancel (no job, unknown ID, or
+  already terminal). Closing the window cancels a running scan (reason
+  `shutdown`).
+- `get_scan_status` returns the current or most recent job, or `not_found`.
+  It does not touch the disk.
+- `ScanStatusDto`: `jobId`, `state` (`queued`, `running`, `cancelling`,
+  `completed`, `failed`, `cancelled`), `seq`, `elapsedMs`, `counters`
+  (`entries`, `files`, `directories`, `reparsePoints`, `bytes`, `skipped`,
+  `denied`, `disappeared`, `unsupported`, `failed`), and, once terminal,
+  `completeness` (`complete`, `partial`, `truncated`, `cancelled`) and
+  `errorCode` when failed.
+- Only aggregate counters are returned or emitted. No path, name, or entry list
+  crosses the boundary. Entries are counted and dropped as they stream.
+- A scan whose walk finished is `completed` even if cancel arrived at the last
+  moment; `completeness` then says `partial` or `truncated` when coverage was
+  reduced. `cancelled` means the walk stopped early.
+
+| Event | Payload |
+|---|---|
+| `scan:progress` | `{ jobId, seq, phase: "traverse", filesSeen, bytesSeen, skipped, elapsedMs }` |
+| `scan:completed` | `{ jobId, summary, completeness, partial, elapsedMs }` |
+| `scan:failed` | `{ jobId, errorCode, message }` |
+| `scan:cancelled` | `{ jobId, reason: "user_requested" or "shutdown", summary, elapsedMs }` |
+
+`seq` is per job, starts at 1, and increments by 1 for each progress event.
+Progress is paced to at most one event per 100 ms (10/s); the terminal event is
+always sent. `get_scan_status` is the source of truth if an event is missed.
+
+Tests: `src-tauri/src/app/jobs.rs` (lifecycle, busy, cancel, shutdown, pacing),
+`src-tauri/src/domain/job.rs` (state machine, pacing rule),
+`src-tauri/src/dto/scan.rs` (request validation, wire shape).
+
+### 4.2 Proposed commands
+
+The scan commands above exist; the rest of this table is **proposed**.
 
 | Command | Purpose | Returns |
 |---|---|---|
-| `start_scan` | Begin a scan | `{ jobId, sessionId }` |
-| `cancel_scan` | Cooperative cancel | `{ accepted: bool }` |
-| `get_scan_status` | Authoritative job state | status DTO |
 | `get_scan_summary` | Aggregates only | counts, sizes, top types |
 | `query_files` | Paged, filtered, sorted list | page + total |
 | `start_hashing` | Optional bounded enrichment | `{ job_id }` |
@@ -388,14 +442,9 @@ Key limits:
 
 ### Scan events
 
-| Event | Payload |
-|---|---|
-| `scan:progress` | `{ jobId, seq, phase, filesSeen, bytesSeen, skipped, elapsedMs }` |
-| `scan:completed` | `{ jobId, summary, partial }` |
-| `scan:failed` | `{ jobId, error }` |
-| `scan:cancelled` | `{ jobId, reason, elapsedMs }` |
-
-`seq` is monotonic per job; the UI discards out-of-order or stale updates.
+Implemented in §4.1 (payloads differ slightly from the original proposal:
+`scan:failed` carries `errorCode`/`message`, `scan:completed` carries
+`completeness`). The UI should discard out-of-order or stale updates by `seq`.
 
 ## 5. Proposed commands — privileged (Release 2/3, gated)
 

@@ -45,17 +45,18 @@
                         │
 ┌───────────────────────▼─────────────────────────────────┐
 │ Rust std + tauri + serde/thiserror + tracing + rusqlite   │
-│ + windows-sys: four read-only commands, bounded local     │
+│ + windows-sys: seven read-only commands, bounded local    │
 │ logs, on-request redacted diagnostics, an open-but-unused │
-│ schema-v1 database, and an unwired traversal prototype;   │
-│ no storage scan, jobs, or events                          │
+│ schema-v1 database, and an in-memory scan job with paced  │
+│ events (no UI, no persistence, no storage views)          │
 └───────────────────────────────────────────────────────────┘
 ```
 
 **Properties that already hold**
 
 - The renderer cannot reach the OS: no shell/fs/http plugin is enabled and no
-  capability grants one. It can only invoke the four read-only commands.
+  capability grants one. It can only invoke the seven read-only commands (four
+  inspection, three scan-job).
 - Diagnostics are generated on request, stay local, and return a redacted preview
   rather than a path or an uploaded payload.
 - The capability surface is `core:default` only.
@@ -229,11 +230,18 @@ The current capability is a **read-only traversal prototype**:
   keyed by volume + file ID.
 
 The prototype writes nothing: no database row, no log line carrying a path, no
-IPC response, no UI state. Wiring it to scan jobs (B-025) and a batch writer
-(B-024) is a separate change and requires the retention decision in
-[`docs/plan.md`](docs/plan.md) §12.
+IPC response, no UI state. B-025 added the in-memory job on top of it
+(`app/jobs.rs`): one scan at a time, aggregate counters only, nothing persisted.
+The batch writer (B-024) is a separate change and requires the retention
+decision in [`docs/plan.md`](docs/plan.md) §12.
 
-## 5. Data flow: a scan (proposed)
+## 5. Data flow: a scan (partly implemented)
+
+Implemented by B-025: `start_scan` -> validate -> single slot -> traversal ->
+drain thread -> `scan:progress` (paced) -> `scan:completed` / `scan:cancelled` /
+`scan:failed`, with `cancel_scan` and `get_scan_status`. Persistence, the UI, and
+paged queries below are still proposed. Event names use a colon
+(`scan:progress`), not the `scan://` form sketched here.
 
 ```text
 User selects roots

@@ -67,11 +67,18 @@ policy. This defends against a capability misconfiguration.
 | Irreversible system change | permanent delete | User, explicit confirmation | Audit + backup + strongest warning |
 | Privileged change | stop service, terminate protected process | Elevated user, explicit confirmation | Elevation + audit |
 
-The B-022 filesystem traversal is read-only collection but is **not exposed over
-IPC**, so it grants no new capability. When a scan command is added, root
-selection must be validated in Rust (absolute, capped count and length, no device
-paths) and remains a standard-user operation; directories the user cannot read
-are reported as `denied`, never bypassed.
+The filesystem traversal is read-only collection. Since B-025 it **is reachable
+over IPC** through `start_scan`, which accepts caller-supplied roots. No new
+Tauri capability or plugin was added; the command is part of the app's own
+handler set. Roots are validated in Rust (1–64, non-empty, no NUL, length cap,
+absolute) and the scan stays a standard-user operation. Directories the user
+cannot read are reported as `denied`, never bypassed, and the response carries
+only aggregate counters, never paths.
+
+**Gap:** device-namespace roots (`\\.\`, `\\?\GLOBALROOT`) and arbitrary UNC
+paths are not rejected yet; they are walked read-only like any other absolute
+path, and reparse points are never followed. A deny-list or an allow-list tied to
+a folder picker belongs to the B-040 threat-model review.
 
 ## 5. Layer 4 — Protected paths
 

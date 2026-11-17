@@ -14,6 +14,12 @@ exists. Until then, `0.x` versions may change behavior without notice.
 ## [Unreleased]
 
 ### Added
+- **In-memory scan jobs (B-025; backend only, no UI).** `start_scan`,
+  `cancel_scan`, and `get_scan_status` drive one read-only traversal at a time;
+  `scan:progress` (paced to 10/s), `scan:completed`, `scan:cancelled`, and
+  `scan:failed` carry aggregate counters only. A second scan is refused with
+  `busy`, closing the window cancels a running scan, and nothing is persisted.
+  No frontend code calls the commands yet. See `API.md` §4.1 and ADR-020.
 - **Traversal outcome taxonomy completed (B-023; implemented, not wired).**
   Stable snake_case codes for entry outcomes and skip reasons, a derived
   `Completeness` verdict (`complete`/`partial`/`truncated`/`cancelled`) computed

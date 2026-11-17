@@ -34,13 +34,14 @@ Architecture: [`ARCHITECTURE.md`](ARCHITECTURE.md).
 | Styles | Tailwind CSS v4 via `@tailwindcss/vite`; tokens in `src/styles/globals.css` | `vite.config.ts` |
 | Rust deps | `tauri 2`, `serde`, `serde_json`, `thiserror`, `tracing`/`tracing-subscriber`, `rusqlite 0.43` (bundled SQLite), `windows-sys 0.61` (Windows target) | `Cargo.toml` |
 | Release profile | LTO, `codegen-units=1`, `opt-level=3`, `panic=abort`, `strip` | `Cargo.toml` |
-| Rust files | `main.rs`, `lib.rs`, `ipc.rs`, `error.rs`, `logging.rs`, `redact.rs`, `startup.rs`, `dto/`, `commands/`, `domain/`, `ports/`, `adapters/windows/`, `adapters/persistence/`, `adapters/filesystem/` | `src-tauri/src/` |
-| IPC commands | `get_app_info`, `get_system_snapshot`, `list_processes`, `get_diagnostics` (all read-only) | `src-tauri/src/commands/` |
+| Rust files | `main.rs`, `lib.rs`, `ipc.rs`, `error.rs`, `logging.rs`, `redact.rs`, `startup.rs`, `dto/`, `commands/`, `domain/`, `ports/`, `app/`, `adapters/windows/`, `adapters/persistence/`, `adapters/filesystem/` | `src-tauri/src/` |
+| IPC commands | `get_app_info`, `get_system_snapshot`, `list_processes`, `get_diagnostics`, plus `start_scan`, `cancel_scan`, `get_scan_status` (B-025). All read-only; the scan commands have **no frontend caller** | `src-tauri/src/commands/` |
+| IPC events | `scan:progress`, `scan:completed`, `scan:failed`, `scan:cancelled` (aggregate counters only, paced to 10/s) | `API.md` §4.1, `src-tauri/src/app/jobs.rs` |
 | Wire format | envelope `{status, data|error}`; DTO fields camelCase; codes snake_case | `API.md` §1–§2 |
 | Frontend IPC | `src/services/ipc.ts` is the only `invoke` call site | `src/services/` |
 | Database | SQLite schema **v1** (`scan_sessions`) via `rusqlite`; file at `app_data_dir()/system-scanner.db`, opened at startup, **read by no command yet** | `src-tauri/src/adapters/persistence/`, `src-tauri/migrations/` |
-| Traversal | Bounded worker prototype with cancellation, depth/entry budgets, an outcome per entry with stable codes, and a derived `Completeness` verdict (B-023); **no IPC/UI/DB caller yet** | `src-tauri/src/adapters/filesystem/traversal.rs`, `src-tauri/src/domain/traversal.rs` |
-| Tests | 83 Rust + 20 frontend (`npm test`, `cargo test`) | `src/**/*.test.ts(x)`, `#[cfg(test)]` |
+| Traversal | Bounded worker prototype with cancellation, depth/entry budgets, an outcome per entry with stable codes, and a derived `Completeness` verdict (B-023); driven by an in-memory scan job (B-025); **no UI or DB caller** | `src-tauri/src/adapters/filesystem/traversal.rs`, `src-tauri/src/domain/traversal.rs` |
+| Tests | 107 Rust + 20 frontend (`npm test`, `cargo test`) | `src/**/*.test.ts(x)`, `#[cfg(test)]` |
 | CI | `.github/workflows/ci.yml` (**never run on GitHub**) | `.github/` |
 | Frontend | shell header + backend status + system snapshot + paged process list + on-request diagnostics in a responsive 1/2/3-column grid, inside an `ErrorBoundary` | `src/App.tsx`, `src/components/`, `src/components/ui/button.tsx` |
 
@@ -53,10 +54,12 @@ If any of these change, update this table in the same commit.
   working set. It does **not** read image paths, command lines, CPU usage, or
   session IDs (ADR-013), and it is not sortable or searchable.
 - Neither command reads services, startup entries, files, or event logs.
-- No IPC events, job registry, cancellation, or concurrency budgets.
-- No startup/service collectors, and no storage scan. A traversal prototype
-  (`adapters/filesystem`) enumerates entries into an in-memory stream with
-  cancellation and budgets, but no command, UI, or persistence path consumes it.
+- Jobs exist only for the scan: one at a time, in memory, lost on restart. No
+  generic job registry, no scan history, and no resumption.
+- No startup/service collectors and no storage UI. `start_scan` runs the
+  traversal and reports aggregate counters over `scan:*` events, but no frontend
+  code calls it, there is no folder picker, and nothing is persisted or queryable
+  (`get_scan_summary`, `query_files` do not exist).
 - No scan history, repositories, or IPC command that reads the database.
   `adapters/persistence` exists, schema v1 creates `scan_sessions`, and startup
   opens the file — but **no rows are written or read**.
