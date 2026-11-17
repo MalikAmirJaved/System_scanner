@@ -52,7 +52,7 @@ requirements.
 | Refresh lifecycle (manual + bounded periodic) | 🟡 Manual refresh implemented; periodic refresh not |
 | Structured logging + rotation | ✅ Implemented — 10 MB × 5 files in the app log directory; redaction test |
 | Diagnostics view + redacted support bundle | ✅ Implemented — on-request panel and preview/copy; saved-file export not implemented |
-| Tests (unit/adapter/UI) | 🟡 Partial — IPC, snapshot + process + diagnostics contracts, adapters, use cases, logging, redaction, startup messages, schema/migration runner, 4 UI panels + theme toggle + error boundary; 82 tests |
+| Tests (unit/adapter/UI) | 🟡 Partial — IPC, snapshot + process + diagnostics contracts, adapters, use cases, logging, redaction, startup messages, schema/migration runner, traversal prototype, 4 UI panels + theme toggle + error boundary; 98 tests |
 | CI on Windows | 🟡 Workflow committed, never run on GitHub |
 
 **Exit criteria**
@@ -70,6 +70,12 @@ hashing, aggregated paginated views, recommendations only.
 **Foundation landed early (B-020, B-021):** `rusqlite` with bundled SQLite, a
 `Mutex<Connection>` opened at startup, forward-only checksummed migrations, and
 schema v1 containing `scan_sessions` only. No scan feature writes to it yet.
+
+**Traversal prototype landed early (B-022):** a read-only walker with a fixed
+worker pool, a bounded entry channel, cooperative cancellation, depth/entry
+budgets, and one explicit outcome per entry. Reparse points are reported and never
+followed. It has no IPC command, UI, or database caller yet, so F-051 and F-052
+remain partial.
 
 **Exit criteria:** bounded and cancellable under stress; resumable or safely
 discardable; measured memory/throughput on 1M+ entries.

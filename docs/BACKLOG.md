@@ -45,7 +45,7 @@ Notes on the partial items:
 |---|---|---|
 | B-020 | ✅ Choose DB layer (`rusqlite` vs `sqlx`) + ADR | Blocks persistence |
 | B-021 | ✅ Initial schema + migration runner + tests | Blocks scan history |
-| B-022 | Traversal prototype with bounded workers | Highest-risk component |
+| B-022 | ✅ Traversal prototype with bounded workers | Highest-risk component |
 | B-023 | Per-entry outcome taxonomy implementation | Honest partial results |
 | B-024 | Batch persistence writer | Throughput + crash safety |
 | B-025 | Scan job orchestration + cancellation | Responsiveness |
@@ -63,6 +63,14 @@ snapshots, hashes, findings, quarantine, and audit tables are deliberately defer
 to the features that write them, because retention and data-location are still open
 decisions (`docs/plan.md` §12). Persistence is opened at startup but no IPC command
 reads or writes the database yet.
+
+Note on B-022: the prototype is `domain/traversal` (policy/outcomes) plus
+`adapters/filesystem/traversal` (bounded worker pool, bounded channel,
+cancellation, depth/entry budgets). It is **not reachable from IPC or the UI** and
+writes nothing to the database. It does not follow reparse points, so a junction or
+symlink is reported and skipped; following them needs a visited set by volume +
+file ID and is deferred. Denied-directory and stream-error handling is covered by
+unit mapping, not by a live ACL fixture.
 
 ## P2 — V2 (Releases 2–3)
 
@@ -125,6 +133,7 @@ reads or writes the database yet.
 
 | ID | Item | Completed | Evidence |
 |---|---|---|---|
+| B-022 | Bounded, cancellable traversal prototype: std-only walker, work queue + bounded channel, depth/entry budgets, reparse points never followed | 2026-11-16 | `src-tauri/src/domain/traversal.rs`, `src-tauri/src/adapters/filesystem/traversal.rs`; 16 new Rust tests |
 | B-021 | Schema v1 (`scan_sessions`) + forward-only migration runner, checksum drift detection, refuses newer schema | 2026-11-16 | `src-tauri/migrations/0001_initial.sql`, `src-tauri/src/adapters/persistence/`; 8 new Rust tests |
 | B-020 | DB layer chosen: `rusqlite` 0.43 `bundled`, one `Mutex<Connection>`, `spawn_blocking` for callers, WAL | 2026-11-16 | ADR-018 in `docs/DECISIONS.md`; `src-tauri/Cargo.toml` |
 | B-012 | Fatal-startup dialog (`MessageBoxW`, exit 1) + React error boundary | 2026-11-16 | `src-tauri/src/startup.rs`, `src/components/ErrorBoundary.tsx` |

@@ -360,7 +360,7 @@ Set numeric budgets only after measuring baseline hardware, but track from the f
 
 ### Phase C — Storage scan engine
 
-- Prototype traversal independently behind a testable Rust interface.
+- Prototype traversal independently behind a testable Rust interface. *(Prototype landed as B-022; not yet wired to jobs or UI.)*
 - Add bounded concurrency, cancellation, reparse-point policy, permission reporting, batching, and persistence.
 - Validate performance and memory with generated large-tree fixtures before polishing treemap UI.
 
@@ -501,11 +501,11 @@ Use this checklist as the project’s execution tracker. Check an item only when
 
 **Implementation and verification**
 
-- [ ] Build a traversal prototype behind a testable interface before integrating the full UI.
-- [ ] Stream directory entries through bounded queues; do not retain the full tree in memory.
-- [ ] Implement cooperative cancellation at enumeration, enrichment, persistence, and reporting boundaries.
-- [ ] Add explicit per-entry outcomes for success, skipped, inaccessible, disappeared, unsupported, and failed.
-- [ ] Ensure one inaccessible file does not abort the entire scan unless the selected policy requires it.
+- [x] Build a traversal prototype behind a testable interface before integrating the full UI. *(B-022: `adapters/filesystem/traversal.rs`; not wired to IPC/UI.)*
+- [x] Stream directory entries through bounded queues; do not retain the full tree in memory. *(B-022: one work queue plus a fixed-capacity channel.)*
+- [ ] Implement cooperative cancellation at enumeration, enrichment, persistence, and reporting boundaries. *(Enumeration only: `Traversal::cancel`; the other boundaries do not exist yet.)*
+- [x] Add explicit per-entry outcomes for success, skipped, inaccessible, disappeared, unsupported, and failed. *(B-022 vocabulary; not rendered or persisted.)*
+- [ ] Ensure one inaccessible file does not abort the entire scan unless the selected policy requires it. *(Counters and continuation are implemented; a live denied-ACL fixture is still missing — KI-046.)*
 - [ ] Batch persistence in transactions sized by measured memory and latency budgets.
 - [ ] Add resumable or safely discardable scan-session recovery after process termination or power loss.
 - [ ] Add index/query-plan tests for the actual filter/sort/grouping UI queries.

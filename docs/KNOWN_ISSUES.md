@@ -16,7 +16,7 @@
 | KI-003 | Persistence is opened but unused | Schema v1 (`scan_sessions`) and the migration runner exist, but no IPC command reads or writes the database, and no scan-history feature exists | None needed; browsing is unaffected | B-024, B-025, B-030 |
 | KI-004 | No code signing | SmartScreen warns; tampering undetectable | Install anyway, verify hash manually | B-080 |
 | KI-005 | No license selected | Cannot be legally redistributed | Internal use only | B-084 |
-| KI-006 | Tests cover IPC, the snapshot/process/diagnostics contracts, redaction, persistence migrations, and four UI panels | Traversal, scan sessions, and process actions are untested because they do not exist; no visual/theme test exists | Manual checks only | B-002, B-008, B-021 |
+| KI-006 | Tests cover IPC, the snapshot/process/diagnostics contracts, redaction, persistence migrations, the traversal prototype, and four UI panels | Scan sessions, IPC/UI wiring for traversal, and process actions are untested because they do not exist; no visual/theme test exists | Manual checks only | B-002, B-008, B-021, B-022 |
 | KI-007 | CI has never run on GitHub | A workflow file is not a gate; broken builds can still merge | Run the gates locally per `build.md` | B-010, B-092 |
 
 ## 2. High
@@ -61,6 +61,10 @@
 | KI-041 | Working set is `access_denied` for processes owned by another account | SYSTEM and other-user rows show no memory figure | Expected without elevation; the app will not request elevation for a read-only view |
 | KI-042 | The process list is sorted by PID and has no search or filter | Locating a process by name means paging through the list | Deliberate: no unvalidated sort enum. A client-side filter over the current page would be misleading, so it waits for a Rust-side query |
 | KI-043 | Support-bundle redaction is best-effort | A pattern the redactor does not recognize (for example a bare personal name or an unusual path form) could reach the preview | No log call site may rely on redaction alone; the preview is user-initiated and reviewable before copying. Extend rules with tests when a new field is logged |
+| KI-044 | Traversal prototype has no caller | The walker cannot be exercised from the UI or IPC, and no entry is persisted, so F-051/F-052 remain partial | None needed until B-025; unit/integration tests are the only exerciser |
+| KI-045 | Reparse points are skipped, never followed | Files behind a junction, symlink, or OneDrive/cloud placeholder are counted as `skipped` and their contents are not scanned; totals can understate disk usage | Deliberate for prototype safety (ADR-019). Following needs a visited set by volume + file ID |
+| KI-046 | Denied-directory handling has no live ACL fixture | The `PermissionDenied → denied` mapping is unit-tested, but a real restricted folder has not been traversed in CI | Add a fixture that creates and removes a restricted directory, or accept a manual check |
+| KI-047 | Traversal order is nondeterministic | Parallel workers race on one queue; entry order varies between runs, so ordered exports or golden files would be unstable | Documented; sort explicitly if a feature requires stable order |
 
 ## 5. Known non-issues (documented to prevent "fixes")
 

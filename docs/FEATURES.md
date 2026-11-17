@@ -80,8 +80,8 @@ commands/processes.rs}`, `src/components/ProcessList.tsx`, `API.md` §3.3.
 | ID | Feature | Status |
 |---|---|---|
 | F-050 | Drive discovery + selection | ⏳ Not started |
-| F-051 | Cancellable directory traversal | ⏳ Not started |
-| F-052 | Per-entry outcome reporting | ⏳ Not started |
+| F-051 | Cancellable directory traversal | 🟡 Partial — bounded worker prototype in `adapters/filesystem`, cooperative cancel, depth/entry budgets; no IPC, UI, or persistence wiring |
+| F-052 | Per-entry outcome reporting | 🟡 Partial — `ok`/`skipped`/`denied`/`disappeared`/`unsupported`/`failed` produced by the traversal prototype; not rendered or persisted |
 | F-053 | Large-file summary | ⏳ Not started |
 | F-054 | Extension/type summary | ⏳ Not started |
 | F-055 | Age filters | ⏳ Not started |
@@ -91,6 +91,11 @@ commands/processes.rs}`, `src/components/ProcessList.tsx`, `API.md` §3.3.
 | F-059 | Storage recommendations (no auto-cleanup) | ⏳ Not started |
 | F-060 | Scan session history | ⏳ Not started |
 | F-061 | Treemap/sunburst visualization + text alternative | ⏳ Not started |
+
+F-051 and F-052 ship only as the B-022 prototype: a bounded, cancellable walker
+with an explicit outcome per entry. It is not exposed over IPC, has no UI, writes
+no rows, and does not follow reparse points. Drive discovery, summaries, and
+duplicate detection remain not started.
 
 ## 6. Security intelligence (Release 3)
 
@@ -150,8 +155,8 @@ Event Log summaries, crash correlation, and connection features remain Release 4
 | Status | Count |
 |---|---|
 | Implemented | 26 (23 features + 3 baseline properties) |
-| Partial | 5 (F-009 OS-follow theming; F-020 event channel; F-029 persistence foundation; F-040 process fields; F-042 hierarchy view) |
-| Not started / planned | 39 |
+| Partial | 7 (F-009 OS-follow theming; F-020 event channel; F-029 persistence foundation; F-040 process fields; F-042 hierarchy view; F-051 traversal prototype; F-052 outcome reporting) |
+| Not started / planned | 37 |
 | Gated (requires security work) | 5 |
 | Research / proposed | 2 |
 
@@ -171,7 +176,9 @@ and a startup failure that prevents a window from existing shows a native dialog
 and exits non-zero instead of panicking. Persistence groundwork is in place: a
 bundled-SQLite connection opens at startup, applies forward-only checksummed
 migrations, and creates schema v1 (`scan_sessions`) — but no feature writes or
-reads rows yet.
+reads rows yet. A traversal prototype now streams filesystem entries through a
+bounded channel with a fixed worker count, cooperative cancellation, depth/entry
+budgets, and an explicit outcome per entry; it is not yet reachable from the UI.
 
 The event channel, job registry, cancellation, saved-file bundle export, image
 paths, and everything that touches storage are still ahead.

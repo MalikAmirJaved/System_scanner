@@ -34,12 +34,13 @@ Architecture: [`ARCHITECTURE.md`](ARCHITECTURE.md).
 | Styles | Tailwind CSS v4 via `@tailwindcss/vite`; tokens in `src/styles/globals.css` | `vite.config.ts` |
 | Rust deps | `tauri 2`, `serde`, `serde_json`, `thiserror`, `tracing`/`tracing-subscriber`, `rusqlite 0.43` (bundled SQLite), `windows-sys 0.61` (Windows target) | `Cargo.toml` |
 | Release profile | LTO, `codegen-units=1`, `opt-level=3`, `panic=abort`, `strip` | `Cargo.toml` |
-| Rust files | `main.rs`, `lib.rs`, `ipc.rs`, `error.rs`, `logging.rs`, `redact.rs`, `startup.rs`, `dto/`, `commands/`, `domain/`, `ports/`, `adapters/windows/`, `adapters/persistence/` | `src-tauri/src/` |
+| Rust files | `main.rs`, `lib.rs`, `ipc.rs`, `error.rs`, `logging.rs`, `redact.rs`, `startup.rs`, `dto/`, `commands/`, `domain/`, `ports/`, `adapters/windows/`, `adapters/persistence/`, `adapters/filesystem/` | `src-tauri/src/` |
 | IPC commands | `get_app_info`, `get_system_snapshot`, `list_processes`, `get_diagnostics` (all read-only) | `src-tauri/src/commands/` |
 | Wire format | envelope `{status, data|error}`; DTO fields camelCase; codes snake_case | `API.md` §1–§2 |
 | Frontend IPC | `src/services/ipc.ts` is the only `invoke` call site | `src/services/` |
 | Database | SQLite schema **v1** (`scan_sessions`) via `rusqlite`; file at `app_data_dir()/system-scanner.db`, opened at startup, **read by no command yet** | `src-tauri/src/adapters/persistence/`, `src-tauri/migrations/` |
-| Tests | 62 Rust + 20 frontend (`npm test`, `cargo test`) | `src/**/*.test.ts(x)`, `#[cfg(test)]` |
+| Traversal | Bounded worker prototype with cancellation, depth/entry budgets, and an outcome per entry; **no IPC/UI/DB caller yet** | `src-tauri/src/adapters/filesystem/traversal.rs`, `src-tauri/src/domain/traversal.rs` |
+| Tests | 78 Rust + 20 frontend (`npm test`, `cargo test`) | `src/**/*.test.ts(x)`, `#[cfg(test)]` |
 | CI | `.github/workflows/ci.yml` (**never run on GitHub**) | `.github/` |
 | Frontend | shell header + backend status + system snapshot + paged process list + on-request diagnostics in a responsive 1/2/3-column grid, inside an `ErrorBoundary` | `src/App.tsx`, `src/components/`, `src/components/ui/button.tsx` |
 
@@ -53,7 +54,9 @@ If any of these change, update this table in the same commit.
   session IDs (ADR-013), and it is not sortable or searchable.
 - Neither command reads services, startup entries, files, or event logs.
 - No IPC events, job registry, cancellation, or concurrency budgets.
-- No startup/service collectors, and no storage traversal.
+- No startup/service collectors, and no storage scan. A traversal prototype
+  (`adapters/filesystem`) enumerates entries into an in-memory stream with
+  cancellation and budgets, but no command, UI, or persistence path consumes it.
 - No scan history, repositories, or IPC command that reads the database.
   `adapters/persistence` exists, schema v1 creates `scan_sessions`, and startup
   opens the file — but **no rows are written or read**.
@@ -99,12 +102,13 @@ Avoid: "clean", "infected", "optimize", "fix" for anything that is not verified.
 | Business rules, policies | `src-tauri/src/domain/` (implemented for the snapshot and process paging) — no Windows, no SQL |
 | Declare a capability trait | `src-tauri/src/ports/` (implemented) |
 | Call Win32/WMI/registry | `src-tauri/src/adapters/windows/` (implemented) |
+| Enumerate files/directories | `src-tauri/src/adapters/filesystem/` (prototype B-022); keep policy and counters in `domain/traversal.rs` |
 | Query SQLite | `src-tauri/src/adapters/persistence/` (implemented — direct adapters only so far; add a port when a use case needs one) |
 | Export a report | `src-tauri/src/reporting/` (planned) |
 
-`src/`, `commands/`, `dto/`, `domain/`, `ports/`, `adapters/windows/`, and
-`adapters/persistence/` exist. Create the remaining directories when the first
-feature needs them; do not scaffold empty modules.
+`src/`, `commands/`, `dto/`, `domain/`, `ports/`, `adapters/windows/`,
+`adapters/persistence/`, and `adapters/filesystem/` exist. Create the remaining
+directories when the first feature needs them; do not scaffold empty modules.
 
 ## 6. Non-negotiable invariants
 

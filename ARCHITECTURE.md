@@ -34,6 +34,7 @@
 │   ports/               -> narrow capabilities           │
 │   adapters/windows/    -> windows-sys only              │
 │   adapters/persistence/-> rusqlite + migrations         │
+│   adapters/filesystem/ -> bounded traversal prototype   │
 │   ipc.rs / error.rs    -> envelope + taxonomy           │
 │   logging.rs           -> bounded, redacted file logs   │
 │   redact.rs            -> path/identity scrubbing       │
@@ -45,8 +46,9 @@
 ┌───────────────────────▼─────────────────────────────────┐
 │ Rust std + tauri + serde/thiserror + tracing + rusqlite   │
 │ + windows-sys: four read-only commands, bounded local     │
-│ logs, on-request redacted diagnostics, and an open-but-   │
-│ unused schema-v1 database; no storage, jobs, or events    │
+│ logs, on-request redacted diagnostics, an open-but-unused │
+│ schema-v1 database, and an unwired traversal prototype;   │
+│ no storage scan, jobs, or events                          │
 └───────────────────────────────────────────────────────────┘
 ```
 
@@ -76,19 +78,25 @@
 - Opening the database is confined to `adapters/persistence/`. `domain/` still
   imports no SQL and no driver type. The file is opened at startup, migrations
   run, and the handle is stored in Tauri state.
+- Filesystem enumeration is confined to `adapters/filesystem/`. The prototype
+  streams entries through a bounded channel, checks cancellation between entries,
+  reports depth/entry limits, and never follows reparse points. `domain/` holds
+  only the outcome vocabulary and counters.
 
 **Properties that do not hold yet**
 
-- No events, job registry, or cancellation.
+- No events, job registry, or cancellation at the job level.
 - No command reads or writes the database; schema v1 holds no user rows.
-- No startup, service, storage, or security collectors.
+- No IPC command, UI, or persistence path consumes the traversal prototype.
+- No startup, service, storage summary, or security collectors.
 - No navigation or routing.
 - Tests cover the IPC contract, the snapshot/process/diagnostics domain and DTOs,
   both Windows adapters' structural invariants, paging boundaries, logging,
   redaction, startup message text, migration ordering/checksums, schema creation,
-  WAL mode, schema-version refusal, and the four UI panels plus the error
-  boundary. Traversal, scan sessions, and file-record persistence are untested
-  because they do not exist.
+  WAL mode, schema-version refusal, traversal outcomes/budgets/cancellation/long
+  and Unicode paths/junction loops, and the four UI panels plus the error
+  boundary. Scan sessions, file-record persistence, and UI wiring for traversal
+  are untested because they do not exist.
 - CI exists as a file but has never run on GitHub.
 - CI exists as a file but has never run on GitHub.
 
@@ -136,7 +144,7 @@ Rust core (no Windows imports)
 | `ports/`                | Narrow traits for OS, storage, export                             | Leak platform handles                 |
 | `adapters/windows/`     | Win32/WMI/registry/Defender access, `unsafe` isolation          | Leak raw handles upward               |
 | `adapters/persistence/` | SQLite repositories, migrations                                   | Contain business rules                |
-| `adapters/filesystem/`  | Traversal, identity checks, quarantine storage                    | Decide policy                         |
+| `adapters/filesystem/`  | Traversal prototype (read-only); identity checks and quarantine storage are not started | Contain business rules; follow reparse points; write |
 | `reporting/`            | Export formats, redaction                                         | Read the OS directly                  |
 | `src/services/` (FE)    | Typed `invoke()` wrappers, event subscriptions                  | Format data for display               |
 | `src/features/` (FE)    | Screens, feature state, user flows                                | Call `invoke()` directly            |
@@ -197,6 +205,33 @@ repository or command uses them yet. See [`DATABASE.md`](DATABASE.md) and
 The app runs unelevated by default. Any operation requiring elevation is a
 separate, explicitly authorized command that fails safely when elevation is
 denied. It never shares a code path with read-only collection.
+
+### 4.5 Filesystem boundary
+
+Only `adapters/filesystem/` may enumerate directories. `domain/` decides what an
+entry *means* (kind, skip reason, outcome, limits, counters) and performs no I/O;
+the adapter reads metadata and `read_dir` and streams results.
+
+The current capability is a **read-only traversal prototype**:
+
+- roots and limits are validated before any thread starts (absolute paths, root
+  and worker and capacity caps);
+- a fixed worker pool pulls directory jobs from one work queue; entries are
+  pushed through a bounded channel, so a slow consumer slows the walk instead of
+  growing memory;
+- cancellation and an optional entry budget stop the walk between entries; a
+  budget stop is reported as `truncated`, never as a complete scan;
+- every observed entry gets exactly one outcome (`ok`, `skipped`, `denied`,
+  `disappeared`, `unsupported`, `failed`), and nothing is dropped silently;
+- reparse points (symlinks, junctions, other Windows reparse attributes,
+  including cloud placeholders) are reported and **never followed**, so a
+  junction loop cannot hang the walk. Following them would need a visited set
+  keyed by volume + file ID.
+
+The prototype writes nothing: no database row, no log line carrying a path, no
+IPC response, no UI state. Wiring it to scan jobs (B-025) and a batch writer
+(B-024) is a separate change and requires the retention decision in
+[`docs/plan.md`](docs/plan.md) §12.
 
 ## 5. Data flow: a scan (proposed)
 

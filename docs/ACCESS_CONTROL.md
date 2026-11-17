@@ -67,6 +67,12 @@ policy. This defends against a capability misconfiguration.
 | Irreversible system change | permanent delete | User, explicit confirmation | Audit + backup + strongest warning |
 | Privileged change | stop service, terminate protected process | Elevated user, explicit confirmation | Elevation + audit |
 
+The B-022 filesystem traversal is read-only collection but is **not exposed over
+IPC**, so it grants no new capability. When a scan command is added, root
+selection must be validated in Rust (absolute, capped count and length, no device
+paths) and remains a standard-user operation; directories the user cannot read
+are reported as `denied`, never bypassed.
+
 ## 5. Layer 4 — Protected paths
 
 Proposed default-deny list (to be finalized before any write feature):

@@ -14,6 +14,14 @@ exists. Until then, `0.x` versions may change behavior without notice.
 ## [Unreleased]
 
 ### Added
+- **Bounded traversal prototype (implemented, not wired).** `domain/traversal`
+  defines entry kinds, skip reasons, the outcome taxonomy, limits, and counters;
+  `adapters/filesystem/traversal` walks roots with a fixed worker pool, an
+  explicit work queue, a bounded entry channel (backpressure), cooperative
+  cancellation, and depth/entry budgets reported as `truncated`. Reparse points
+  (symlinks, junctions, other Windows reparse attributes) are reported and never
+  followed, so a junction loop cannot hang the walk. Paths stay in memory: no
+  IPC command, UI, log line, or database row uses this yet.
 - **Persistence foundation (implemented).** `rusqlite` 0.43 with bundled SQLite
   opens `app_data_dir()/system-scanner.db` at startup, applies forward-only
   migrations, and stores the handle in Tauri state. Schema **v1 adds

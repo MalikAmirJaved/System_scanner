@@ -52,6 +52,10 @@ Rule: a partial snapshot is **success with warnings**, never a silent zero.
 
 ## 5. Storage scan
 
+Status: the traversal rows below are implemented in the B-022 prototype (tested
+on Windows temp trees); the persistence, hashing, and session rows are **not
+started**.
+
 | Failure | Handling |
 |---|---|
 | Directory access denied | Count `denied`, continue |
@@ -66,6 +70,13 @@ Rule: a partial snapshot is **success with warnings**, never a silent zero.
 | Hashing exceeds size cap | `skipped`, explicitly reported |
 | Metadata changes mid-scan | Record last observed; label scan approximate |
 | Millions of entries | Backpressure slows traversal; memory stays flat |
+
+Implemented behavior differs from the target in two places: a reparse loop is
+prevented by **never following reparse points** (no visited set), and a worker
+panic is returned as `TraversalError::WorkerPanicked` by the prototype rather
+than taking down the job registry, which does not exist yet. Memory is flat with
+respect to file count; the pending-directory queue still grows with the breadth of
+the tree being examined.
 
 ## 6. Persistence
 

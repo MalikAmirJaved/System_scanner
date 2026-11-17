@@ -13,7 +13,7 @@
 | Capability | Status |
 |---|---|
 | CI provider | GitHub Actions workflow committed (`.github/workflows/ci.yml`); never executed |
-| Automated tests | `npm test` (20 tests), `cargo test` (62 tests) |
+| Automated tests | `npm test` (20 tests), `cargo test` (78 tests) |
 | Automated lint/format | ESLint, Prettier, rustfmt, clippy — in the workflow and runnable locally |
 | Release automation | None |
 | Artifact storage | `upload-artifact@v4` for the NSIS installer, 14-day retention (untested) |

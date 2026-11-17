@@ -25,6 +25,43 @@
 
 ---
 
+## 2026-11-16 — Traversal prototype: bounded workers + outcome taxonomy (B-022)
+
+- **Agent/tool:** OpenCode (DeepSeek V4.1 Flash Free).
+- **Scope:** `src-tauri/src/domain/traversal.rs`,
+  `src-tauri/src/adapters/filesystem/{mod,traversal}.rs`,
+  `src-tauri/src/{domain,adapters}/mod.rs`; status/design docs.
+- **Change:**
+  - Added a third adapter family, `adapters/filesystem`, and its first read-only
+    capability: a streaming walker with a direct `std` implementation.
+  - Added `domain/traversal` with `EntryKind`, `SkipReason`, `EntryOutcome`,
+    `FileEntry`, `TraversalLimits`, and `TraversalSummary`. It performs no I/O and
+    imports no platform crate; `std::io::ErrorKind` is the only std surface.
+  - The walker uses one work queue protected by a mutex/condvar, a fixed worker
+    count, a `SyncSender`/`Receiver` pair with a caller-chosen capacity, and an
+    atomic entry budget. Files stream one at a time, and the queue grows only with
+    the pending-directory frontier, not with the total file count.
+  - Cancellation is checked between entries and communicated to waiting workers.
+    An entry budget stops the walk and is reported as `truncated`, never as a
+    complete scan.
+  - Reparse points are detected from Windows file attributes and never followed;
+    roots are classified before opening so a junction root is not traversed
+    either. Following them would need a visited set by volume + file ID.
+  - No IPC command, event, UI, log line, or database write was added. The module
+    carries a scoped `#[allow(dead_code)]` until B-025 wires scan jobs.
+- **Why:** B-022 is the highest-risk Release 1 component; validating boundedness,
+  cancellation, and reparse behaviour before building scan orchestration keeps
+  later failures cheaper.
+- **Risk:** Parallel traversal is nondeterministic in entry order; callers must
+  not rely on it. Extra `symlink_metadata` calls occur per entry and per directory.
+  OneDrive placeholders and other reparse points are skipped rather than read.
+- **Evidence:** `cargo fmt --all -- --check`, `cargo clippy --all-targets -- -D
+  warnings`, `cargo test` (78 passed), frontend gates unchanged (20 passed).
+- **Follow-up:** B-024 (batch writer), B-025 (job orchestration + IPC), B-030
+  (interrupted-session reconciliation), threat model B-040, live ACL fixture.
+
+---
+
 ## 2026-11-16 — Persistence foundation: schema v1 + migration runner (B-020, B-021)
 
 - **Agent/tool:** OpenCode (DeepSeek V4.1 Flash Free).

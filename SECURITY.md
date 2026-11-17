@@ -77,11 +77,12 @@ Full analysis: [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md).
 | Minimal webview capability set | `src-tauri/capabilities/default.json` → `core:default` only | No fs/shell/http plugins |
 | Content Security Policy restricting remote origins | `src-tauri/tauri.conf.json` | `default-src 'self'`; no `connect-src` to the internet |
 | No HTTP client dependency | `src-tauri/Cargo.toml`, `package.json` | Zero network capability in code |
-| No shell execution | no shell plugin, no `Command::new` | |
+| No shell execution | no shell plugin; the only `Command::new` is a `#[cfg(test)]` junction fixture | Test-only; never compiled into a release path |
 | Release binary hardening | `Cargo.toml`: LTO, strip, `panic = "abort"` | Note: abort means no unwind recovery |
 | No telemetry | no analytics dependency | |
-| Minimal dependency set | 3 runtime JS deps; 1 Rust dep | Small attack surface |
+| Minimal dependency set | `docs/DEPENDENCIES.md` §3 | Small attack surface; `cargo audit` gate not automated |
 | No elevation manifest | `tauri.conf.json` | Runs as the invoking user |
+| Read-only filesystem traversal | `src-tauri/src/adapters/filesystem/traversal.rs` | Validates roots/limits, bounded workers and channel, never follows reparse points; not reachable from IPC/UI |
 
 ## 6. Known gaps (must close before any public release)
 
@@ -91,7 +92,7 @@ Full analysis: [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md).
 | No updater / signed update channel | Users stay on vulnerable builds | `docs/RELEASE_POLICY.md` |
 | No dependency advisory gate in CI | Silent vulnerable transitive deps | `docs/DEVOPS.md` |
 | No SBOM | Unverifiable supply chain | `docs/DEVOPS.md` |
-| No threat-model review of file operations | Path traversal / TOCTOU risk when writes land | `docs/THREAT_MODEL.md` |
+| No threat-model review of file operations | Read-only traversal exists (B-022) without a formal B-040 review; path/TOCTOU risk grows when write paths land | `docs/THREAT_MODEL.md` |
 | No audit trail implementation | No accountability for control operations | `docs/AUDIT_LOGGING.md` |
 | No security contact published | Slow disclosure | `docs/INCIDENT_RESPONSE.md` |
 | CSP allows `style-src 'unsafe-inline'` | Style injection if XSS exists | Revisit when styling changes |

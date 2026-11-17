@@ -1,13 +1,14 @@
 # Testing Strategy
 
-> **Status:** **Runners are configured; coverage is still narrow.** 62 Rust tests
+> **Status:** **Runners are configured; coverage is still narrow.** 78 Rust tests
 > and 20 frontend tests cover the IPC contract (envelope, error taxonomy, DTO
 > shapes), the snapshot and process domain rules, both native adapters'
 > structural invariants, logging/redaction, startup messages, schema creation and
-> migration-runner refusal paths, four UI panels, and the render error boundary.
-> Nothing tests traversal, scan sessions, or end-to-end flows yet, because those
-> features do not exist. This document defines the target strategy and the minimum
-> bar for new work.
+> migration-runner refusal paths, the traversal prototype (outcomes, budgets,
+> cancellation, long/Unicode paths, junction loops), four UI panels, and the
+> render error boundary. Nothing tests scan sessions, IPC/UI wiring for traversal,
+> or end-to-end flows yet, because those features do not exist. This document
+> defines the target strategy and the minimum bar for new work.
 > **Last updated:** 2026-11-16
 
 ---
@@ -16,7 +17,7 @@
 
 | Level | Tool | Configured | Tests |
 |---|---|---|---|
-| Rust unit/integration | `cargo test` | Yes | 62 (`ipc`, `error`, `logging`, `redact`, `startup`, `dto::*`, `domain::*`, `adapters::windows::*`, `adapters::persistence::*`, `commands::*`) |
+| Rust unit/integration | `cargo test` | Yes | 78 (`ipc`, `error`, `logging`, `redact`, `startup`, `dto::*`, `domain::*`, `adapters::windows::*`, `adapters::persistence::*`, `adapters::filesystem::*`, `commands::*`) |
 | Frontend unit | Vitest 5 + jsdom | Yes | 3 (`services/ipc.test.ts`) |
 | Frontend component | Testing Library 16 | Yes | 17 (`BackendStatus`, `ThemeToggle`, `SystemOverview`, `ProcessList`, `Diagnostics`, `ErrorBoundary`) |
 | E2E | tauri-driver / WebDriver (proposed) | No | 0 |
@@ -53,7 +54,22 @@ What the existing tests actually establish, and nothing more:
   directory, reopening applies nothing new, a newer schema is refused, and an
   edited released migration is detected by checksum;
 - the migration list starts at 1, strictly increases, ends at `SCHEMA_VERSION`,
-  and every declared checksum matches its SQL.
+  and every declared checksum matches its SQL;
+- traversal counts each outcome exactly once and only `ok` entries contribute
+  bytes; limits are clamped and a zero entry cap means "unbounded";
+- a nested tree, an empty root, a missing root, and a file root each produce the
+  expected entries and counters on the real filesystem;
+- the depth limit reports the skipped directory without hiding it and does not
+  emit entries below it;
+- an entry budget stops the walk at the cap and sets `truncated` (not
+  `cancelled`), and cancellation stops a larger tree early while keeping partial
+  counters;
+- Unicode names survive the round trip, and a path longer than 260 characters is
+  created and traversed;
+- a Windows junction loop is reported once as a skipped reparse point and is not
+  descended into;
+- invalid traversal requests (no roots, relative root, too many roots, worker
+  count, channel capacity) are rejected before any thread starts.
 
 They do **not** establish that the UI is visually correct under WebView2; layout
 and theme appearance still need a manual smoke test.
@@ -115,6 +131,15 @@ Use temporary directories and generated fixtures. Required scenarios:
 | Interrupted session (kill process) | Session recoverable or safely discardable |
 | Duplicate candidates | Size filter first, hash only when eligible |
 | DB disk-full simulation | Session marked failed, prior data intact |
+
+Covered by the B-022 prototype today: empty directory, junction/reparse loop,
+Unicode + long path (> 260), and cancellation (asserted at start). Permission
+denied, file deleted mid-scan, locked file, interrupted session, duplicate
+candidates, and DB disk-full still require scan sessions or an enrichment stage
+and are untested.
+
+The prototype deliberately has **no new crate**: enumeration uses `std::fs`, and
+`walkdir` is no longer planned (`docs/DEPENDENCIES.md` §6).
 
 ### 2.4 Frontend tests
 
@@ -206,11 +231,12 @@ Formal support matrix is an open decision (`docs/plan.md` §12).
 When reporting test results, state exactly what ran:
 
 ```text
-cargo test            -> 62 tests passed (ipc, error, logging, redact, startup,
+cargo test            -> 78 tests passed (ipc, error, logging, redact, startup,
                          dto::{app_info, system_snapshot, process_list,
-                         diagnostics}, domain::{system, process, diagnostics},
-                         adapters::windows::{system_info, processes},
+                         diagnostics}, domain::{system, process, diagnostics,
+                         traversal}, adapters::windows::{system_info, processes},
                          adapters::persistence::{migrations, sqlite},
+                         adapters::filesystem::traversal,
                          commands::{app, system, processes, diagnostics})
 npm test              -> 20 tests passed (7 files: ipc, BackendStatus, ThemeToggle,
                          SystemOverview, ProcessList, Diagnostics, ErrorBoundary)
@@ -218,5 +244,5 @@ npm run build         -> passed (tsc + vite)
 ```
 
 Never summarize "all tests pass" without stating the counts and what they cover —
-eighty-two tests that mostly assert read-only contracts say nothing about
-traversal, scan sessions, or crash recovery.
+ninety-eight tests that mostly assert read-only contracts say nothing about scan
+sessions, crash recovery, or the UI that will consume traversal.

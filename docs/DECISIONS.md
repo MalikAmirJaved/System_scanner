@@ -587,6 +587,66 @@ hand-written SQL, or the bundled SQLite build becomes a distribution problem.
 
 ---
 
+## ADR-019 — Directory traversal: custom `std` walker, no third-party crate
+
+**Status:** Accepted · 2026-11-16
+
+**Context.** B-022 required a traversal prototype before scan orchestration, and
+`docs/DEPENDENCIES.md` §6 had a placeholder: `walkdir` *or* a custom walker,
+decided after the prototype. Constraints that matter more than convenience:
+
+- cancellation must be observable between entries, not only between directories;
+- memory must stay flat when a tree has millions of entries, so entries must
+  stream with backpressure rather than be collected;
+- reparse points must be detectable and never followed, including junctions and
+  cloud placeholders;
+- the adapter must stay auditable and compile without extra licenses.
+
+**Options.**
+
+1. `walkdir` — mature, handles depth and symlink policy, yields an iterator.
+2. `jwalk` — parallel walk with rayon.
+3. Custom walker on `std::fs` with a work queue and bounded channel.
+
+**Decision.** Custom implementation, **no new dependency**.
+
+- `domain/traversal` owns the vocabulary: `EntryKind`, `SkipReason`,
+  `EntryOutcome`, `FileEntry`, `TraversalLimits`, `TraversalSummary`, plus the
+  pure `classify_io_error` / `classify_kind` functions. It performs no I/O.
+- `adapters/filesystem/traversal` owns enumeration: one `VecDeque` work queue
+  behind a `Mutex`/`Condvar`, a fixed worker count, and a `SyncSender<FileEntry>`
+  with a caller-chosen capacity. A slow consumer blocks producers.
+- Cancellation is an `AtomicBool` checked between entries, with the condition
+  variable notified so idle workers exit. `join()` drops the receiver, which
+  releases any worker blocked in `send`.
+- Depth is bounded (default 64, clamped to 4096). An optional entry budget stops
+  the walk and sets `truncated`; it is never reported as a complete scan.
+- Reparse points are detected from `FILE_ATTRIBUTE_REPARSE_POINT` (Windows) or
+  `file_type().is_symlink()` elsewhere and are **reported and skipped**, never
+  followed. Roots are classified before they are opened.
+- No IPC command, UI, or database write consumes the prototype yet.
+
+**Consequences.**
+
+- `walkdir` is removed from the planned-dependency list. The incremental cost is
+  that depth/entry policy, cancellation, and reparse handling are our tests, not
+  a library's (see `TESTING.md` §1).
+- Traversal order is nondeterministic because workers race on the queue; callers
+  must not depend on order. Tests assert counts and membership, not sequence.
+- Because reparse points are never followed, a junction or OneDrive placeholder
+  is counted as skipped, and content behind it is not scanned. Following would
+  require a visited set keyed by volume + file ID to stay cycle-safe; deferred.
+- Denied directories are counted and the walk continues. The outcome mapping is
+  unit-tested; a live ACL fixture is still a gap.
+- Threads are unbounded per traversal by request field but capped at
+  `MAX_WORKERS` (16), roots at 64, and channel capacity at 65,536.
+
+**Revisit if:** we need ordered traversal for reproducible exports, we decide to
+follow reparse points (visited-set design required), or a benchmark on the
+100k/1M fixtures (`B-032`) shows the worker pool is the bottleneck.
+
+---
+
 ## Template
 
 ```text

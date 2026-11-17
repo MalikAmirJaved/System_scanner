@@ -126,6 +126,17 @@ Discover ──► Traverse ──► Collect ──► Aggregate ──► Enri
 - Cancellation checked per directory batch and per N entries.
 - Metadata is captured once per entry; no re-stat loops.
 
+**Status of the B-022 prototype (implemented, not wired):** bounded workers
+(`MAX_WORKERS` 16) pull directory jobs from one mutex/condvar queue and stream
+owned `FileEntry` values through a bounded channel; that queue replaces the
+"explicit stack" wording above. Cancellation is checked between entries and
+between queued jobs. Each entry gets one outcome, and a hit on the optional entry
+budget is reported as `truncated`. Reparse points are **not followed at all**, so
+volume+file-ID cycle detection is unnecessary today; adding it is a precondition
+for following them. One `symlink_metadata` call classifies each entry and is
+repeated before a directory is opened (TOCTOU guard on the path, not an identity
+check). Scan sessions, batching, and progress events do not exist yet.
+
 ### 4.3 Deduplication
 
 1. Group by exact size (cheap).

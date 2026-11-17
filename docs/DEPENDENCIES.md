@@ -118,7 +118,7 @@ non-Windows hosts.
 
 | Dependency | Would be used for | Gate |
 |---|---|---|
-| `walkdir` **or** custom traversal | Directory enumeration | Decide after prototype (B-022) |
+| `walkdir` **or** custom traversal | Directory enumeration | **Decided: custom `std` traversal** (B-022); `walkdir` not added |
 | `sha2`, `blake3` | Hashing | Release 1 (B-028) |
 | `tempfile` (dev) | Test fixtures | First filesystem test |
 | `zod` (optional) | Runtime DTO validation in the renderer | Only if hand-written guards prove insufficient (B-090) |

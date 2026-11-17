@@ -54,6 +54,11 @@ Toolhelp snapshot once (capped at 8192 entries) and opens each process only
 long enough to read its start time and working set. Neither duration has been
 measured on the baseline machines above (KI-039).
 
+**Traversal prototype:** the B-022 walker is designed for flat memory (per-entry
+streaming through a fixed-capacity channel) but has **no benchmark yet**. The
+throughput and RSS targets above apply to a scan once B-032 generates the
+100k/1M fixtures. Do not cite the design as evidence of a measured budget.
+
 ## 4. Measurement methodology
 
 ### 4.1 Baseline machines (proposed)
@@ -126,6 +131,7 @@ Ordered by impact:
 |---|---|---|---|---|---|
 | 2026-11-06 | `ab941a1` | installer size | — | 1.41 MB | unsigned |
 | 2026-11-06 | `ab941a1` | JS bundle | — | 222 KB | welcome screen only |
+| 2026-11-16 | — | traversal prototype | ad-hoc temp trees | not run | no 100k/1M fixture; B-032 |
 
 ## 9. Power and thermals
 

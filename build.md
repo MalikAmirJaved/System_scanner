@@ -80,7 +80,7 @@ cd src-tauri
 cargo check                 # Verified
 cargo fmt --all -- --check  # Verified: 0 diffs (no rustfmt.toml: defaults apply)
 cargo clippy --all-targets -- -D warnings   # Verified: 0 warnings
-cargo test                  # Verified: 62 tests pass
+cargo test                  # Verified: 78 tests pass
 ```
 
 Application logs (release and dev): Tauri's `app_log_dir()`
@@ -96,7 +96,7 @@ non-fatal and reported on stderr.
 | Frontend format         | `npm run format:check`                      | Available — Prettier 3                            |
 | Rust format             | `cargo fmt --all -- --check`                | Available                                          |
 | Rust lint               | `cargo clippy --all-targets -- -D warnings` | Available                                          |
-| Rust tests              | `cargo test`                                | Available (62 tests)                               |
+| Rust tests              | `cargo test`                                | Available (78 tests)                               |
 | Dependency audit (JS)   | `npm audit --omit=dev`                      | Available                                          |
 | Dependency audit (Rust) | `cargo audit`                               | **Planned** — `cargo-audit` not installed |
 
@@ -203,4 +203,5 @@ npm run tauri icon <path>   # Available today via CLI, not scripted
 | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | 2026-11-06 | Initial verified command reference (scaffold state)                                                                                                                      |
 | 2026-11-16 | `cargo test` count 54 → 62 after persistence tests; noted bundled SQLite needs the C toolchain     |
+| 2026-11-16 | `cargo test` count 62 → 78 after the traversal prototype (no new dependency)                     |
 | 2026-11-06 | Corrected `cargo fmt`/`clippy` status (components were not installed); added `npm test`, `npm run lint`, `npm run format:check`; noted `rust-toolchain.toml` |

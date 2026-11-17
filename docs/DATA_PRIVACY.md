@@ -1,8 +1,10 @@
 # Data Privacy
 
-> **Status:** No data is collected or persisted today. This document defines the
-> privacy rules **before** persistence exists.
-> **Last updated:** 2026-11-06
+> **Status:** A SQLite file is created at startup and a traversal prototype keeps
+> paths in memory, but no personal data, path, or scan result is persisted or
+> exported today. This document defines the privacy rules **before** persistence
+> exists.
+> **Last updated:** 2026-11-16
 
 ---
 
@@ -41,6 +43,11 @@ Rules:
 startup, containing the schema bookkeeping table and an empty `scan_sessions`
 table. **No personal data, path, or scan result is written to it yet.** Logs
 (5 × 10 MB rolling) are also written.
+
+**Traversal prototype (implemented, not wired):** full file paths are held in
+memory for the lifetime of a traversal and discarded when the stream ends. They
+are not logged, exported, sent over IPC, or written to the database. Log call
+sites never receive a path from this module.
 
 Everything below beyond those two facts is **proposed**:
 
