@@ -1,6 +1,6 @@
 # Backlog
 
-> **Status:** Active · **Last updated:** 2026-11-16
+> **Status:** Active · **Last updated:** 2026-11-17
 >
 > Priority: **P0** blocks Release 0 / trust, **P1** needed for V1, **P2** V2+,
 > **P3** nice to have. IDs are stable; do not renumber.
@@ -115,7 +115,7 @@ unit mapping, not by a live ACL fixture.
 | B-087 | Splash-free startup measurement | P2 |
 | B-088 | Remove generated `gen/schemas` ambiguity (gitignored) | P3 |
 | B-089 | Decide whether `dist/` and `target/` stay in the working tree | P3 |
-| B-090 | Runtime-validate IPC responses in `src/services` | P0 |
+| B-090 | ✅ Runtime-validate IPC responses in `src/services` | P0 |
 | B-091 | ✅ Scope the `error` dead-code allowance to `ErrorCode` | P0 |
 | B-092 | Get the first green CI run and enable branch protection | P0 |
 
@@ -133,6 +133,7 @@ unit mapping, not by a live ACL fixture.
 
 | ID | Item | Completed | Evidence |
 |---|---|---|---|
+| B-090 | Runtime validation of every IPC response and scan event: mandatory guard in `invokeCommand`, `schemaVersion`/enum/counter/collection-cap checks, `IpcContractError` → `contract_violation` in panels, malformed events reported and re-synced. No dependency added (ADR-022) | 2026-11-17 | `src/services/validate.ts`, `src/services/{app,system,processes,diagnostics,scan,unavailable}.ts`, `src/lib/errors.ts`; 31 new frontend tests (76 total) |
 | B-024 (minimal) | `ScanSessionStore` port + SQLite writer: one counters-only `scan_sessions` row per scan, begin/finish best-effort, startup marks open rows `interrupted`; migration `0002_scan_session_results.sql` (schema v2). No paths, no per-entry rows, no read command | 2026-11-17 | `src-tauri/src/ports/sessions.rs`, `src-tauri/src/adapters/persistence/sessions.rs`, `src-tauri/migrations/0002_scan_session_results.sql`; 11 new Rust tests |
 | B-025 | In-memory scan job supervisor: one scan at a time, `start_scan`/`cancel_scan`/`get_scan_status`, paced `scan:*` events (counters only), shutdown cancel. No UI, no picker, no persistence (B-024) | 2026-11-17 | `src-tauri/src/app/jobs.rs`, `src-tauri/src/domain/job.rs`, `src-tauri/src/dto/scan.rs`, `src-tauri/src/commands/scan.rs`; 24 new Rust tests |
 | B-023 | Outcome taxonomy finished: stable snake_case codes for outcomes/skip reasons, derived `Completeness` verdict (`complete`/`partial`/`truncated`/`cancelled`), live denied-ACL fixture | 2026-11-17 | `src-tauri/src/domain/traversal.rs`, `src-tauri/src/adapters/filesystem/traversal.rs`; 4 new Rust tests. Not persisted or sent over IPC yet |

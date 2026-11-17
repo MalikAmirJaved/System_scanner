@@ -2,7 +2,7 @@
 
 > **Purpose:** the minimum context an AI agent needs to work correctly in this
 > repository. Read this before touching code.
-> **Last updated:** 2026-11-16
+> **Last updated:** 2026-11-17
 
 ---
 
@@ -38,10 +38,10 @@ Architecture: [`ARCHITECTURE.md`](ARCHITECTURE.md).
 | IPC commands | `get_app_info`, `get_system_snapshot`, `list_processes`, `get_diagnostics`, plus `start_scan`, `cancel_scan`, `get_scan_status` (B-025). All read-only; the scan commands are called by `ScanPanel` through `src/services/scan.ts` | `src-tauri/src/commands/` |
 | IPC events | `scan:progress`, `scan:completed`, `scan:failed`, `scan:cancelled` (aggregate counters only, paced to 10/s) | `API.md` §4.1, `src-tauri/src/app/jobs.rs` |
 | Wire format | envelope `{status, data|error}`; DTO fields camelCase; codes snake_case | `API.md` §1–§2 |
-| Frontend IPC | `src/services/ipc.ts` is the only `invoke` call site | `src/services/` |
+| Frontend IPC | `src/services/ipc.ts` is the only `invoke` call site; every response and scan event is validated in the renderer by hand-written guards (`src/services/validate.ts`, B-090) | `src/services/` |
 | Database | SQLite schema **v2** (`scan_sessions`) via `rusqlite`; file at `app_data_dir()/system-scanner.db`, opened at startup. One counters-only row is written per scan through the `ScanSessionStore` port (best-effort); leftover open rows become `interrupted` at startup. **No paths stored; no command reads rows back** | `src-tauri/src/adapters/persistence/`, `src-tauri/migrations/` |
 | Traversal | Bounded worker prototype with cancellation, depth/entry budgets, an outcome per entry with stable codes, and a derived `Completeness` verdict (B-023); driven by an in-memory scan job (B-025) shown in the Storage scan panel; **persisted only as a counters-only session row** | `src-tauri/src/adapters/filesystem/traversal.rs`, `src-tauri/src/domain/traversal.rs` |
-| Tests | 120 Rust + 45 frontend (`npm test`, `cargo test`) | `src/**/*.test.ts(x)`, `#[cfg(test)]` |
+| Tests | 120 Rust + 76 frontend (`npm test`, `cargo test`) | `src/**/*.test.ts(x)`, `#[cfg(test)]` |
 | CI | `.github/workflows/ci.yml` (**never run on GitHub**) | `.github/` |
 | Frontend | shell header + backend status + system snapshot + paged process list + storage scan panel (roots text box, start/cancel, live counts, completeness verdict; no folder picker) + on-request diagnostics in a responsive 1/2/3-column grid, inside an `ErrorBoundary` | `src/App.tsx`, `src/components/`, `src/components/ui/button.tsx` |
 
@@ -71,7 +71,9 @@ If any of these change, update this table in the same commit.
   local files.
 - No app shell navigation or routing — one screen with five panels (backend
   status, system snapshot, process inventory, storage scan, diagnostics).
-- No runtime validation of IPC response payloads in the frontend.
+- No runtime schema generation: the response guards are hand-written and must be
+  updated with each DTO change (ADR-022). A renamed field fails as
+  `contract_violation`; a new field is invisible until a guard copies it.
 - No auto-updater, code signing, or telemetry.
 - No network access of any kind.
 

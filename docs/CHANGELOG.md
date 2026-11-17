@@ -13,6 +13,19 @@ exists. Until then, `0.x` versions may change behavior without notice.
 
 ## [Unreleased]
 
+### Fixed
+- **Every IPC response and scan event is validated in the renderer (B-090).**
+  `invokeCommand` now requires a guard for the command's DTO, so an unvalidated
+  call site does not compile. Guards check the envelope status, the `AppError`
+  payload and its code enum, `schemaVersion`, enum values, counters as
+  non-negative integers, and collection caps; only known fields are copied and a
+  present field of the wrong type is rejected rather than defaulted. A mismatch
+  throws `IpcContractError` (`source`, field path, expected type), which panels
+  show as `contract_violation` instead of rendering `undefined`; messages never
+  include payload values. Malformed `scan:*` payloads are reported and dropped,
+  and the panel re-reads `get_scan_status`. No dependency added (ADR-022).
+  31 new frontend tests (76 total).
+
 ### Added (UI)
 - **Storage scan panel.** Type one or more absolute folder paths, start a
   read-only scan, watch live file/size/skipped counts, and cancel. A finished scan

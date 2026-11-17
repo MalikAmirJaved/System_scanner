@@ -11,6 +11,7 @@ import {
   type ScanStatus,
 } from "../services/scan";
 import { ScanPanel } from "./ScanPanel";
+import { IpcContractError } from "../services/validate";
 
 vi.mock("../services/scan", () => ({
   startScan: vi.fn(),
@@ -38,6 +39,7 @@ const counters: ScanCounters = {
 };
 
 let emit: (event: ScanEvent) => void;
+let reportInvalid: (error: IpcContractError) => void;
 const stop = vi.fn();
 
 function notFound() {
@@ -76,8 +78,9 @@ describe("ScanPanel", () => {
     mockedCancel.mockReset();
     mockedStatus.mockReset();
     mockedSubscribe.mockReset();
-    mockedSubscribe.mockImplementation(async (handler) => {
+    mockedSubscribe.mockImplementation(async (handler, onInvalid) => {
       emit = (event) => act(() => handler(event));
+      reportInvalid = (error) => act(() => onInvalid?.(error));
       return stop;
     });
     mockedStatus.mockRejectedValue(notFound());
@@ -229,6 +232,22 @@ describe("ScanPanel", () => {
 
     expect(screen.getByText("Scanning…")).toBeInTheDocument();
     expect(screen.queryByText(/scan finished/i)).not.toBeInTheDocument();
+  });
+
+  it("reports a contract failure and re-reads the authoritative status", async () => {
+    mockedStatus.mockReset();
+    mockedStatus.mockResolvedValue(status({ state: "running" }));
+    await renderPanel();
+    expect(await screen.findByText("Scanning…")).toBeInTheDocument();
+    expect(mockedStatus).toHaveBeenCalledTimes(1);
+
+    reportInvalid(new IpcContractError("scan:completed", "completeness is not one of complete"));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/contract_violation/i);
+    expect(screen.getByRole("alert")).toHaveTextContent(/scan:completed/);
+    await waitFor(() => expect(mockedStatus).toHaveBeenCalledTimes(2));
+    // The scan is still running as far as the backend is concerned.
+    expect(screen.getByText("Scanning…")).toBeInTheDocument();
   });
 
   it("shows a failed scan as having no result and unsubscribes on unmount", async () => {

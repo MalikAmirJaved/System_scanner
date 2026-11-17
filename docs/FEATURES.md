@@ -4,7 +4,7 @@
 > (some code, incomplete or unverified), `Planned` (designed, not built),
 > `Proposed` (an idea), `Not started`.
 >
-> **Last updated:** 2026-11-16
+> **Last updated:** 2026-11-17
 >
 > This inventory is the ground truth for "does this exist?". If code and this
 > table disagree, the code wins for behavior and this table must be corrected.
@@ -32,7 +32,7 @@
 
 | ID | Feature | Release | Status | Evidence |
 |---|---|---|---|---|
-| F-020 | Typed command/event boundary | 0 | 🟡 Partial — commands done, events not started | `src-tauri/src/ipc.rs`, `src-tauri/src/commands/`, `src/services/ipc.ts` |
+| F-020 | Typed command/event boundary | 0 | 🟡 Partial — commands done and four `scan:*` events wired; no other events, and response/event payloads are now validated in the renderer (B-090) | `src-tauri/src/ipc.rs`, `src-tauri/src/commands/`, `src/services/ipc.ts`, `src/services/validate.ts`, `src/services/scan.ts` |
 | F-021 | Stable DTOs + schema version | 0 | ✅ Implemented | `src-tauri/src/dto/app_info.rs` (`DTO_SCHEMA_VERSION = 1`) |
 | F-022 | Error taxonomy + correlation IDs | 0 | ✅ Implemented (envelope-level; `unsupported` and `internal` are reachable from the snapshot command) | `src-tauri/src/error.rs`, `src/services/ipc.ts` |
 | F-023 | Job registry + lifecycle state machine | 0 | ⏳ Not started | — |
@@ -184,5 +184,9 @@ counters-only row, but nothing reads rows back. A traversal prototype now stream
 bounded channel with a fixed worker count, cooperative cancellation, depth/entry
 budgets, and an explicit outcome per entry; it is not yet reachable from the UI.
 
-The event channel, job registry, cancellation, saved-file bundle export, image
-paths, and everything that touches storage are still ahead.
+The renderer validates every command response and scan event against the
+documented shape (`src/services/validate.ts`, B-090), so a DTO drift surfaces as
+`contract_violation` naming the field path instead of rendering `undefined`.
+The wider event channel, a general job registry, general cancellation,
+saved-file bundle export, image paths, and everything that touches storage are
+still ahead.

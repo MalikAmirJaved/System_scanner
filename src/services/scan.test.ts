@@ -6,6 +6,7 @@ vi.mock("@tauri-apps/api/event", () => ({ listen: vi.fn() }));
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { cancelScan, getScanStatus, startScan, subscribeToScan } from "./scan";
+import { IpcContractError } from "./validate";
 
 const mockedInvoke = vi.mocked(invoke);
 const mockedListen = vi.mocked(listen);
@@ -59,6 +60,28 @@ describe("scan service", () => {
 
     stop();
     expect(unlisten).toHaveBeenCalledTimes(4);
+  });
+
+  it("drops a malformed event and reports it instead of calling the handler", async () => {
+    const handlers = new Map<string, (event: { payload: unknown }) => void>();
+    const unlisten = vi.fn();
+    mockedListen.mockImplementation(async (name, handler) => {
+      handlers.set(name, handler as (event: { payload: unknown }) => void);
+      return unlisten;
+    });
+    const seen: unknown[] = [];
+    const invalid: IpcContractError[] = [];
+
+    await subscribeToScan(
+      (event) => seen.push(event),
+      (error) => invalid.push(error),
+    );
+    handlers.get("scan:progress")?.({ payload: { jobId: "j", seq: 1 } });
+
+    expect(seen).toEqual([]);
+    expect(invalid).toHaveLength(1);
+    expect(invalid[0]).toMatchObject({ source: "scan:progress" });
+    expect(invalid[0].problem).toMatch(/phase is not a string/);
   });
 
   it("removes listeners already made when a later subscription fails", async () => {

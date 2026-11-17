@@ -36,7 +36,9 @@ Codes live in one enum in Rust (`ErrorCode`, serialized as these strings) and on
 union in TypeScript (`ErrorCode` in `src/services/ipc.ts`). They must not be
 improvised per screen. The `retryable` flag is derived in Rust by
 `ErrorCode::retryable()` and sent on the wire, so the UI never re-implements the
-table above.
+table above. Adding a code is a breaking renderer change: the response guard
+rejects a code it does not know as a contract failure, so Rust and the TypeScript
+union change in the same commit (ADR-022).
 
 ## 3. Layered model
 
@@ -58,6 +60,16 @@ Rules:
 - Domain errors never include a path unless redaction is applied.
 - Commands map errors exactly once, in one place.
 - The UI never string-matches messages; it switches on `code`.
+
+### Client-side contract failure (not a backend error code)
+
+A payload that does not match the documented DTO is not an `AppError`: the
+command succeeded, so no Rust code exists for it. The renderer throws
+`IpcContractError` (command or event name, field path, expected type) and panels
+render `contract_violation`. It is deliberately absent from the `ErrorCode`
+union — listing it there would imply Rust can return it. Treat it as a bug in
+the app build, not a retryable condition, and note that it names field paths,
+never payload values.
 
 ## 4. Rust implementation
 

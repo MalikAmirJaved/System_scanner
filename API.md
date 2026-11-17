@@ -1,12 +1,14 @@
 # API
 
-> **Status:** **IPC envelope implemented; four commands implemented.** The typed
-> envelope (`CommandResult`, `AppError`), the error taxonomy, `get_app_info`,
-> `get_system_snapshot`, `list_processes`, and `get_diagnostics` exist and are
-> covered by tests. Every other command in this document is **proposed** and must
-> not be described as available.
+> **Status:** **IPC envelope, seven commands, and four scan events implemented;
+> responses are validated at runtime.** The typed envelope (`CommandResult`,
+> `AppError`), the error taxonomy, `get_app_info`, `get_system_snapshot`,
+> `list_processes`, `get_diagnostics`, and the three scan commands exist and are
+> covered by tests, including runtime validation of every response and event
+> payload in the renderer (B-090). Every other command in this document is
+> **proposed** and must not be described as available.
 >
-> **Last updated:** 2026-11-14 · **Related:** [`ARCHITECTURE.md`](ARCHITECTURE.md)
+> **Last updated:** 2026-11-17 · **Related:** [`ARCHITECTURE.md`](ARCHITECTURE.md)
 
 ---
 
@@ -86,7 +88,9 @@ Wire shapes:
 
 The frontend adapter (`src/services/ipc.ts`) converts the envelope into a
 discriminated union and throws `IpcError` for failures. Components never see a
-raw `unknown` error.
+raw `unknown` error. Both the envelope and the command's DTO are checked at
+runtime before the data is returned; a shape mismatch throws `IpcContractError`
+(`API.md` §8) instead of rendering `undefined`.
 
 ### Error codes (implemented taxonomy)
 
@@ -419,6 +423,11 @@ to `scan:*`; `listen` is allowed by `core:default`), used by
 Progress is paced to at most one event per 100 ms (10/s); the terminal event is
 always sent. `get_scan_status` is the source of truth if an event is missed.
 
+The renderer validates each event payload against the shapes above. A malformed
+payload is not applied: `subscribeToScan` reports it to the panel as
+`contract_violation` and the panel re-reads `get_scan_status`, so a dropped
+terminal event cannot leave the panel stuck on "Scanning…".
+
 Tests: `src-tauri/src/app/jobs.rs` (lifecycle, busy, cancel, shutdown, pacing),
 `src-tauri/src/domain/job.rs` (state machine, pacing rule),
 `src-tauri/src/dto/scan.rs` (request validation, wire shape).
@@ -484,8 +493,10 @@ See [`docs/ACCESS_CONTROL.md`](docs/ACCESS_CONTROL.md).
 - Additive fields are safe; renames/removals require a version bump and a UI
   adapter update in the same change.
 - IPC DTOs and persisted rows evolve independently; a migration maps old rows.
-- The UI and Rust core ship together in one package, but a stale webview must
-  still fail predictably (show "reload required" rather than wrong data).
+- The UI and Rust core ship together in one package. A stale or mismatched
+  webview fails predictably: the payload check in the renderer throws
+  `IpcContractError` naming the command and field path, and the panel shows
+  `contract_violation` instead of rendering wrong data.
 
 ## 8. Frontend contract (implemented)
 
@@ -494,27 +505,42 @@ See [`docs/ACCESS_CONTROL.md`](docs/ACCESS_CONTROL.md).
 ```ts
 export async function invokeCommand<T>(
   command: string,
+  parse: Validator<T>,      // hand-written guard for the command's DTO
   args?: Record<string, unknown>,
 ): Promise<T> {
-  const result = await invoke<CommandResult<T>>(command, args);
-  if (result.status === "err") throw new IpcError(result.error);
-  return result.data;
+  const envelope = parsePayload(command, parseEnvelope, await invoke<unknown>(command, args));
+  if (envelope.status === "err") throw new IpcError(envelope.error);
+  return parsePayload(command, parse, envelope.data);
 }
 ```
 
-Domain modules wrap it (`src/services/app.ts` → `getAppInfo()`,
-`processes.ts` → `listProcesses()`, `diagnostics.ts` → `getDiagnostics()`), and
-components call the domain module.
+The `parse` argument is **required**, so the compiler rejects a call site that
+skips validation. Domain modules wrap it (`src/services/app.ts` → `getAppInfo()`,
+`processes.ts` → `listProcesses()`, `diagnostics.ts` → `getDiagnostics()`,
+`system.ts` → `getSystemSnapshot()`, `scan.ts` → the scan commands and events),
+and components call the domain module.
+
 Implemented rules for `src/services`:
 
 - One module per domain; no component calls `invoke` directly.
 - The envelope is unwrapped once, so callers never handle `status` or `unknown`.
 - `IpcError` carries `code`, `retryable`, and `correlationId` for UI decisions and
   support reports.
-
-Not yet done: runtime validation of response payloads (no `zod` or hand-written
-guards), so a contract drift would currently surface as `undefined` at render
-time rather than as a loud failure. Tracked in `docs/BACKLOG.md` (B-090).
+- **Every response is validated at runtime** (`validate.ts`, B-090). The guard
+  checks the envelope status, the `AppError` payload including the code enum, and
+  the command's own DTO: required fields, types, `schemaVersion`, enum values,
+  counters as non-negative integers, and collection caps. Only known fields are
+  copied.
+- A missing optional field is `undefined`. A *present* field of the wrong type is
+  a failure — never coerced, clamped, or defaulted. This is the renderer's half
+  of the "missing is never zero" rule.
+- A failure throws `IpcContractError` with `source` (command or event name) and
+  `problem` (field path plus what was expected). `src/lib/errors.ts` maps it to
+  `contract_violation`; panels render that instead of the result.
+- Errors never include payload values, because payloads carry machine-specific
+  text such as paths or account names.
+- Guards are hand-written and have no dependency (ADR-022). They must be updated
+  with any DTO change; an additive field is ignored until a guard copies it.
 
 ## 9. Testing the contract
 
@@ -532,8 +558,9 @@ Status today:
 |---|---|
 | Envelope serialization (ok/err, camelCase, omitted `detail`) | ✅ `src-tauri/src/ipc.rs` tests |
 | Error code taxonomy + unique correlation IDs | ✅ `src-tauri/src/error.rs` tests |
-| DTO wire shape + `schemaVersion` | ✅ `src-tauri/src/dto/{app_info,system_snapshot,process_list,diagnostics}.rs` tests |
+| DTO wire shape + `schemaVersion` | ✅ `src-tauri/src/dto/{app_info,system_snapshot,process_list,diagnostics,scan}.rs` tests |
 | Adapter unwrap / `IpcError` / argument pass-through | ✅ `src/services/ipc.test.ts` |
+| Runtime response validation (envelope, error payload, all seven DTOs, four events) | ✅ `src/services/{validate,ipc,contracts,scan}.test.ts` |
 | UI states (loading, ready, error, retry) | ✅ `BackendStatus.test.tsx`, `SystemOverview.test.tsx`, `ProcessList.test.tsx`, `Diagnostics.test.tsx` |
 | Unavailable-field reporting (group, leaf, per row) | ✅ domain + DTO tests; two native smoke tests |
 | Redaction rules (paths, identities, network addresses) | ✅ `src-tauri/src/redact.rs`, `domain/diagnostics.rs` tests |

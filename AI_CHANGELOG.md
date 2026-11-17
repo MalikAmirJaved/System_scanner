@@ -25,6 +25,38 @@
 
 ---
 
+## 2026-11-17 — IPC response validation in the renderer (B-090)
+
+- **Agent/tool:** DeepSeek V4.1 Flash (opencode).
+- **Scope:** new `src/services/validate.ts`, `src/services/unavailable.ts`,
+  `src/services/contracts.test.ts`, `src/services/validate.test.ts`;
+  `src/services/{ipc,app,system,processes,diagnostics,scan}.ts`;
+  `src/lib/errors.ts`; `src/components/ScanPanel.tsx` and its test.
+- **Change:** the renderer now validates every command response and every
+  `scan:*` event at runtime. `invokeCommand(command, parse, args?)` takes a
+  **required** guard, so the type checker finds an unvalidated call site.
+  Guards check the envelope, the error payload and its code enum, the DTO
+  (`schemaVersion`, enums, counters, collection caps), copy known fields only,
+  and reject a present field of the wrong type instead of defaulting it.
+  Failures throw `IpcContractError` (`source`, `problem`), mapped to
+  `contract_violation` by `summarizeError`. `subscribeToScan` gained an
+  `onInvalid` callback; the panel reports the failure and re-reads
+  `get_scan_status` so a dropped terminal event cannot stall it.
+- **Why:** KI-011 — a DTO rename rendered `undefined` instead of failing, which
+  contradicts invariant 1 and `API.md` §8. B-090 was the highest open P0.
+- **Risk:** guards duplicate each DTO declaration; a new Rust field is invisible
+  until its guard copies it (KI-054). `IpcContractError` intentionally does not
+  extend `IpcError`, so any caller that special-cases `IpcError` keeps working
+  but must not assume every thrown value is one. No Rust, capability, dependency,
+  or wire-format change.
+- **Evidence:** `npm test` 76 passed (12 files), `npm run lint` clean,
+  `npm run format:check` clean, `npm run build` (`tsc` + Vite) succeeded,
+  `cargo test` 120 passed (unchanged; no Rust edit).
+- **Follow-up:** keep the guards in step with DTO changes; revisit generated
+  types if the DTO count grows (ADR-022).
+
+---
+
 ## 2026-11-17 — Storage scan panel (first UI caller of the scan commands)
 
 - **Agent/tool:** Cursor agent.

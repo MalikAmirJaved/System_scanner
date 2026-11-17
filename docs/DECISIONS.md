@@ -744,6 +744,51 @@ sessions must be tied to a persisted job registry across restarts.
 
 ---
 
+## ADR-022 — IPC response validation: hand-written guards, no schema library
+
+**Status:** Accepted · 2026-11-17
+
+**Context.** `API.md` §8 promised runtime validation and KI-011 recorded that a
+DTO rename would render `undefined` instead of failing. The renderer already
+declares a TypeScript type per DTO, but types vanish at runtime. The candidates
+were a schema library (`zod` and similar), generating TypeScript from the Rust
+DTOs, or hand-written guards.
+
+**Decision.** **Hand-written guards**, one per command or event, in
+`src/services/validate.ts` plus a `parse*` function beside each mirrored type.
+
+- `invokeCommand(command, parse, args?)` requires the guard, so a new command
+  cannot silently skip validation; the compiler enforces it.
+- Guards are strict but not normalizing: a missing optional field is
+  `undefined`; a present field of the wrong type is rejected rather than
+  coerced or defaulted. Known fields are copied, unknown fields dropped.
+- `schemaVersion` is checked against the constant this build reads.
+- Failures throw `IpcContractError` (`source`, `problem`), which
+  `src/lib/errors.ts` maps to `contract_violation`. Messages name paths, never
+  payload values.
+- Event payloads are validated in `subscribeToScan`; a malformed event is
+  reported to the panel and dropped, then the panel re-reads `get_scan_status`.
+- Collection caps (page items, disks, adapters, unavailable entries, preview
+  characters) bound the memory a bad payload can force.
+
+**Consequences.**
+
+- No new dependency; the footprint stays auditable, per `AGENTS.md` §5.
+- The guards are a second declaration of each DTO and must be updated with it.
+  There is no generated schema and no compile-time link to the Rust structs; a
+  test per command plus one drifted case each is the safety net.
+- An additive Rust field is invisible to the UI until a guard copies it. That is
+  deliberate (no silent pass-through) but means a feature is not done until both
+  sides change.
+- `IpcContractError` is not an `IpcError`: the backend succeeded, but this build
+  cannot read the answer. Panels show `contract_violation` with the field path.
+
+**Revisit if:** the DTO count grows enough that generated types (for example from
+`schemars` or a checked-in JSON Schema) beat hand-maintained guards, or a second
+consumer of the IPC contract appears.
+
+---
+
 ## Template
 
 ```text

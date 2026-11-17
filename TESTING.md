@@ -1,17 +1,17 @@
 # Testing Strategy
 
 > **Status:** **Runners are configured; coverage is still narrow.** 120 Rust tests
-> and 45 frontend tests cover the IPC contract (envelope, error taxonomy, DTO
-> shapes), the snapshot and process domain rules, both native adapters'
-> structural invariants, logging/redaction, startup messages, schema creation,
-> v1 to v2 migration and runner refusal paths, the traversal (outcomes, budgets,
-> cancellation, long/Unicode paths, junction loops, a live denied-ACL fixture),
-> the scan job supervisor and session rows, root validation, five UI panels
-> (including the scan panel, its event/status reducer, and its service wrapper),
-> and the render error boundary. **Every UI and IPC test uses mocked IPC.** No test
-> launches the Tauri app, so event delivery, capabilities, and real cancellation
-> are unverified end to end (KI-052). This document defines the target strategy
-> and the minimum bar for new work.
+> and 76 frontend tests cover the IPC contract (envelope, error taxonomy, DTO
+> shapes, runtime payload guards), the snapshot and process domain rules, both
+> native adapters' structural invariants, logging/redaction, startup messages,
+> schema creation, v1 to v2 migration and runner refusal paths, the traversal
+> (outcomes, budgets, cancellation, long/Unicode paths, junction loops, a live
+> denied-ACL fixture), the scan job supervisor and session rows, root validation,
+> six UI panels (including the scan panel, its event/status reducer, and its
+> service wrapper), and the render error boundary. **Every UI and IPC test uses
+> mocked IPC.** No test launches the Tauri app, so event delivery, capabilities,
+> and real cancellation are unverified end to end (KI-052). This document defines
+> the target strategy and the minimum bar for new work.
 > **Last updated:** 2026-11-17
 
 ---
@@ -20,9 +20,9 @@
 
 | Level | Tool | Configured | Tests |
 |---|---|---|---|
-| Rust unit/integration | `cargo test` | Yes | 78 (`ipc`, `error`, `logging`, `redact`, `startup`, `dto::*`, `domain::*`, `adapters::windows::*`, `adapters::persistence::*`, `adapters::filesystem::*`, `commands::*`) |
-| Frontend unit | Vitest 5 + jsdom | Yes | 3 (`services/ipc.test.ts`) |
-| Frontend component | Testing Library 16 | Yes | 17 (`BackendStatus`, `ThemeToggle`, `SystemOverview`, `ProcessList`, `Diagnostics`, `ErrorBoundary`) |
+| Rust unit/integration | `cargo test` | Yes | 120 (`ipc`, `error`, `logging`, `redact`, `startup`, `dto::*`, `domain::*`, `adapters::windows::*`, `adapters::persistence::*`, `adapters::filesystem::*`, `commands::*`, `app::*`) |
+| Frontend unit | Vitest 5 + jsdom | Yes | 37 (`services/{ipc,validate,contracts,scan}.test.ts`, `lib/scanView.test.ts`) |
+| Frontend component | Testing Library 16 | Yes | 26 (`BackendStatus`, `ThemeToggle`, `SystemOverview`, `ProcessList`, `Diagnostics`, `ScanPanel`, `ErrorBoundary`) |
 | E2E | tauri-driver / WebDriver (proposed) | No | 0 |
 | Performance | custom harness (proposed) | No | 0 |
 | Security | manual review + targeted tests | No | 0 |
@@ -34,6 +34,12 @@ What the existing tests actually establish, and nothing more:
 - correlation IDs are unique per error;
 - `AppInfo` serializes with camelCase keys and `schemaVersion`;
 - the frontend adapter unwraps `ok` and throws `IpcError` on `err`;
+- every response guard accepts the documented shape, rejects a renamed, retyped,
+  or out-of-range field with the field path, rejects an unknown envelope status
+  and an undocumented error code, enforces `schemaVersion`, and drops unknown
+  fields;
+- a malformed `scan:*` payload reaches `onInvalid` instead of the handler, and
+  the scan panel shows `contract_violation`, then re-reads the status;
 - the status component renders loading, ready, error, and recovers on retry;
 - the system panel renders each collected group, replaces a missing group with its
   `unavailable` reason, and recovers after a failed refresh;

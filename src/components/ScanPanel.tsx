@@ -36,11 +36,30 @@ export function ScanPanel({ className }: { className?: string }) {
   const [view, setView] = useState<ScanView>(IDLE_VIEW);
   const [error, setError] = useState<PanelError | null>(null);
 
+  const reportError = (cause: unknown) => {
+    const { code, message } = summarizeError(cause);
+    const detail = cause instanceof IpcError ? cause.detail : undefined;
+    setError({ code, message: detail ? `${message} ${detail}.` : message });
+  };
+
   useEffect(() => {
     let disposed = false;
     let unsubscribe: (() => void) | undefined;
 
-    subscribeToScan((event) => setView((current) => applyEvent(current, event)))
+    subscribeToScan(
+      (event) => setView((current) => applyEvent(current, event)),
+      // An unreadable event is a contract failure, not a scan failure. Report it
+      // and re-read the authoritative status so the panel cannot stall on a
+      // dropped terminal event.
+      (cause) => {
+        reportError(cause);
+        getScanStatus()
+          .then((status) => {
+            if (!disposed) setView((current) => applyStatus(current, status));
+          })
+          .catch(() => undefined);
+      },
+    )
       .then((stop) => {
         if (disposed) stop();
         else unsubscribe = stop;
@@ -65,12 +84,6 @@ export function ScanPanel({ className }: { className?: string }) {
 
   const roots = parseRoots(rootsText);
   const active = isActive(view.phase);
-
-  const reportError = (cause: unknown) => {
-    const { code, message } = summarizeError(cause);
-    const detail = cause instanceof IpcError ? cause.detail : undefined;
-    setError({ code, message: detail ? `${message} ${detail}.` : message });
-  };
 
   const start = () => {
     setError(null);
