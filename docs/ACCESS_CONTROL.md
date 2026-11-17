@@ -2,7 +2,7 @@
 
 > **Status:** No authorization system is implemented. Today the app runs as the
 > invoking user with `core:default` Tauri capabilities only.
-> **Last updated:** 2026-11-06
+> **Last updated:** 2026-11-17
 
 ---
 
@@ -80,12 +80,17 @@ and any `\\?\` path that is not a drive (`\\?\C:\`) or UNC (`\\?\UNC\...`) form,
 including `\\?\GLOBALROOT\...` and `\\?\Volume{...}\`. Forward slashes are
 normalized first.
 
-**Remaining gap:** arbitrary UNC shares and any other absolute path are still
-accepted and walked read-only (reparse points are never followed). Whether to
-restrict roots further, for example with an allow-list tied to a folder picker or
-a block on network paths, is a product decision for the B-040 threat-model
-review. Reserved DOS device names inside a normal path (`C:\dir\CON`) and the
-ACL of the root are not checked beyond what the OS returns.
+**Remaining gap (B-040 review, 2026-11-17).** The review confirmed the scan
+surface is read-only and counters-only, and recorded one concrete window:
+`visit_directory` re-checks the reparse attribute with `symlink_metadata` and then
+calls `read_dir` **by path**, so a directory replaced by a junction in between is
+enumerated even though the check passed (`docs/THREAT_MODEL.md` §11.3 F-01). That
+must become a handle-based open plus identity check before any content read or
+write. Whether to restrict roots further — an allow-list tied to a folder picker,
+a block on network shares, a warning for removable media — is still an **open
+product decision**; arbitrary UNC shares and other absolute paths remain accepted
+and walked read-only today. Reserved DOS device names inside a normal path
+(`C:\dir\CON`) and the ACL of the root are not checked beyond what the OS returns.
 
 ## 5. Layer 4 — Protected paths
 
@@ -164,3 +169,6 @@ Do not add role/permission abstractions preemptively.
 2. Is a machine-wide policy override ever needed (enterprise)?
 3. Should quarantine live in the user profile or a machine-wide protected folder?
 4. How is the protected-path list made auditable and updatable?
+5. Are network shares and removable volumes scanned, warned about, or refused?
+   (Open since the B-040 review; not decided. `THREAT_MODEL.md` §11.7.)
+6. Should scan roots be constrained to paths chosen through a folder picker?

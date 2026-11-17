@@ -47,6 +47,18 @@ exists. Until then, `0.x` versions may change behavior without notice.
   and `scan:*` events; no capability change.
 
 ### Security
+- **Threat-model review of the read-only file surface (B-040).** Reviewed the
+  implemented scan path end to end: IPC root/limit validation, root
+  classification, per-child reparse checks, counters-only output, and the
+  database/backup content. No code changed. Findings are in
+  `docs/THREAT_MODEL.md` §11. Three matter: arbitrary UNC/network/removable roots
+  are still accepted and the policy decision is open; `visit_directory` checks the
+  reparse attribute with `symlink_metadata` and then opens with a **by-path**
+  `read_dir`, so a directory swapped in between is followed (KI-055) — harmless
+  while only counters are produced, blocking before any content read or write; and
+  there is no per-I/O timeout, so an unreachable share stalls one worker. T-14
+  added, T-02/T-03/T-09 annotated. The read-only surface is accepted for pre-alpha
+  only.
 - **`start_scan` refuses device and NT-namespace roots** (`\\.\...`, `\??\...`,
   and `\\?\` forms that are not a drive or UNC, such as `\\?\GLOBALROOT\...`).
   Ordinary drives, UNC shares, and extended-length drive/UNC paths are still
@@ -169,6 +181,10 @@ exists. Until then, `0.x` versions may change behavior without notice.
   is now a pointer.
 
 ### Documentation
+- Recorded B-004 (app shell + single dashboard) as complete: `src/App.tsx`,
+  `src/main.tsx`, and the five panels already met the acceptance criteria
+  (responsive grid, loading/empty/error states per panel, no router). The backlog
+  and the F-006 evidence now say so instead of listing it as outstanding.
 - Full documentation set: architecture, product, security, operations, and AI
   workflow documents (`ARCHITECTURE.md`, `PRD.md`, `TECH_STACK.md`, `DATABASE.md`,
   `API.md`, `SECURITY.md`, `CONTRIBUTING.md`, `TESTING.md`, `AGENTS.md`,

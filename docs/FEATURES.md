@@ -20,7 +20,7 @@
 | F-003 | Production build + NSIS installer | 0 | ✅ Implemented | `bundle/nsis/*_x64-setup.exe` |
 | F-004 | Strict CSP, no remote origins | 0 | ✅ Implemented | `tauri.conf.json` |
 | F-005 | Minimal capability set (`core:default`) | 0 | ✅ Implemented | `capabilities/default.json` |
-| F-006 | Application shell + design tokens | 0 | ✅ Implemented | `src/App.tsx`, `src/styles/globals.css` |
+| F-006 | Application shell + design tokens | 0 | ✅ Implemented | `src/App.tsx`, `src/styles/globals.css`; responsive grid, `sr-only` h1, no router; every panel has loading/empty/error states (B-004) |
 | F-007 | In-app navigation and routing | 0 | ⏳ Not started | — |
 | F-008 | Error boundary + fatal-startup screen | 0 | ✅ Implemented — renderer boundary shows a reload screen; a failed Tauri startup shows a native dialog with a redacted detail, then exits 1 | `src/components/ErrorBoundary.tsx`, `src-tauri/src/startup.rs` |
 | F-009 | Theming (light/dark/system) | 5 | 🟡 Partial — manual light/dark toggle persisted in `localStorage`; no OS-preference follow | `src/components/ThemeToggle.tsx`, `src/styles/globals.css` |

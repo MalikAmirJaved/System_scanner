@@ -6,7 +6,7 @@
 >
 > Only record changes that affect structure, boundaries, contracts, or process.
 > Routine edits do not belong here.
-> **Last updated:** 2026-11-16
+> **Last updated:** 2026-11-17
 
 ---
 
@@ -25,7 +25,32 @@
 
 ---
 
-## 2026-11-17 — Pre-migration database snapshot (B-033)
+## 2026-11-17 — File-operation threat-model review (B-040)
+
+- **Agent/tool:** DeepSeek V4.1 Flash (opencode).
+- **Scope:** `docs/THREAT_MODEL.md` (new §11, T-14, status header),
+  `SECURITY.md` (§6), `docs/ACCESS_CONTROL.md` (§4, §9), `docs/KNOWN_ISSUES.md`
+  (KI-049 updated, KI-055 added), `docs/RISKS.md` (R-12), `docs/BACKLOG.md`,
+  `docs/CHANGELOG.md`, `docs/DECISIONS.md` (ADR-024). No source code.
+- **Change:** The first review of an **implemented** operation surface. It records
+  what the scan path actually does (validated roots, one scan at a time,
+  reparse points skipped, counters only, counters-only DB row), seven findings
+  (F-01–F-07), a new threat (T-14), and a residual-risk table. Conclusion: the
+  read-only surface is acceptable for pre-alpha; every content-read or write path
+  must first replace the path-based check-then-open walk with a handle-based open
+  and a volume-serial + file-ID identity check. UNC/network/removable root policy
+  is explicitly left as an open product decision.
+- **Why:** B-040 gates all P2 security work; the previous document was a draft
+  that predated the IPC wiring and said no review had happened.
+- **Risk:** Documentation only. The review could be read as broader assurance than
+  it is; §11.1 and the status header limit it to a paper review of read-only code.
+- **Evidence:** Source and tests read for `commands/scan.rs`, `dto/scan.rs`,
+  `app/jobs.rs`, `adapters/filesystem/traversal.rs`, `domain/traversal.rs`, and
+  `adapters/persistence/`; doc format check run.
+- **Follow-up:** B-041 (protected paths + handle-based identity), the F-02 root
+  policy decision, KI-055, and extending §11 before the first write path.
+
+---
 
 - **Agent/tool:** DeepSeek V4.1 Flash (opencode).
 - **Scope:** `src-tauri/src/adapters/persistence/sqlite.rs` (constant, error

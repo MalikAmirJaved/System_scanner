@@ -12,7 +12,7 @@
 | ID | Issue | Impact | Workaround | Tracked |
 |---|---|---|---|---|
 | KI-001 | Startup and service collection do not exist | The snapshot and process inventory cannot explain autostart entries or services | None | B-043 |
-| KI-002 | Seven read-only IPC commands exist; the UI can drive a scan but has no storage views or service actions | A scan shows counters only: no file list, sizes by folder, or treemap, and no folder picker | None | B-004, B-050 |
+| KI-002 | Seven read-only IPC commands exist; the UI can drive a scan but has no storage views or service actions | A scan shows counters only: no file list, sizes by folder, or treemap, and no folder picker | None | B-050; no storage-view item exists yet |
 | KI-003 | Persistence is write-only and minimal | Schema v2 holds `scan_sessions`; a scan writes one counters-only row, but no IPC command reads history, no UI shows it, and nothing stores per-entry data | None needed; browsing is unaffected | B-024 (per-entry), B-030 |
 | KI-004 | No code signing | SmartScreen warns; tampering undetectable | Install anyway, verify hash manually | B-080 |
 | KI-005 | No license selected | Cannot be legally redistributed | Internal use only | B-084 |
@@ -25,7 +25,8 @@
 |---|---|---|---|
 | KI-012 | The support bundle has no saved-file export | The preview can be copied, but support must paste it instead of attaching a file | F-092 / B-064 |
 | KI-013 | Cancellation exists only for the scan job | `cancel_scan` and window-close cancel work for one in-memory scan; there is no general job registry and no cancel for other work. A killed process leaves its session row open until the next startup marks it `interrupted`; nothing resumes it | Design in `SYSTEM_DESIGN.md` |
-| KI-049 | Scan roots are caller-supplied and only shape-checked plus a device-namespace block | Device and NT-namespace roots are refused, but any other absolute path, including UNC shares, can be walked read-only; reparse points are never followed; only counters are returned | No UI calls it yet; whether to restrict roots further is a B-040 decision (`docs/ACCESS_CONTROL.md`) |
+| KI-049 | Scan roots are caller-supplied and only shape-checked plus a device-namespace block | Device and NT-namespace roots are refused, but any other absolute path, including UNC shares and removable media, can be walked read-only; reparse points are never followed; only counters are returned | The B-040 review (2026-11-17) accepted this for read-only use; network/removable root policy is still an open decision (`THREAT_MODEL.md` §11.7). The Storage panel accepts typed absolute paths | B-041 |
+| KI-055 | A directory can be replaced between the reparse check and `read_dir` | `visit_directory` re-stats with `symlink_metadata`, then opens with `fs::read_dir` **by path**; a junction swapped in that window is followed, so entries outside the selected root can be counted. Read-only today: no content is read, written, or persisted | Not exploitable for modification while scanning stays counters-only. Must become a handle-based open with a volume-serial + file-ID check before any content read, hash, or write | B-041, `THREAT_MODEL.md` §11.3 F-01 |
 | KI-050 | `scan_sessions` rows have no retention limit and no delete control | Each scan adds a counters-only row (no paths) that stays forever; the live job state still resets on restart | Delete the database file with the app closed; a retention policy and UI need the `docs/plan.md` §12 decision |
 | KI-051 | Session persistence is best-effort | A failed `begin`/`finish` write is logged and the scan still reports normally, so a scan can exist with no row, or a row can stay `running` until the next startup marks it `interrupted` | Intentional: the app must work without a database; check the log for `scan session` warnings |
 | KI-014 | No DB corruption recovery, and restore is manual | A corrupt database is preserved and the app continues without persistence, but nothing renames it aside, offers export, or restores a backup. Pre-migration snapshots now exist (B-033) in `backups/` (newest five), but there is no restore command, no scheduled/daily backup, and snapshots are best-effort, so a failed snapshot does not stop a migration. Workaround: with the app closed, copy a snapshot over `system-scanner.db` | B-033, `RECOVERY_PLAN.md` |
@@ -39,7 +40,7 @@
 | KI-021 | Release uses `panic = "abort"` | No unwinding; a panic kills the app | Intentional for size; requires disciplined error handling |
 | KI-022 | Only NSIS x64 bundle | No MSI, no ARM64, no portable | `tauri.conf.json` |
 | KI-023 | No accessibility verification | Unknown keyboard/screen-reader quality | B-066 |
-| KI-024 | Only one screen | No navigation or routing; all five panels share one view | B-004 |
+| KI-024 | Only one screen | No navigation or routing; all five panels share one view | Accepted: single-dashboard design (B-004) |
 | KI-025 | No OS-preference theming | Light/dark is manual only; the app ignores the Windows light/dark setting | F-009 |
 | KI-026 | `gen/schemas` is gitignored | Capability autocomplete missing on fresh clones | Regenerated by build |
 | KI-027 | `rust-toolchain.toml` pins `stable`, not an exact compiler version | Local and CI can drift within stable | B-011 |

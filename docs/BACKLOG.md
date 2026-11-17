@@ -19,7 +19,7 @@
 | B-001 | ✅ Add typed IPC boundary (`CommandResult`, `AppError`) | Everything depends on it | A no-op command round-trips with typed errors |
 | B-002 | ✅ Implement `get_system_snapshot` (Win32) | Core Release 0 value | OS/CPU/memory/disks/adapters returned; unavailable fields reported |
 | B-003 | ✅ Implement `list_processes` with stable identity | Core Release 0 value | Paged, bounded, access-limited rows marked |
-| B-004 | Build the app shell + dashboard route | One dashboard screen with panels; no navigation or routing | Panels share one dashboard with loading/empty/error states; no router |
+| B-004 | ✅ Build the app shell + dashboard route | One dashboard screen with panels; no navigation or routing | Panels share one dashboard with loading/empty/error states; no router |
 | B-005 | ✅ Refresh lifecycle (manual, in-progress, last-updated) | Prevent stale/frozen UI | No overlapping refreshes; stale responses discarded |
 | B-006 | ✅ Diagnostics view + redacted support bundle | Support without telemetry | Bundle previews and excludes paths/PII |
 | B-007 | ✅ Structured logging with rotation | Diagnosability | `tracing` to file, 5×10 MB cap, redaction test |
@@ -76,7 +76,7 @@ unit mapping, not by a live ACL fixture.
 
 | ID | Task |
 |---|---|
-| B-040 | Threat model review of file operations (TOCTOU, reparse points) |
+| B-040 | ✅ Threat model review of file operations (TOCTOU, reparse points) |
 | B-041 | Protected-path policy + tests |
 | B-042 | Process hierarchy + access-limited metadata |
 | B-043 | Startup/service inventory with limitation explanations |
@@ -133,6 +133,8 @@ unit mapping, not by a live ACL fixture.
 
 | ID | Item | Completed | Evidence |
 |---|---|---|---|
+| B-040 | Threat-model review of the implemented read-only file surface: IPC root/limit checks, root classification, per-child reparse checks, counters-only output, DB/backup content, and the check-then-open window between `symlink_metadata` and `read_dir`. Recorded F-01–F-07 and T-14, mapped T-02/T-03/T-09, and left UNC/network/removable root policy as an open product decision. No code change | 2026-11-17 | `docs/THREAT_MODEL.md` §11; `SECURITY.md` §6; `docs/ACCESS_CONTROL.md` §4; KI-055; R-12 |
+| B-004 | App shell + single dashboard: header/main/footer, responsive one/two/three-column grid, `<h1 class="sr-only">`, five panels (backend status, system overview, process list, diagnostics, storage scan) each with explicit loading, empty, and error states, and an `ErrorBoundary` at the root. No router and no navigation, by design | 2026-11-17 | `src/App.tsx`, `src/main.tsx`, `src/components/*.tsx`; frontend tests already cover the panel states (76 tests) |
 | B-033 | Pre-migration snapshot: `VACUUM INTO` into `app_data_dir()/backups/` with a version+timestamp name, read-only `PRAGMA quick_check` verification (suspect file deleted on failure), newest five kept, skipped for fresh/up-to-date files, best-effort so startup is never blocked. Restore exercised by reopening the snapshot with `Database::open` | 2026-11-17 | `src-tauri/src/adapters/persistence/sqlite.rs`; 5 new Rust tests (125 total); ADR-023 |
 | B-030 | Interrupted-session reconciliation: startup sets rows still `queued`/`running`/`cancelling` to `interrupted` with a `finished_at` | 2026-11-17 | `src-tauri/src/lib.rs`, `src-tauri/src/adapters/persistence/sessions.rs` (`mark_interrupted`); `open_sessions_become_interrupted_and_ended_ones_do_not` |
 | B-090 | Runtime validation of every IPC response and scan event: mandatory guard in `invokeCommand`, `schemaVersion`/enum/counter/collection-cap checks, `IpcContractError` → `contract_violation` in panels, malformed events reported and re-synced. No dependency added (ADR-022) | 2026-11-17 | `src/services/validate.ts`, `src/services/{app,system,processes,diagnostics,scan,unavailable}.ts`, `src/lib/errors.ts`; 31 new frontend tests (76 total) |

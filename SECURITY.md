@@ -1,7 +1,9 @@
 # Security Policy
 
-> **Status:** Pre-alpha. No security review has been performed. No release is
-> supported for production use. **Last updated:** 2026-11-06
+> **Status:** Pre-alpha. The read-only file surface has had a paper threat-model
+> review (B-040, 2026-11-17); no destructive, privileged, or networked path has
+> been reviewed. No release is supported for production use. **Last updated:**
+> 2026-11-17
 
 ---
 
@@ -92,7 +94,7 @@ Full analysis: [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md).
 | No updater / signed update channel | Users stay on vulnerable builds | `docs/RELEASE_POLICY.md` |
 | No dependency advisory gate in CI | Silent vulnerable transitive deps | `docs/DEVOPS.md` |
 | No SBOM | Unverifiable supply chain | `docs/DEVOPS.md` |
-| No threat-model review of file operations | Read-only traversal exists (B-022) and is reachable over IPC via `start_scan` (B-025) with caller-supplied roots, without a formal B-040 review; device-namespace roots are rejected but arbitrary UNC and other absolute roots are accepted; path/TOCTOU risk grows when write paths land | `docs/THREAT_MODEL.md`, `docs/ACCESS_CONTROL.md` |
+| No review of destructive, privileged, or networked operations | The read-only scan surface was reviewed on 2026-11-17 (B-040): counters only, standard user, reparse points skipped, device namespaces rejected. The review found a check-then-open window (F-01) that must be closed before any content read or write, and left UNC/network/removable root policy as an open product decision. No write, delete, quarantine, service-control, elevation, or network path has been reviewed | `docs/THREAT_MODEL.md` §11, `docs/ACCESS_CONTROL.md` |
 | No audit trail implementation | No accountability for control operations | `docs/AUDIT_LOGGING.md` |
 | No security contact published | Slow disclosure | `docs/INCIDENT_RESPONSE.md` |
 | CSP allows `style-src 'unsafe-inline'` | Style injection if XSS exists | Revisit when styling changes |
