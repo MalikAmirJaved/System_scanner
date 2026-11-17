@@ -1,10 +1,10 @@
 # Migrations
 
 > **Status:** **Implemented for the SQLite schema** — hand-written, forward-only,
-> embedded migrations with a `schema_migrations` bookkeeping table and FNV-1a
-> checksums. Settings, export, and quarantine-manifest migration remain
-> **proposed**.
-> **Last updated:** 2026-11-16
+> embedded migrations with a `schema_migrations` bookkeeping table, FNV-1a
+> checksums, and a verified `VACUUM INTO` snapshot before pending migrations.
+> Settings, export, and quarantine-manifest migration remain **proposed**.
+> **Last updated:** 2026-11-17
 
 ---
 
@@ -63,6 +63,12 @@ Implemented (`Database::open`):
 
 ```text
 configure pragmas (WAL, synchronous=NORMAL, foreign_keys=ON, busy_timeout=5000)
+if schema_migrations exists and max(version) < SCHEMA_VERSION:
+    VACUUM INTO backups/system-scanner-v{version:03}-{epoch_ms}.db
+    open the snapshot read-only, require PRAGMA quick_check = ok
+    delete the snapshot if the check fails
+    keep the newest 5 snapshots
+    best-effort: any failure is logged and migration continues
 create schema_migrations if missing
 read applied (version, checksum) rows
 if max(version) > SCHEMA_VERSION        -> refuse (NewerSchema), file unchanged
@@ -78,9 +84,12 @@ on error: rollback, keep DB at previous version, return the failing version + na
 
 Additional rules:
 
-- A **pre-migration backup (`VACUUM INTO`) before a non-additive migration is not
-  implemented.** v1 is purely additive, so nothing can be lost today. It becomes
-  required before the first migration that can drop or rewrite data (§11).
+- A **pre-migration snapshot (`VACUUM INTO`) is implemented** (B-033) and runs
+  before any pending migration: verified read-only with `PRAGMA quick_check`,
+  newest five kept, in `backups/` beside the database. It is **best-effort**,
+  which is acceptable only while every released migration is additive; the first
+  migration that can drop or rewrite data must make a failed snapshot abort the
+  upgrade (§11).
 - Show progress for long migrations; do not block the UI without feedback
   (not started — no long migration exists yet).
 - Never run migrations concurrently with an active scan: the single
@@ -98,6 +107,11 @@ Additional rules:
 | Migration list invariants | Versions start at 1, strictly increase, end at `SCHEMA_VERSION`; checksums match SQL | ✅ `migrations.rs` tests |
 | Each released version | Upgrades to latest, data intact | ✅ v1 → v2 (`a_v1_database_upgrades_to_v2_without_losing_rows`); only this one upgrade path exists, and no installer has been built from v1 to test a real upgrade |
 | Interrupted migration | DB unchanged, retry succeeds | ⏳ Not covered by a test; guaranteed by the transaction |
+| Pending migration | Snapshot is taken, verifies, and restores into a working v2 database | ✅ `a_pending_migration_snapshots_the_database_and_the_snapshot_restores` |
+| Up-to-date DB | No snapshot is written | ✅ `an_up_to_date_database_is_not_snapshotted` |
+| Backup cannot be written | Warning logged, migration still runs | ✅ `a_failed_backup_does_not_block_the_migration` |
+| Snapshot retention | Oldest snapshots pruned to five; unrelated files untouched | ✅ `old_snapshots_are_pruned_to_the_retention_limit` |
+| Corrupt snapshot | Verification rejects it | ✅ `a_corrupt_snapshot_fails_verification` |
 | Corrupt DB | Detected, preserved, recovery path offered | ⏳ Not started |
 | Read-only data directory | Clear error, no partial write | ⏳ Not started |
 | Disk full mid-migration | Rollback, prior version intact | ⏳ Not covered |
@@ -168,10 +182,12 @@ Recovery details: [`RECOVERY_PLAN.md`](RECOVERY_PLAN.md).
 
 1. ~~`PRAGMA user_version` vs a `schema_migrations` table~~ — resolved: a
    `schema_migrations` table, because it stores per-migration checksums.
-2. Is a pre-migration automatic backup mandatory or user-prompted? **Open.** Not
-   needed for the additive v1; must be answered before the first destructive
-   migration.
-3. How long are backups retained? **Open.**
+2. ~~Is a pre-migration automatic backup mandatory or user-prompted?~~ — the
+   snapshot is automatic and **best-effort** before any pending migration
+   (B-033). Making it **mandatory** (abort the upgrade on failure) is still
+   required before the first non-additive migration; the date is open.
+3. ~~How long are backups retained?~~ — the newest 5 snapshots, enforced at
+   startup right after each snapshot (B-033). A time-based rule remains open.
 4. ~~Do we support downgrade at all?~~ — resolved: **no.** A newer schema is
    refused, and an older build does not attempt to alter it.
 5. ~~Which migration library, if any, versus hand-written SQL?~~ — resolved:

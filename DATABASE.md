@@ -2,11 +2,12 @@
 
 > **Status:** **Partial.** The driver, connection setup, and forward-only migration
 > runner are **implemented**, and schema **v2 contains `scan_sessions` only** (v2
-> adds result columns; a scan job writes one row per scan, counters only). Every
-> other table in §5 is still a **proposal** and does not exist in any database file.
-> Do not describe a proposed table as existing.
+> adds result columns; a scan job writes one row per scan, counters only). A
+> verified `VACUUM INTO` snapshot is written automatically before any pending
+> migration (§10). Every other table in §5 is still a **proposal** and does not
+> exist in any database file. Do not describe a proposed table as existing.
 >
-> **Last updated:** 2026-11-16
+> **Last updated:** 2026-11-17
 
 ---
 
@@ -22,6 +23,7 @@
 | Retention | **None enforced.** Each scan inserts one `scan_sessions` row (status, timestamps, aggregate counters, completeness; **no paths**, `roots_json` stays `'[]'`). Rows accumulate until a retention policy and a delete control exist (`docs/plan.md` §12) |
 | Writers | `Database` implements the `ScanSessionStore` port (`begin`, `finish`, `mark_interrupted`); the scan supervisor calls it best-effort, so a failed write never stops a scan. Nothing reads sessions back over IPC yet |
 | Crash recovery | At startup, rows still `queued`/`running`/`cancelling` are set to `interrupted` with a `finished_at` |
+| Backup | **Pre-migration snapshots implemented** (B-033): when an existing file reports a schema version below `SCHEMA_VERSION`, `Database::open` writes `app_data_dir()/backups/system-scanner-v{version:03}-{epoch_ms}.db` with `VACUUM INTO`, verifies it read-only with `PRAGMA quick_check`, and keeps the newest five. Best-effort: a failure logs a warning and startup continues. No restore command, scheduled backup, or user-facing export |
 
 Schema v1 is intentionally narrow. The tables in §5 for snapshots, file records,
 hashes, findings, quarantine, and action history **do not exist** and will be added
@@ -35,6 +37,8 @@ Runtime facts:
 - Location: `%APPDATA%\com.systemscanner.desktop\system-scanner.db`
   (roaming app data). This is the Tauri `app_data_dir()` default and is not a
   final retention decision — see §11.
+- Pre-migration snapshots live in `%APPDATA%\com.systemscanner.desktop\backups\`,
+  beside the database. A fresh file and an up-to-date file are not snapshotted.
 - The `schema_migrations` bookkeeping table is created by the runner, not by a
   migration file.
 
@@ -311,6 +315,7 @@ quarantine items. See [`docs/DATA_PRIVACY.md`](docs/DATA_PRIVACY.md).
 |---|---|---|
 | `SQLITE_CORRUPT` on open | The open fails, the error is logged, and the app runs without persistence | Do not delete. Rename to `app.db.corrupt-<ts>`, start fresh, surface a recovery notice, offer export of what is readable |
 | Interrupted migration | Each migration runs in one transaction, so the file stays at the previous version; the next startup retries | Retry from last good version (already true) |
+| Pending migration | A verified snapshot is written to `backups/` first (newest five kept). If the snapshot fails, a warning is logged and the migration still runs | Make the snapshot mandatory before the first non-additive migration |
 | Disk full | The failing statement errors and the transaction rolls back; the app logs and continues | Abort the write batch, mark session `failed` with `DISK_FULL`, keep prior history |
 | DB locked | `busy_timeout = 5000` makes SQLite wait, then returns an error that is logged | Surface a diagnostic, never hang the UI |
 | Read-only profile | The open fails and is logged; the app continues without persistence | Detect at startup, run in memory-only mode with a visible banner |
@@ -324,7 +329,24 @@ See [`docs/RECOVERY_PLAN.md`](docs/RECOVERY_PLAN.md).
 
 ## 10. Backup and support export
 
-- Backup (`VACUUM INTO`) is **not implemented** (B-033).
+- **Pre-migration snapshot — implemented (B-033).** Before applying pending
+  migrations, `Database::open` runs `VACUUM INTO` into
+  `app_data_dir()/backups/system-scanner-v{version:03}-{epoch_ms}.db`, then reopens
+  the snapshot read-only and requires `PRAGMA quick_check` to return `ok`. A
+  snapshot that fails the check is deleted instead of kept. The newest five
+  snapshots are retained; unrelated files in `backups/` are never removed.
+- Fresh and up-to-date databases are **not** snapshotted: a stored version equal
+  to `SCHEMA_VERSION`, or a file with no `schema_migrations` table, skips the
+  backup. Snapshots are named so that name order is age order.
+- Backup is **best-effort**: every released migration is additive today, so a
+  full disk or a denied directory logs a warning and the migration still runs
+  rather than blocking startup. The first non-additive migration must make a
+  failed snapshot abort the upgrade.
+- **Restore is manual and has not been exercised in the running app.** With the
+  app closed, copy a snapshot over `system-scanner.db`. A test opens a snapshot
+  with `Database::open` in a scratch directory and confirms it upgrades to v2
+  with its rows intact, but there is no restore command, no "reveal in Explorer"
+  action, no scheduled/daily backup, and no displayed backup size.
 - Support bundle never includes the raw DB; the current diagnostics bundle reads
   only the log tail.
 - Details: [`docs/BACKUP_POLICY.md`](docs/BACKUP_POLICY.md).

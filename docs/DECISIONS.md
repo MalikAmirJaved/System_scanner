@@ -529,7 +529,8 @@ screen on a non-Windows target.
 
 ## ADR-018 — Persistence: `rusqlite` with bundled SQLite and hand-written migrations
 
-**Status:** Accepted · 2026-11-16
+**Status:** Accepted · 2026-11-16 · *(backup bullet superseded by ADR-023,
+2026-11-17)*
 
 **Context.** Release 1 needs scan sessions, results, and history. `DATABASE.md`
 proposed SQLite but no driver, schema, or migration mechanism existed
@@ -786,6 +787,54 @@ DTOs, or hand-written guards.
 **Revisit if:** the DTO count grows enough that generated types (for example from
 `schemars` or a checked-in JSON Schema) beat hand-maintained guards, or a second
 consumer of the IPC contract appears.
+
+---
+
+## ADR-023 — Snapshot before migration: automatic, verified, best-effort, five kept
+
+**Status:** Accepted · 2026-11-17
+
+**Context.** `docs/BACKUP_POLICY.md` §2.1 requires `VACUUM INTO` plus a read-only
+`PRAGMA quick_check`, and KI-014 recorded that no pre-migration backup existed.
+The runner refuses a newer schema and rolls back a failed migration, but a
+migration that succeeds and is still wrong has no way back. Every released
+migration (v1, v2) is purely additive, so today the cost of loss is zero.
+
+**Decision.**
+
+- `Database::open` snapshots only when `schema_migrations` exists and its maximum
+  version is below `SCHEMA_VERSION`. A fresh file (nothing to protect) and an
+  up-to-date file (nothing pending) skip the snapshot.
+- One `VACUUM INTO` into `backups/` beside the database, named
+  `system-scanner-v{version:03}-{epoch_ms}.db`, so name order is age order. Never
+  a file copy and never a sidecar copy.
+- The snapshot is reopened read-only and must return `ok` from
+  `PRAGMA quick_check`. A snapshot that fails is deleted; it is never left as a
+  restore candidate.
+- Retention is the newest five snapshots by name; unrelated files are ignored.
+  The policy's 30-day half is not implemented.
+- The step is **best-effort**: a failure logs `tracing::warn!` and the migration
+  proceeds. Blocking startup on a backup is not justified while every migration
+  is additive.
+- `from_connection` (in-memory and tests) does not snapshot; this is a file
+  concern, not a connection concern.
+
+**Consequences.**
+
+- Startup can take one extra database copy while the single connection is held.
+  Acceptable for a small local database; revisit if the file reaches hundreds of
+  megabytes (B-032).
+- A silently wrong migration is now recoverable by copying one file back, but
+  only by hand: there is no restore command or UI (KI-014).
+- The guarantee is only as good as the additive property. The first non-additive
+  migration **must** make the snapshot mandatory and refuse to migrate on
+  failure; recorded in `docs/MIGRATIONS.md` §11 and `docs/BACKUP_POLICY.md` §3.
+- Restoring an older snapshot re-applies migrations on the next open; the test
+  performs exactly that and checks a row survives.
+
+**Revisit if:** the database grows enough that the copy meaningfully delays
+startup, a daily/rolling backup is added (retention and scheduling then need one
+owner), or a non-additive migration is scheduled.
 
 ---
 

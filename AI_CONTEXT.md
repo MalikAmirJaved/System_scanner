@@ -39,9 +39,9 @@ Architecture: [`ARCHITECTURE.md`](ARCHITECTURE.md).
 | IPC events | `scan:progress`, `scan:completed`, `scan:failed`, `scan:cancelled` (aggregate counters only, paced to 10/s) | `API.md` §4.1, `src-tauri/src/app/jobs.rs` |
 | Wire format | envelope `{status, data|error}`; DTO fields camelCase; codes snake_case | `API.md` §1–§2 |
 | Frontend IPC | `src/services/ipc.ts` is the only `invoke` call site; every response and scan event is validated in the renderer by hand-written guards (`src/services/validate.ts`, B-090) | `src/services/` |
-| Database | SQLite schema **v2** (`scan_sessions`) via `rusqlite`; file at `app_data_dir()/system-scanner.db`, opened at startup. One counters-only row is written per scan through the `ScanSessionStore` port (best-effort); leftover open rows become `interrupted` at startup. **No paths stored; no command reads rows back** | `src-tauri/src/adapters/persistence/`, `src-tauri/migrations/` |
+| Database | SQLite schema **v2** (`scan_sessions`) via `rusqlite`; file at `app_data_dir()/system-scanner.db`, opened at startup. One counters-only row is written per scan through the `ScanSessionStore` port (best-effort); leftover open rows become `interrupted` at startup. A verified `VACUUM INTO` snapshot goes to `backups/` before pending migrations (newest five, best-effort; B-033). **No paths stored; no command reads rows back; restore is manual** | `src-tauri/src/adapters/persistence/`, `src-tauri/migrations/` |
 | Traversal | Bounded worker prototype with cancellation, depth/entry budgets, an outcome per entry with stable codes, and a derived `Completeness` verdict (B-023); driven by an in-memory scan job (B-025) shown in the Storage scan panel; **persisted only as a counters-only session row** | `src-tauri/src/adapters/filesystem/traversal.rs`, `src-tauri/src/domain/traversal.rs` |
-| Tests | 120 Rust + 76 frontend (`npm test`, `cargo test`) | `src/**/*.test.ts(x)`, `#[cfg(test)]` |
+| Tests | 125 Rust + 76 frontend (`npm test`, `cargo test`) | `src/**/*.test.ts(x)`, `#[cfg(test)]` |
 | CI | `.github/workflows/ci.yml` (**never run on GitHub**) | `.github/` |
 | Frontend | shell header + backend status + system snapshot + paged process list + storage scan panel (roots text box, start/cancel, live counts, completeness verdict; no folder picker) + on-request diagnostics in a responsive 1/2/3-column grid, inside an `ErrorBoundary` | `src/App.tsx`, `src/components/`, `src/components/ui/button.tsx` |
 
@@ -65,7 +65,9 @@ If any of these change, update this table in the same commit.
 - No scan history, repositories, or IPC command that reads the database.
   `adapters/persistence` exists and a finished scan writes one `scan_sessions`
   row, but **no command reads rows back**, there is no history UI, no per-entry
-  storage, no retention policy, and no delete control.
+  storage, no retention policy, and no delete control. A pre-migration snapshot
+  is written to `backups/`, but there is no restore command, scheduled backup,
+  or backup UI.
 - No saved-file diagnostics export and no log viewer or level filter. The
   in-app preview/copy of a redacted support bundle exists (B-006); logs remain
   local files.

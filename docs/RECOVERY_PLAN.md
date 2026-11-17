@@ -1,10 +1,11 @@
 # Recovery Plan
 
-> **Status:** No user data or state exists to recover yet. A schema-v1 database
-> file is created at startup with an empty `scan_sessions` table. This plan
-> defines the objectives and procedures to implement alongside the features that
-> write data.
-> **Last updated:** 2026-11-16
+> **Status:** A schema-v2 database now holds counters-only scan rows, and a
+> verified `VACUUM INTO` snapshot is written before any pending migration
+> (newest five, best-effort; B-033). Restoring is still a **manual** copy with
+> the app closed: the offers, banners, and automated restore steps below are
+> **proposed**, not implemented.
+> **Last updated:** 2026-11-17
 
 ---
 
@@ -46,6 +47,11 @@ Never silently recreate the DB without telling the user.
 3. Offer restore from the pre-migration backup.
 4. Do not attempt a partial manual fix in production code paths.
 ```
+
+Implemented today (B-033): the **snapshot** used by step 3 is written and
+verified automatically before pending migrations, but the in-app offer and
+restore action are not implemented. With the app closed, copy the chosen file
+from `backups/` over `system-scanner.db`.
 
 ### 2.3 Interrupted scan (app crash / power loss)
 

@@ -1,6 +1,6 @@
 # Risk Register
 
-> **Status:** Active · **Last updated:** 2026-11-06
+> **Status:** Active · **Last updated:** 2026-11-17
 >
 > Likelihood/Impact: Low / Medium / High. Owner is a role, not a person, until
 > ownership is assigned. Accepted risks are recorded, not hidden.
@@ -25,7 +25,7 @@
 | R-10 | Filesystem traversal exhausts memory on multi-million-file volumes | High | High | Streaming, bounded channels, aggregation, memory budget, fixtures | Eng | Design only |
 | R-11 | UI freezes during scans | High | High | Workers off the UI thread, coalesced events, virtualization | Eng | Design only |
 | R-12 | TOCTOU / reparse-point abuse turns a scan into a write primitive | Medium | Critical | Identity verification, handle-based ops, protected paths, threat model, tests | Security | Not started |
-| R-13 | SQLite corruption or interrupted migration loses history | Medium | High | WAL, transactions, pre-migration backup, recovery path | Eng | Not started |
+| R-13 | SQLite corruption or interrupted migration loses history | Medium | High | WAL, transactions, verified pre-migration snapshot (newest five), recovery path; restore is manual | Eng | Partially mitigated |
 | R-14 | `panic = "abort"` turns a recoverable bug into a crash | Medium | Medium | No unwrap on input, typed errors, interrupted-session recovery | Eng | Accepted |
 | R-15 | Win32 API differences across Windows builds produce wrong data | High | Medium | Explicit `Unsupported`, version tests, VM matrix | Eng | Open |
 | R-16 | WMI/Event Log calls hang the UI | Medium | High | Timeouts, cancellation, `spawn_blocking`, bounded queries | Eng | Design only |

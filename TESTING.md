@@ -1,17 +1,18 @@
 # Testing Strategy
 
-> **Status:** **Runners are configured; coverage is still narrow.** 120 Rust tests
+> **Status:** **Runners are configured; coverage is still narrow.** 125 Rust tests
 > and 76 frontend tests cover the IPC contract (envelope, error taxonomy, DTO
 > shapes, runtime payload guards), the snapshot and process domain rules, both
 > native adapters' structural invariants, logging/redaction, startup messages,
-> schema creation, v1 to v2 migration and runner refusal paths, the traversal
-> (outcomes, budgets, cancellation, long/Unicode paths, junction loops, a live
-> denied-ACL fixture), the scan job supervisor and session rows, root validation,
-> six UI panels (including the scan panel, its event/status reducer, and its
-> service wrapper), and the render error boundary. **Every UI and IPC test uses
-> mocked IPC.** No test launches the Tauri app, so event delivery, capabilities,
-> and real cancellation are unverified end to end (KI-052). This document defines
-> the target strategy and the minimum bar for new work.
+> schema creation, v1 to v2 migration and runner refusal paths, pre-migration
+> snapshot/verify/restore and retention, the traversal (outcomes, budgets,
+> cancellation, long/Unicode paths, junction loops, a live denied-ACL fixture),
+> the scan job supervisor and session rows, root validation, six UI panels
+> (including the scan panel, its event/status reducer, and its service wrapper),
+> and the render error boundary. **Every UI and IPC test uses mocked IPC.** No test
+> launches the Tauri app, so event delivery, capabilities, and real cancellation
+> are unverified end to end (KI-052). This document defines the target strategy
+> and the minimum bar for new work.
 > **Last updated:** 2026-11-17
 
 ---
@@ -20,7 +21,7 @@
 
 | Level | Tool | Configured | Tests |
 |---|---|---|---|
-| Rust unit/integration | `cargo test` | Yes | 120 (`ipc`, `error`, `logging`, `redact`, `startup`, `dto::*`, `domain::*`, `adapters::windows::*`, `adapters::persistence::*`, `adapters::filesystem::*`, `commands::*`, `app::*`) |
+| Rust unit/integration | `cargo test` | Yes | 125 (`ipc`, `error`, `logging`, `redact`, `startup`, `dto::*`, `domain::*`, `adapters::windows::*`, `adapters::persistence::*`, `adapters::filesystem::*`, `commands::*`, `app::*`) |
 | Frontend unit | Vitest 5 + jsdom | Yes | 37 (`services/{ipc,validate,contracts,scan}.test.ts`, `lib/scanView.test.ts`) |
 | Frontend component | Testing Library 16 | Yes | 26 (`BackendStatus`, `ThemeToggle`, `SystemOverview`, `ProcessList`, `Diagnostics`, `ScanPanel`, `ErrorBoundary`) |
 | E2E | tauri-driver / WebDriver (proposed) | No | 0 |
@@ -62,6 +63,12 @@ What the existing tests actually establish, and nothing more:
   with foreign keys enabled, a file database uses WAL and creates its parent
   directory, reopening applies nothing new, a newer schema is refused, and an
   edited released migration is detected by checksum;
+- a database with a pending migration is snapshotted first, the snapshot passes
+  `PRAGMA quick_check`, contains the pre-migration schema and rows, and can be
+  reopened to reach the latest schema with its rows intact; an up-to-date
+  database is not snapshotted, an unwritable backup directory does not block the
+  migration, old snapshots are pruned to five while unrelated files survive, and
+  a corrupt file fails verification;
 - the migration list starts at 1, strictly increases, ends at `SCHEMA_VERSION`,
   and every declared checksum matches its SQL;
 - traversal counts each outcome exactly once and only `ok` entries contribute

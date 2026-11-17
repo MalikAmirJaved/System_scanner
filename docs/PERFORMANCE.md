@@ -59,6 +59,11 @@ streaming through a fixed-capacity channel) but has **no benchmark yet**. The
 throughput and RSS targets above apply to a scan once B-032 generates the
 100k/1M fixtures. Do not cite the design as evidence of a measured budget.
 
+**Startup snapshot:** before a pending migration, startup copies the database once
+with `VACUUM INTO` and verifies it (B-033). The cost is proportional to database
+size and has not been measured; it applies only when a migration is pending, not
+on every launch.
+
 ## 4. Measurement methodology
 
 ### 4.1 Baseline machines (proposed)

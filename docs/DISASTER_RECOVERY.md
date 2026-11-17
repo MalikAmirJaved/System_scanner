@@ -1,8 +1,10 @@
 # Disaster Recovery
 
-> **Status:** No user data is stored yet. A schema-v1 database file is created at
-> startup, but it holds no rows. This plan covers machine loss, corruption, and
-> key compromise for when history is written. **Last updated:** 2026-11-16
+> **Status:** No **off-machine** backup exists. Schema v2 stores counters-only
+> scan rows locally, and a verified `VACUUM INTO` snapshot is kept in `backups/`
+> before pending migrations, but that snapshot lives on the same volume and is
+> not a disaster-recovery copy. The procedures and RPO/RTO figures below remain
+> targets. **Last updated:** 2026-11-17
 >
 > **Distinction:** [`RECOVERY_PLAN.md`](RECOVERY_PLAN.md) covers in-app failures
 > (corrupt DB, interrupted scan). This document covers losing the machine or the

@@ -25,7 +25,36 @@
 
 ---
 
-## 2026-11-17 — IPC response validation in the renderer (B-090)
+## 2026-11-17 — Pre-migration database snapshot (B-033)
+
+- **Agent/tool:** DeepSeek V4.1 Flash (opencode).
+- **Scope:** `src-tauri/src/adapters/persistence/sqlite.rs` (constant, error
+  variants, `configure`, `backup_before_migration`, snapshot helpers, tests);
+  status docs.
+- **Change:** `Database::open` now takes one verified snapshot when an existing
+  file reports a schema version below `SCHEMA_VERSION`, before the migration
+  runner touches it. `VACUUM INTO` writes
+  `backups/system-scanner-v{version:03}-{epoch_ms}.db`; the file is reopened
+  read-only and must pass `PRAGMA quick_check`. A failed snapshot is deleted;
+  the newest five are pruned by file-name order; unrelated files are untouched.
+  Fresh files (no `schema_migrations`) and up-to-date files are not snapshotted.
+  `from_connection` (in-memory and tests) keeps configure+migrate only.
+- **Why:** KI-014 recorded that no pre-migration backup existed, and
+  `docs/BACKUP_POLICY.md` §2.1/§3 require `VACUUM INTO` with verification.
+  B-033 was the next unblocked P1 item.
+- **Risk:** the snapshot runs on the startup path while the single connection is
+  held, so a slow disk delays startup by one copy; it is best-effort, so a
+  migration can still proceed without a snapshot. `VACUUM INTO` binds a lossy
+  UTF-8 path (app-data paths), and the destination is chosen so it never
+  overwrites an existing file. No IPC, capability, DTO, or dependency change.
+- **Evidence:** `cargo fmt --all -- --check` clean, `cargo clippy --all-targets --
+  -D warnings` clean, `cargo test` 125 passed (5 new: snapshot+restore, no
+  snapshot when current, backup failure tolerated, retention, corrupt
+  verification); `npm run build`/`test`/`lint`/`format:check` unchanged and green.
+- **Follow-up:** make the snapshot mandatory before the first non-additive
+  migration; add a restore command and a user-visible backup size (KI-014, ADR-023).
+
+---
 
 - **Agent/tool:** DeepSeek V4.1 Flash (opencode).
 - **Scope:** new `src/services/validate.ts`, `src/services/unavailable.ts`,

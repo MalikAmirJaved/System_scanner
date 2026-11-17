@@ -13,6 +13,17 @@ exists. Until then, `0.x` versions may change behavior without notice.
 
 ## [Unreleased]
 
+### Added (persistence)
+- **Verified snapshot before a schema migration (B-033).** When an existing
+  database reports a schema version below this build's, startup writes a
+  consistent copy with `VACUUM INTO` to `backups/system-scanner-v{version:03}-{epoch_ms}.db`,
+  reopens it read-only, and requires `PRAGMA quick_check` to return `ok`. A
+  snapshot that fails is deleted; the newest five are kept. Fresh and up-to-date
+  files are not snapshotted. The step is best-effort: every released migration is
+  additive, so a full disk or denied directory logs a warning instead of blocking
+  startup. Restore remains manual and is exercised only by tests. No new command,
+  capability, or dependency.
+
 ### Fixed
 - **Every IPC response and scan event is validated in the renderer (B-090).**
   `invokeCommand` now requires a guard for the command's DTO, so an unvalidated

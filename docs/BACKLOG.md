@@ -53,10 +53,10 @@ Notes on the partial items:
 | B-027 | Duplicate pipeline (size → fingerprint → hash) | Avoid wasted hashing |
 | B-028 | Bounded hashing with progress/pause/cancel | Resource control |
 | B-029 | Virtualized results table | UI scale |
-| B-030 | Interrupted-session reconciliation | Crash recovery |
+| B-030 | ✅ Interrupted-session reconciliation (startup marks open rows `interrupted`) | Crash recovery |
 | B-031 | Retention enforcement + visible DB size | Bounded growth |
 | B-032 | Performance baseline on 100k/1M fixtures | Sets real budgets |
-| B-033 | Backup via `VACUUM INTO` + restore test | Data safety |
+| B-033 | ✅ Backup via `VACUUM INTO` + restore test (verified pre-migration snapshot, newest five kept, best-effort) | Data safety |
 
 Note on B-020/B-021: schema v1 contains **`scan_sessions` only**. File records,
 snapshots, hashes, findings, quarantine, and audit tables are deliberately deferred
@@ -133,6 +133,8 @@ unit mapping, not by a live ACL fixture.
 
 | ID | Item | Completed | Evidence |
 |---|---|---|---|
+| B-033 | Pre-migration snapshot: `VACUUM INTO` into `app_data_dir()/backups/` with a version+timestamp name, read-only `PRAGMA quick_check` verification (suspect file deleted on failure), newest five kept, skipped for fresh/up-to-date files, best-effort so startup is never blocked. Restore exercised by reopening the snapshot with `Database::open` | 2026-11-17 | `src-tauri/src/adapters/persistence/sqlite.rs`; 5 new Rust tests (125 total); ADR-023 |
+| B-030 | Interrupted-session reconciliation: startup sets rows still `queued`/`running`/`cancelling` to `interrupted` with a `finished_at` | 2026-11-17 | `src-tauri/src/lib.rs`, `src-tauri/src/adapters/persistence/sessions.rs` (`mark_interrupted`); `open_sessions_become_interrupted_and_ended_ones_do_not` |
 | B-090 | Runtime validation of every IPC response and scan event: mandatory guard in `invokeCommand`, `schemaVersion`/enum/counter/collection-cap checks, `IpcContractError` → `contract_violation` in panels, malformed events reported and re-synced. No dependency added (ADR-022) | 2026-11-17 | `src/services/validate.ts`, `src/services/{app,system,processes,diagnostics,scan,unavailable}.ts`, `src/lib/errors.ts`; 31 new frontend tests (76 total) |
 | B-024 (minimal) | `ScanSessionStore` port + SQLite writer: one counters-only `scan_sessions` row per scan, begin/finish best-effort, startup marks open rows `interrupted`; migration `0002_scan_session_results.sql` (schema v2). No paths, no per-entry rows, no read command | 2026-11-17 | `src-tauri/src/ports/sessions.rs`, `src-tauri/src/adapters/persistence/sessions.rs`, `src-tauri/migrations/0002_scan_session_results.sql`; 11 new Rust tests |
 | B-025 | In-memory scan job supervisor: one scan at a time, `start_scan`/`cancel_scan`/`get_scan_status`, paced `scan:*` events (counters only), shutdown cancel. No UI, no picker, no persistence (B-024) | 2026-11-17 | `src-tauri/src/app/jobs.rs`, `src-tauri/src/domain/job.rs`, `src-tauri/src/dto/scan.rs`, `src-tauri/src/commands/scan.rs`; 24 new Rust tests |

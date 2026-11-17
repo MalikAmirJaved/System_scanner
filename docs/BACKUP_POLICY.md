@@ -1,10 +1,13 @@
 # Backup Policy
 
-> **Status:** No user data exists to back up yet. A schema-v1 database file is
-> created at startup and holds no rows; no backup path is implemented. This
-> policy is defined **before** history is written, so backup is designed in
-> rather than bolted on.
-> **Last updated:** 2026-11-16
+> **Status:** **Pre-migration database snapshots are implemented** (B-033):
+> `VACUUM INTO` into the app-data `backups/` directory, verified with
+> `PRAGMA quick_check`, the newest five kept, best-effort so a failure only logs a
+> warning and startup continues. Quarantine, settings, scheduled/daily backups,
+> user-initiated export, and any restore control are **not implemented**. Stored
+> history is still small: schema v2 holds one counters-only `scan_sessions` row
+> per scan.
+> **Last updated:** 2026-11-17
 
 ---
 
@@ -37,6 +40,11 @@ VACUUM INTO 'C:\path\app-backup-YYYYMMDD-HHMMSS.db';
 Naive file copy of `app.db` while WAL is active is **prohibited** — it can capture
 a torn state.
 
+Implemented for the pre-migration snapshot (B-033) in `Database::open` →
+`backup_before_migration`: the file is named
+`system-scanner-v{version:03}-{epoch_ms}.db`, so name order is age order, and a
+snapshot that fails verification is deleted rather than kept.
+
 ### 2.2 Quarantine
 
 - Copy the object files and `manifest.json` together.
@@ -47,22 +55,30 @@ a torn state.
 
 - Plain JSON copy; validate against `schema_version` on restore.
 
-## 3. Frequency and retention (proposed)
+## 3. Frequency and retention (partially implemented)
 
-| Trigger | Backup |
-|---|---|
-| Before any non-additive migration | Mandatory automatic |
-| Before the first destructive action in a session | Recommended |
-| Daily, if the app is used | Automatic rolling |
-| Manual "Export backup" | User-initiated |
+| Trigger | Backup | Status |
+|---|---|---|
+| Before any pending migration | Automatic snapshot | ✅ Implemented, **best-effort** (B-033) |
+| Before any non-additive migration | Mandatory automatic | ⏳ Not enforced — must become mandatory before the first destructive migration |
+| Before the first destructive action in a session | Recommended | ⏳ Not implemented |
+| Daily, if the app is used | Automatic rolling | ⏳ Not implemented |
+| Manual "Export backup" | User-initiated | ⏳ Not implemented |
 
-Retention: keep the last 5 automatic backups, or 30 days, whichever is smaller.
-Backups consume disk; show the size and allow deletion.
+Retention: **the last 5 snapshots are kept**, counted from the file-name order
+(implemented, B-033). The 30-day half of the proposed rule is not implemented.
+Backups consume disk; showing their size and allowing deletion are not
+implemented.
 
 ## 4. Location
 
 Default: `%LOCALAPPDATA%\com.systemscanner.desktop\backups\`.
 
+- Implemented location (B-033) is the database's own directory:
+  `%APPDATA%\com.systemscanner.desktop\backups\`, because the database still uses
+  the Tauri `app_data_dir()` roaming default. The `%LOCALAPPDATA%` choice above
+  remains a proposal tied to the open data-location question
+  (`docs/plan.md` §12).
 - Same volume as the DB by default; warn the user that a disk failure loses both.
 - Offer a user-selected external location for manual backups.
 - Never write backups into the install directory.
@@ -81,6 +97,13 @@ A backup that has never been restored is a hypothesis.
 ```
 
 Record the drill result in [`RECOVERY_PLAN.md`](RECOVERY_PLAN.md).
+
+Implemented while taking a snapshot (B-033): the first two checks run
+automatically for every pre-migration snapshot. The remaining checks — table
+counts, a spot-check, quarantine hashes, and a per-release drill — are **not**
+automated. One restore is exercised in `cargo test`
+(`a_pending_migration_snapshots_the_database_and_the_snapshot_restores`), and it
+has not been performed against a real user profile.
 
 ## 6. Encryption
 
@@ -104,9 +127,18 @@ Record the drill result in [`RECOVERY_PLAN.md`](RECOVERY_PLAN.md).
 | Verification fails | Delete the suspect backup, keep source, retry once |
 | Backup older than schema | Refuse restore; explain version mismatch |
 
+Implemented for pre-migration snapshots (B-033): a failed write or a denied
+directory is logged as a warning and the migration still runs; a snapshot that
+fails `PRAGMA quick_check` is deleted. There is no retry and no user-facing
+message.
+
 ## 9. Open questions
 
-1. Are backups automatic by default, or user-initiated only?
+1. ~~Are backups automatic by default, or user-initiated only?~~ — pre-migration
+   snapshots are automatic (B-033). Whether a daily backup and a manual export
+   exist by default remains **open**.
 2. Should quarantine be included automatically or opt-in?
 3. Is a 2 GB DB backup acceptable on low-disk machines?
-4. Where does retention run — on startup, on shutdown, or both?
+4. ~~Where does retention run — on startup, on shutdown, or both?~~ — at startup,
+   immediately after a snapshot, before the migration (B-033). Scheduled pruning
+   remains **open**.
