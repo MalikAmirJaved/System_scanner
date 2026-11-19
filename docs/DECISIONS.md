@@ -877,6 +877,61 @@ non-Windows fallback records no identity and remains unverifiable.
 **Revisit trigger.** Any content read or write (the write path must reuse this
 handle, not copy the old pattern), or a need for deterministic entry order.
 
+## ADR-026 — Protected paths are a pure, lexical, deny-by-default domain policy
+
+**Status:** Accepted · 2026-11-19
+
+**Context.** Threat T-02 needs an answer to "may this location be modified?"
+before the first write feature, and B-041 pairs it with the handle identity check
+(ADR-025). Three forces shape the answer: the domain must compile and test without
+Windows (invariant 3), a path is attacker-influenced input (invariant 4), and a
+refusal must be explainable rather than a silent skip. Canonicalization — 8.3
+short names, reparse resolution, `GetFinalPathNameByHandleW` — needs the OS, so it
+cannot live in the domain.
+
+**Options.**
+
+1. Put the policy in a Windows adapter and canonicalize every path there. Most
+   accurate, but the rule set becomes untestable off Windows and the domain loses
+   its policy.
+2. Put the rule in the domain but read environment variables for the roots.
+   Simple, but takes ambient state, so a test cannot describe the machine it means.
+3. Put the rule in the domain over *caller-supplied* roots, resolve paths
+   lexically, and let the adapter supply canonical directories.
+
+**Decision.** Option 3, in `domain/policy.rs`.
+
+- `default_roots(windows_dir, program_files, program_files_x86, program_data,
+  local_app_data, app_install, app_data)` takes the machine directories as
+  arguments; no environment read, no `std::fs`.
+- Comparison is upper-cased, component-aware, and boundary-checked, so
+  `C:\Windows10` is not covered by `C:\Windows`. Trailing dots and spaces are
+  trimmed, `.`/`..` resolve lexically, `\\?\C:\...` equals `C:\...`.
+- Roots are sorted most-specific-first, so a `System32` path reports `system32`
+  rather than `system_root`; every denial carries a stable code.
+- A path the module cannot resolve to a drive-rooted sequence — relative,
+  drive-less, device (`\\.\`), verbatim global, UNC — is **denied** as
+  `unresolvable`. A share can point into a protected tree, so it is not ordinary
+  user space. A root that cannot be resolved is dropped rather than allowed to
+  match everything.
+- A path outside every root is `Allowed`; the policy is a ceiling on authority,
+  not a grant.
+
+**Consequences.** The policy is honest about being lexical: 8.3 names, reparse
+resolution, non-ASCII case folding, ADS, and hard links are not modelled, so it
+must be paired with the handle identity check rather than replace it (ADS and hard
+links inherit their containing path, which is the safe direction). It has **no
+caller** until the first state-changing command exists; it is unreachable while
+nothing changes state, and the read-only walker deliberately does not consult it,
+because scanning `C:\Windows` for counters is a legitimate use (KI-057). The list
+is compiled in, not configurable, which keeps it auditable; making it updatable is
+an open question (`docs/ACCESS_CONTROL.md` §9 item 4).
+
+**Revisit trigger.** The first write path (must call `evaluate` and report the
+denial before acting), a requirement to configure the list per machine, or a
+decision to follow reparse points — lexical resolution is then no longer enough on
+its own.
+
 ---
 
 ## Template

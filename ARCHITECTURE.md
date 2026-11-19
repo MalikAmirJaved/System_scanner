@@ -84,8 +84,8 @@
   reports depth/entry limits, and never follows reparse points. Each directory is
   opened once and enumerated through that handle, and its volume serial + 128-bit
   file id are compared with the identity the parent recorded (`directory.rs`).
-  `domain/` holds only the identity type, comparison rule, outcome vocabulary, and
-  counters.
+  `domain/` holds only the identity type, comparison rule, outcome vocabulary,
+  counters, and the protected-path policy (`domain/policy.rs`, B-041).
 
 **Properties that do not hold yet**
 
@@ -99,7 +99,8 @@
   both Windows adapters' structural invariants, paging boundaries, logging,
   redaction, startup message text, migration ordering/checksums, schema creation,
   WAL mode, schema-version refusal, traversal outcomes/budgets/cancellation/
-  identity/batch refills/long and Unicode paths/junction loops, and the five UI
+  identity/batch refills/long and Unicode paths/junction loops, protected-path
+  decisions (component boundaries, case, dot segments, unresolvable shapes), and the five UI
   panels plus the error
   boundary, plus the scan job, session rows, and the scan panel against mocked IPC.
   File-record persistence is untested because it does not exist, and no test runs
@@ -222,6 +223,15 @@ the adapter opens and enumerates and streams results. Directory access goes
 through `adapters/filesystem/directory.rs`, which binds the attributes, identity,
 and enumeration to one handle; nothing re-opens a directory by path after
 checking it (B-041).
+
+Whether a location may be *modified* is a separate rule, in `domain/policy.rs`:
+deny-by-default over the system roots, component-aware and case-insensitive,
+lexical, with a reason code per denial and unresolvable shapes denied rather
+than assumed safe. It is implemented and tested but **has no caller yet** — no
+command changes state, and the read-only walker must stay able to scan system
+directories (KI-057). The first write path must consult it, and must pair it with
+the handle identity check: policy answers "may this location change?", identity
+answers "is this the object I recorded?"
 
 The current capability is a **read-only traversal prototype**:
 

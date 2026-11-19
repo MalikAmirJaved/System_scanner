@@ -24,6 +24,24 @@ exists. Until then, `0.x` versions may change behavior without notice.
   startup. Restore remains manual and is exercised only by tests. No new command,
   capability, or dependency.
 
+### Added (security)
+- **Protected-path policy (B-041, policy half).** `domain/policy.rs` decides
+  whether a location may be modified: deny-by-default over `System32`,
+  `%SystemRoot%`, both Program Files trees, `%ProgramData%\Microsoft`,
+  `%LOCALAPPDATA%\Microsoft`, the app install directory, and the app data
+  directory. Matching is component-aware and case-insensitive (`C:\Windows10` is
+  outside `C:\Windows`), ignores trailing dots and spaces, resolves `.`/`..`
+  lexically, and treats `\\?\C:\...` as the same location. Every denial carries a
+  stable reason code, with the most specific root winning; relative, drive-less,
+  device, verbatim-global, and UNC paths are denied as `unresolvable` rather than
+  assumed safe, and a root that cannot be resolved is dropped instead of matching
+  everything. The module performs no I/O, reads no environment, and imports no
+  platform crate; `default_roots(...)` takes the machine directories from the
+  caller, so tests describe a machine instead of inheriting one. **No command
+  consults it yet**: nothing changes state, and the read-only walker must remain
+  able to scan system directories, so it returns counters only (KI-057). 10 new
+  Rust tests (144 total). No dependency, no new command, no capability change.
+
 ### Fixed
 - **Every IPC response and scan event is validated in the renderer (B-090).**
   `invokeCommand` now requires a guard for the command's DTO, so an unvalidated

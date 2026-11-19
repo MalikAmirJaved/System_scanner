@@ -2,6 +2,10 @@
 
 pub mod diagnostics;
 pub mod job;
+// The protected-path policy has no production caller until the first
+// state-changing command exists (B-041); its own tests exercise it meanwhile.
+#[allow(dead_code)]
+pub mod policy;
 pub mod process;
 pub mod system;
 pub mod traversal;

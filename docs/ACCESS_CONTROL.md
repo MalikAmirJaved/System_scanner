@@ -96,25 +96,56 @@ and walked read-only today. Reserved DOS device names inside a normal path
 
 ## 5. Layer 4 — Protected paths
 
-Proposed default-deny list (to be finalized before any write feature):
+> **Status:** Implemented as a module, **not enforced** by any command
+> (2026-11-19, B-041). Nothing in the product changes state, so nothing calls it
+> yet. See KI-057.
 
-```text
-C:\Windows\**
-C:\Program Files\**
-C:\Program Files (x86)\**
-C:\ProgramData\Microsoft\**
-%SystemRoot%\System32\**
-%USERPROFILE%\AppData\Local\Microsoft\**   (selective)
-the application's own install and data directories (except its own store)
-```
+`domain/policy.rs` holds the policy (`ProtectedPathPolicy`), with no I/O and no
+platform import. `default_roots(...)` takes the machine-specific directories as
+arguments, so tests describe a machine instead of inheriting one.
 
-Rules:
+Protected roots and the reason each denial reports:
 
-- Deny by default; allow only through an explicit, reviewed policy.
-- Path comparison uses canonical, case-insensitive Windows semantics, including
-  short (8.3) names and reparse resolution.
-- Policy is enforced in Rust, never in the UI.
-- A denial is reported with a reason, not a silent skip.
+| Root | Reason code |
+|---|---|
+| `%SystemRoot%\System32` (and its subtree) | `system32` |
+| `%SystemRoot%` | `system_root` |
+| `%ProgramFiles%` | `program_files` |
+| `%ProgramFiles(x86)%` | `program_files_x86` |
+| `%ProgramData%\Microsoft` | `program_data_microsoft` |
+| `%LOCALAPPDATA%\Microsoft` | `app_data_microsoft` |
+| the application's install directory | `app_install` |
+| the application's data directory, except its own store | `app_data` |
+| a path that cannot be resolved | `unresolvable` |
+
+Rules as implemented:
+
+- **Deny by default** over those roots; a path outside every root is `Allowed`.
+  The policy is a ceiling on authority, never a grant: an allowed decision still
+  needs the operation's own checks.
+- Comparison is case-insensitive and **component-aware**, so `C:\Windows10` is not
+  inside `C:\Windows`. Trailing dots and spaces are trimmed, `.`/`..` are resolved
+  lexically, and `\\?\C:\...` is treated as the same location as `C:\...`.
+- The **most specific** matching root supplies the reason (`System32` over
+  `SystemRoot`), so a denial is explainable rather than vague.
+- A path that is not drive-rooted — relative, drive-less, device (`\\.\`), verbatim
+  global, or UNC — is denied as `unresolvable` instead of being assumed safe. A
+  share can point into a protected tree, so it is not treated as ordinary user
+  space.
+- Roots that cannot themselves be resolved are dropped, never allowed to match
+  everything.
+- Policy lives in Rust, never in the UI, and a denial always carries a reason.
+
+Limits of this layer, by design:
+
+- Resolution is **lexical**. 8.3 short names and reparse resolution are not
+  expanded here; the paired defence is the handle-based identity check
+  (`adapters/filesystem/directory.rs`), which binds the object opened to the
+  object recorded.
+- Non-ASCII case folding, alternate data streams, and hard links are not modelled;
+  ADS and hard links inherit their containing path, which is the safe direction.
+- The walker does **not** consult the policy: scanning `C:\Windows` read-only is a
+  legitimate use and returns counters only.
 
 ## 6. Layer 5 — Confirmation
 
@@ -164,6 +195,10 @@ Do not add role/permission abstractions preemptively.
 [ ] Elevation denial produces a recoverable error, not a partial state change
 [ ] IPC caller cannot supply a path that escapes the selected root
 ```
+
+Only the fourth item has any implementation: the protected-path policy denies
+with a reason and is unit-tested, but no command enforces it yet, so the box stays
+unchecked. The rest need commands that do not exist.
 
 ## 9. Open questions
 

@@ -25,6 +25,42 @@
 
 ---
 
+## 2026-11-19 — Protected-path policy (B-041 policy half)
+
+- **Agent/tool:** Buffy (DeepSeek V4.1 Flash), Freebuff.
+- **Scope:** `src-tauri/src/domain/policy.rs` (new), `src-tauri/src/domain/mod.rs`,
+  `docs/ACCESS_CONTROL.md` §5/§8, `docs/DECISIONS.md` (ADR-026),
+  `docs/THREAT_MODEL.md` §11.4/§11.5/§11.8, `docs/KNOWN_ISSUES.md` (KI-057),
+  `docs/BACKLOG.md`, `docs/CHANGELOG.md`, `SECURITY.md`, `AI_CONTEXT.md`,
+  `ARCHITECTURE.md` §4.5. No dependency, no command, no capability change.
+- **Change:** The write-side half of B-041 exists as a pure domain policy:
+  `ProtectedPathPolicy` decides `Allowed`/`Denied(reason)` over caller-supplied
+  protected roots, comparing upper-cased components with boundary checks, trimming
+  trailing dots/spaces, resolving `.`/`..` lexically, accepting `\\?\C:\...` as
+  `C:\...`, and denying unresolvable shapes (relative, drive-less, device,
+  verbatim global, UNC) as `unresolvable` instead of assuming they are safe.
+  Unusable roots are dropped; roots are ordered most-specific-first so the reason
+  is the narrowest match. The module reads no environment and touches no
+  filesystem; `default_roots(...)` takes the machine directories from the caller.
+- **Why:** Threat T-02 and B-041 required a protected-path policy before any write.
+  Keeping it in the domain means it compiles and is tested without Windows
+  (invariant 3) and cannot be re-implemented in the UI (invariant 2).
+- **Boundary:** The policy is **not enforced**. Nothing in the product changes
+  state, and the read-only walker must stay able to scan system directories, so no
+  command calls it. Recorded as KI-057, with the obligation on the first
+  state-changing command to consult it before acting.
+- **Risk:** Lexical resolution does not expand 8.3 names or reparse points, so the
+  policy alone would be bypassable; it is documented as one of two paired checks
+  (ADR-025 supplies the other). A future caller that treats `Allowed` as
+  authorization would be wrong — the policy is a ceiling, not a grant.
+- **Evidence:** `cargo fmt --all -- --check`, `cargo clippy --all-targets -- -D
+  warnings`, `cargo test` (144 passed, 10 new) — all green on Windows.
+- **Follow-up:** Consume the policy in the first write path (B-047/B-048) and
+  report a denial per operation; decide `docs/ACCESS_CONTROL.md` §9 item 4 (making
+  the list auditable/updatable); KI-056 still needs a typed `unsupported` outcome.
+
+---
+
 ## 2026-11-19 — Handle-based directory access closes F-01 (B-041 identity half)
 
 - **Agent/tool:** Buffy (DeepSeek V4.1 Flash), Freebuff.

@@ -272,7 +272,7 @@ policy; neither exists.
 
 | Threat | Effect of the review |
 |---|---|
-| T-02 | No write path exists and reparse points are skipped. Still design-time; F-01 defines the identity check the write path must use. |
+| T-02 | No write path exists and reparse points are skipped. The identity check the write path must use is implemented (F-01 closed), and so is the protected-path policy (`domain/policy.rs`), but no command consults either yet. |
 | T-03 | Same. F-01 is the concrete window to close before quarantine. |
 | T-04 | Mitigated for the current payload: shape and enum checks, bounded roots/entries, unknown fields rejected. |
 | T-09 | Partially mitigated: no link following, depth and entry caps, cancellation; no visited set needed while nothing is followed. |
@@ -287,6 +287,7 @@ policy; neither exists.
 | F-01 residual: volume supplies no file id | Check reports unverifiable and continues; nothing is read (§11.8) | Any content read or write on such a volume | B-041, KI-056 |
 | F-02 UNC/network/removable roots | Accepted, bounded, can stall a worker | Public release, or any claim about network scanning | Open product decision; enforcement would extend B-041 |
 | No per-I/O timeout | UI responsive; a scan can stall on a dead share | Network roots allowed by policy | Not scheduled |
+| Protected-path policy exists but is not enforced | Module and tests only; unreachable while nothing changes state (§11.8) | First state-changing command | B-041, KI-057 |
 | No audit of scans | Read-only; no accountability need yet | First state-changing action | B-046 |
 | No fuzzing of the walker or IPC parsers | Unit tests only | Public release | `TESTING.md` gap |
 
@@ -306,6 +307,8 @@ first content read, hash, or write (B-041 onward):
 1. Are UNC/network shares scanned, warned about, or refused — and is a root
    allow-list tied to a folder picker the mechanism?
 2. Are removable volumes scanned by default or only after confirmation?
+3. Will the walker ever follow reparse points (with a visited set) to reach
+   content behind junctions, or is "skip and report" the permanent contract?
 
 ### 11.8 Update 2026-11-19 — F-01 closed by handle-based directory access
 
@@ -328,8 +331,12 @@ first content read, hash, or write (B-041 onward):
   one batch is held. The `.` and `..` records are skipped.
 - Tests: adapter identity stability, junction report, missing directory, a
   1,200-entry directory spanning several buffers, and walker-level tests for a
-  1,500-file directory and a junction root (`cargo test`, 134 passing).
+  1,500-file directory and a junction root (`cargo test`, 144 passing).
+- The protected-path policy the first write path must consult is implemented in
+  `domain/policy.rs`: deny-by-default over the system roots, component-aware,
+  case-insensitive, lexical, with a reason per denial; an unresolvable path is
+  denied rather than assumed safe. It is **not enforced anywhere yet** — no
+  command changes state, and the read-only walker must remain able to scan system
+  directories (KI-057).
 - Still open: a volume without file ids is unverifiable (KI-056); F-02 root
   policy is a product decision; file roots are classified by path.
-3. Will the walker ever follow reparse points (with a visited set) to reach
-   content behind junctions, or is "skip and report" the permanent contract?
