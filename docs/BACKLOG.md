@@ -1,6 +1,6 @@
 # Backlog
 
-> **Status:** Active · **Last updated:** 2026-11-17
+> **Status:** Active · **Last updated:** 2026-11-19
 >
 > Priority: **P0** blocks Release 0 / trust, **P1** needed for V1, **P2** V2+,
 > **P3** nice to have. IDs are stable; do not renumber.
@@ -77,7 +77,7 @@ unit mapping, not by a live ACL fixture.
 | ID | Task |
 |---|---|
 | B-040 | ✅ Threat model review of file operations (TOCTOU, reparse points) |
-| B-041 | Protected-path policy + tests |
+| B-041 | 🟡 Protected-path policy + handle-based identity. **Identity half done** (F-01 closed: handle open, volume-serial + file-ID comparison, enumeration through the handle). **Remaining:** protected-path allowlist policy and its tests, which the write path must consume |
 | B-042 | Process hierarchy + access-limited metadata |
 | B-043 | Startup/service inventory with limitation explanations |
 | B-044 | `WinVerifyTrust` signature adapter |
@@ -133,6 +133,7 @@ unit mapping, not by a live ACL fixture.
 
 | ID | Item | Completed | Evidence |
 |---|---|---|---|
+| B-041 (identity half) | Handle-based directory access closes F-01/KI-055: one `CreateFileW` open with `FILE_FLAG_OPEN_REPARSE_POINT \| FILE_FLAG_BACKUP_SEMANTICS`, volume serial + 128-bit file ID from that handle, enumeration through the same handle in fixed-size batches, parent-recorded vs opened ID comparison (mismatch → `disappeared`), `\\?\` prefix for long paths. Children no longer re-stat by path. Protected-path allowlist policy remains | 2026-11-19 | `src-tauri/src/adapters/filesystem/directory.rs`, `src-tauri/src/domain/traversal.rs` (`FileIdentity`, `compare_identity`), `src-tauri/src/adapters/filesystem/traversal.rs`; 9 new Rust tests (134 total); fmt/clippy/test/build green |
 | B-040 | Threat-model review of the implemented read-only file surface: IPC root/limit checks, root classification, per-child reparse checks, counters-only output, DB/backup content, and the check-then-open window between `symlink_metadata` and `read_dir`. Recorded F-01–F-07 and T-14, mapped T-02/T-03/T-09, and left UNC/network/removable root policy as an open product decision. No code change | 2026-11-17 | `docs/THREAT_MODEL.md` §11; `SECURITY.md` §6; `docs/ACCESS_CONTROL.md` §4; KI-055; R-12 |
 | B-004 | App shell + single dashboard: header/main/footer, responsive one/two/three-column grid, `<h1 class="sr-only">`, five panels (backend status, system overview, process list, diagnostics, storage scan) each with explicit loading, empty, and error states, and an `ErrorBoundary` at the root. No router and no navigation, by design | 2026-11-17 | `src/App.tsx`, `src/main.tsx`, `src/components/*.tsx`; frontend tests already cover the panel states (76 tests) |
 | B-033 | Pre-migration snapshot: `VACUUM INTO` into `app_data_dir()/backups/` with a version+timestamp name, read-only `PRAGMA quick_check` verification (suspect file deleted on failure), newest five kept, skipped for fresh/up-to-date files, best-effort so startup is never blocked. Restore exercised by reopening the snapshot with `Database::open` | 2026-11-17 | `src-tauri/src/adapters/persistence/sqlite.rs`; 5 new Rust tests (125 total); ADR-023 |

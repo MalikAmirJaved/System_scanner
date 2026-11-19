@@ -47,6 +47,18 @@ exists. Until then, `0.x` versions may change behavior without notice.
   and `scan:*` events; no capability change.
 
 ### Security
+- **Handle-based directory access closes the check-then-open race (B-041).**
+  Each directory is opened once with
+  `FILE_FLAG_OPEN_REPARSE_POINT | FILE_FLAG_BACKUP_SEMANTICS`, its volume serial
+  and 128-bit file id are read from that handle, and children are enumerated
+  through the same handle in 16 KiB batches. The walker compares the id the
+  parent recorded with the id it opened and reports a mismatch as `disappeared`
+  instead of scanning the replacement. Children are classified from the
+  enumeration record, so the second by-path `symlink_metadata` is gone, and
+  `\\?\` prefixes make paths beyond `MAX_PATH` open without `LongPathsEnabled`.
+  Counts, verdicts, and the IPC surface are unchanged. Where a volume supplies no
+  file id the check is unverifiable, never a match (KI-056). 9 new Rust tests
+  (134 total); no dependency or capability change.
 - **Threat-model review of the read-only file surface (B-040).** Reviewed the
   implemented scan path end to end: IPC root/limit validation, root
   classification, per-child reparse checks, counters-only output, and the

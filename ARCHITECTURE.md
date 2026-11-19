@@ -81,8 +81,11 @@
   run, and the handle is stored in Tauri state.
 - Filesystem enumeration is confined to `adapters/filesystem/`. The prototype
   streams entries through a bounded channel, checks cancellation between entries,
-  reports depth/entry limits, and never follows reparse points. `domain/` holds
-  only the outcome vocabulary and counters.
+  reports depth/entry limits, and never follows reparse points. Each directory is
+  opened once and enumerated through that handle, and its volume serial + 128-bit
+  file id are compared with the identity the parent recorded (`directory.rs`).
+  `domain/` holds only the identity type, comparison rule, outcome vocabulary, and
+  counters.
 
 **Properties that do not hold yet**
 
@@ -95,8 +98,9 @@
 - Tests cover the IPC contract, the snapshot/process/diagnostics domain and DTOs,
   both Windows adapters' structural invariants, paging boundaries, logging,
   redaction, startup message text, migration ordering/checksums, schema creation,
-  WAL mode, schema-version refusal, traversal outcomes/budgets/cancellation/long
-  and Unicode paths/junction loops, and the five UI panels plus the error
+  WAL mode, schema-version refusal, traversal outcomes/budgets/cancellation/
+  identity/batch refills/long and Unicode paths/junction loops, and the five UI
+  panels plus the error
   boundary, plus the scan job, session rows, and the scan panel against mocked IPC.
   File-record persistence is untested because it does not exist, and no test runs
   the real app end to end.
@@ -147,7 +151,7 @@ Rust core (no Windows imports)
 | `ports/`                | Narrow traits for OS, storage, export                             | Leak platform handles                 |
 | `adapters/windows/`     | Win32/WMI/registry/Defender access, `unsafe` isolation          | Leak raw handles upward               |
 | `adapters/persistence/` | SQLite repositories, migrations                                   | Contain business rules                |
-| `adapters/filesystem/`  | Traversal prototype (read-only); identity checks and quarantine storage are not started | Contain business rules; follow reparse points; write |
+| `adapters/filesystem/`  | Traversal prototype (read-only) with handle-based open and volume-serial + file-ID checks; quarantine storage is not started | Contain business rules; follow reparse points; write |
 | `reporting/`            | Export formats, redaction                                         | Read the OS directly                  |
 | `src/services/` (FE)    | Typed `invoke()` wrappers, event subscriptions                  | Format data for display               |
 | `src/features/` (FE)    | Screens, feature state, user flows                                | Call `invoke()` directly            |
@@ -214,7 +218,10 @@ denied. It never shares a code path with read-only collection.
 
 Only `adapters/filesystem/` may enumerate directories. `domain/` decides what an
 entry *means* (kind, skip reason, outcome, limits, counters) and performs no I/O;
-the adapter reads metadata and `read_dir` and streams results.
+the adapter opens and enumerates and streams results. Directory access goes
+through `adapters/filesystem/directory.rs`, which binds the attributes, identity,
+and enumeration to one handle; nothing re-opens a directory by path after
+checking it (B-041).
 
 The current capability is a **read-only traversal prototype**:
 
@@ -230,7 +237,12 @@ The current capability is a **read-only traversal prototype**:
 - reparse points (symlinks, junctions, other Windows reparse attributes,
   including cloud placeholders) are reported and **never followed**, so a
   junction loop cannot hang the walk. Following them would need a visited set
-  keyed by volume + file ID.
+  keyed by volume + file ID;
+- a directory is opened with `FILE_FLAG_OPEN_REPARSE_POINT |
+  FILE_FLAG_BACKUP_SEMANTICS` and enumerated through that same handle, after its
+  volume serial + 128-bit file id are compared with the id the parent recorded;
+  a mismatch is reported as `disappeared` and never scanned. Where the volume
+  supplies no id the check is unverifiable (KI-056), which is not a match.
 
 The prototype writes nothing: no database row, no log line carrying a path, no
 IPC response, no UI state. B-025 added the in-memory job on top of it

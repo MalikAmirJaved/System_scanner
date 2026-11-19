@@ -4,7 +4,7 @@
 > (some code, incomplete or unverified), `Planned` (designed, not built),
 > `Proposed` (an idea), `Not started`.
 >
-> **Last updated:** 2026-11-17
+> **Last updated:** 2026-11-19
 >
 > This inventory is the ground truth for "does this exist?". If code and this
 > table disagree, the code wins for behavior and this table must be corrected.
@@ -80,8 +80,8 @@ commands/processes.rs}`, `src/components/ProcessList.tsx`, `API.md` §3.3.
 | ID | Feature | Status |
 |---|---|---|
 | F-050 | Drive discovery + selection | ⏳ Not started |
-| F-051 | Cancellable directory traversal | 🟡 Partial — bounded worker prototype in `adapters/filesystem`, cooperative cancel, depth/entry budgets; driven by an in-memory scan job with `start_scan`/`cancel_scan`/`get_scan_status` and `scan:*` events (B-025), shown in a Storage scan panel with typed-in roots, start/cancel, live counts, and a completeness verdict. No folder picker, file list, or per-entry persistence |
-| F-052 | Per-entry outcome reporting | 🟡 Partial — `ok`/`skipped`/`denied`/`disappeared`/`unsupported`/`failed` produced by the traversal prototype, with stable codes and a derived `complete`/`partial`/`truncated`/`cancelled` verdict (B-023); surfaced over IPC only as aggregate counters and the verdict (B-025); per-entry outcomes are not rendered or persisted |
+| F-051 | Cancellable directory traversal | 🟡 Partial — bounded worker prototype in `adapters/filesystem`, cooperative cancel, depth/entry budgets; driven by an in-memory scan job with `start_scan`/`cancel_scan`/`get_scan_status` and `scan:*` events (B-025), shown in a Storage scan panel with typed-in roots, start/cancel, live counts, and a completeness verdict. Each directory is opened once without following its final link and enumerated through that handle, with a volume-serial + 128-bit file-ID check against the identity the parent recorded (B-041, F-01 closed; `adapters/filesystem/directory.rs`). No folder picker, file list, or per-entry persistence |
+| F-052 | Per-entry outcome reporting | 🟡 Partial — `ok`/`skipped`/`denied`/`disappeared`/`unsupported`/`failed` produced by the traversal prototype, with stable codes and a derived `complete`/`partial`/`truncated`/`cancelled` verdict (B-023); a directory whose identity changed under its recorded path is reported as `disappeared` (B-041); surfaced over IPC only as aggregate counters and the verdict (B-025); per-entry outcomes are not rendered or persisted |
 | F-053 | Large-file summary | ⏳ Not started |
 | F-054 | Extension/type summary | ⏳ Not started |
 | F-055 | Age filters | ⏳ Not started |

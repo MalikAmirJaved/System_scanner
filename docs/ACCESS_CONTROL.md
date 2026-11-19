@@ -2,7 +2,7 @@
 
 > **Status:** No authorization system is implemented. Today the app runs as the
 > invoking user with `core:default` Tauri capabilities only.
-> **Last updated:** 2026-11-17
+> **Last updated:** 2026-11-19
 
 ---
 
@@ -80,13 +80,15 @@ and any `\\?\` path that is not a drive (`\\?\C:\`) or UNC (`\\?\UNC\...`) form,
 including `\\?\GLOBALROOT\...` and `\\?\Volume{...}\`. Forward slashes are
 normalized first.
 
-**Remaining gap (B-040 review, 2026-11-17).** The review confirmed the scan
-surface is read-only and counters-only, and recorded one concrete window:
-`visit_directory` re-checks the reparse attribute with `symlink_metadata` and then
-calls `read_dir` **by path**, so a directory replaced by a junction in between is
-enumerated even though the check passed (`docs/THREAT_MODEL.md` §11.3 F-01). That
-must become a handle-based open plus identity check before any content read or
-write. Whether to restrict roots further — an allow-list tied to a folder picker,
+**Window closed (2026-11-19, B-041).** The B-040 review (2026-11-17) recorded one
+concrete window: `visit_directory` re-checked the reparse attribute with
+`symlink_metadata` and then called `read_dir` **by path**, so a directory replaced
+by a junction in between was enumerated even though the check passed
+(`docs/THREAT_MODEL.md` §11.3 F-01). Directories are now opened once without
+following their final link, identified by volume serial + 128-bit file id, and
+enumerated through that same handle (`adapters/filesystem/directory.rs`); a
+mismatch is reported as `disappeared`, and a volume without file ids is
+unverifiable (KI-056). Whether to restrict roots further — an allow-list tied to a folder picker,
 a block on network shares, a warning for removable media — is still an **open
 product decision**; arbitrary UNC shares and other absolute paths remain accepted
 and walked read-only today. Reserved DOS device names inside a normal path

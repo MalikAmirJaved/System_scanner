@@ -94,7 +94,7 @@ Full analysis: [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md).
 | No updater / signed update channel | Users stay on vulnerable builds | `docs/RELEASE_POLICY.md` |
 | No dependency advisory gate in CI | Silent vulnerable transitive deps | `docs/DEVOPS.md` |
 | No SBOM | Unverifiable supply chain | `docs/DEVOPS.md` |
-| No review of destructive, privileged, or networked operations | The read-only scan surface was reviewed on 2026-11-17 (B-040): counters only, standard user, reparse points skipped, device namespaces rejected. The review found a check-then-open window (F-01) that must be closed before any content read or write, and left UNC/network/removable root policy as an open product decision. No write, delete, quarantine, service-control, elevation, or network path has been reviewed | `docs/THREAT_MODEL.md` §11, `docs/ACCESS_CONTROL.md` |
+| No review of destructive, privileged, or networked operations | The read-only scan surface was reviewed on 2026-11-17 (B-040): counters only, standard user, reparse points skipped, device namespaces rejected. The review found a check-then-open window (F-01), closed on 2026-11-19 by handle-based directory access (B-041), and left UNC/network/removable root policy as an open product decision. No write, delete, quarantine, service-control, elevation, or network path has been reviewed | `docs/THREAT_MODEL.md` §11, `docs/ACCESS_CONTROL.md` |
 | No audit trail implementation | No accountability for control operations | `docs/AUDIT_LOGGING.md` |
 | No security contact published | Slow disclosure | `docs/INCIDENT_RESPONSE.md` |
 | CSP allows `style-src 'unsafe-inline'` | Style injection if XSS exists | Revisit when styling changes |
@@ -108,7 +108,9 @@ Full analysis: [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md).
 4. Do not log secrets, file contents, full command lines, or unnecessary paths.
 5. Do not add a plugin without reviewing its permission surface.
 6. Any new filesystem write path requires: protected-path policy, identity
-   verification, TOCTOU handling, and audit.
+   verification, TOCTOU handling, and audit. Directory identity verification is
+   implemented (`adapters/filesystem/directory.rs`); protected-path policy and
+   audit are not.
 7. Do not weaken the CSP to make a library work; fix the library or wrap it.
 8. Report dependency advisories immediately; do not "wait for the next release".
 

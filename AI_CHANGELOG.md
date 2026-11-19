@@ -6,7 +6,7 @@
 >
 > Only record changes that affect structure, boundaries, contracts, or process.
 > Routine edits do not belong here.
-> **Last updated:** 2026-11-17
+> **Last updated:** 2026-11-19
 
 ---
 
@@ -24,6 +24,43 @@
 ```
 
 ---
+
+## 2026-11-19 — Handle-based directory access closes F-01 (B-041 identity half)
+
+- **Agent/tool:** Buffy (DeepSeek V4.1 Flash), Freebuff.
+- **Scope:** new `src-tauri/src/adapters/filesystem/directory.rs`;
+  `src-tauri/src/adapters/filesystem/{mod,traversal}.rs`;
+  `src-tauri/src/domain/traversal.rs` (`FileIdentity`, `IdentityCheck`,
+  `compare_identity`); `src-tauri/Cargo.toml` unchanged;
+  `docs/{THREAT_MODEL,KNOWN_ISSUES,BACKLOG,FEATURES,DECISIONS}.md`,
+  `ARCHITECTURE.md`, `SECURITY.md`, `AI_CONTEXT.md`, `docs/CHANGELOG.md`.
+- **Change:** Directory access now goes through one handle. `DirectoryHandle::open`
+  uses `CreateFileW` with `FILE_FLAG_OPEN_REPARSE_POINT |
+  FILE_FLAG_BACKUP_SEMANTICS`, reads the volume serial and 128-bit file id
+  (`FileIdInfo`) from that handle, and enumerates children through it
+  (`FileIdExtdDirectoryInfo`, 16 KiB batches). The walker records a child's id in
+  the work item, compares it with the opened id, and reports a mismatch as
+  `disappeared`; the per-child by-path `symlink_metadata` is removed. A new
+  module boundary is documented (ARCHITECTURE §4.5) and the decision recorded as
+  ADR-025.
+- **Why:** Threat-model finding F-01 / KI-055: checking a directory by path and
+  then enumerating by path let a junction swapped in between be followed. The
+  review made closing it a precondition for the first content read or write
+  (hashing, duplicates).
+- **Risk:** `unsafe` Win32 calls sit in the enumeration path; a wrong buffer or
+  offset interpretation would misreport entries. Mitigated by `SAFETY:` comments,
+  tests for batch refills (1,200- and 1,500-entry directories), identity
+  stability, junction reporting, and the pre-existing denied/Unicode/long-path
+  tests. Non-Windows behavior is unchanged but compiles only; it records no
+  identity.
+- **Evidence:** `cargo fmt --all -- --check`, `cargo clippy --all-targets -- -D
+  warnings`, `cargo test` (134 passed), `npm run build` — all green on Windows.
+- **Follow-up:** protected-path allowlist policy is still the other half of
+  B-041; KI-056 (unverifiable identity) must become a typed outcome before content
+  reads; F-02 (UNC/network/removable root policy) remains an open product
+  decision. Documentation defect noted: the 2026-11-17 entry cites ADR-024, but
+  `docs/DECISIONS.md` contains no ADR-024, so this change uses ADR-025 rather than
+  reusing the number.
 
 ## 2026-11-17 — File-operation threat-model review (B-040)
 

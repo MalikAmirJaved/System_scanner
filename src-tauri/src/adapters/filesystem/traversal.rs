@@ -19,9 +19,11 @@
 //! - Reparse points are never followed, so a junction loop cannot hang the walk.
 //! - Every observed entry gets exactly one outcome; nothing is dropped silently
 //!   (the entry budget is reported as `truncated`).
+//! - A directory is opened once and never re-opened by path: the handle that was
+//!   identity-checked is the handle that is enumerated (`directory.rs`).
 //!
-//! Not wired to IPC, the UI, or the database. The command layer will call
-//! `Traversal::start` from `spawn_blocking` once scan jobs exist.
+//! Driven by the in-memory scan job (`app/jobs.rs`), one scan at a time. Only
+//! aggregate counters leave this module; nothing is persisted here.
 
 use std::collections::VecDeque;
 use std::fs;
@@ -32,9 +34,10 @@ use std::sync::{Arc, Condvar, Mutex, MutexGuard};
 use std::thread;
 use std::time::UNIX_EPOCH;
 
+use crate::adapters::filesystem::directory::{DirectoryEntry, DirectoryHandle};
 use crate::domain::traversal::{
-    EntryKind, EntryOutcome, FileEntry, SkipReason, TraversalLimits, TraversalSummary,
-    classify_io_error, classify_kind,
+    EntryKind, EntryOutcome, FileEntry, FileIdentity, IdentityCheck, SkipReason, TraversalLimits,
+    TraversalSummary, classify_io_error, classify_kind, compare_identity,
 };
 
 /// Upper bound on worker threads for one traversal.
@@ -49,8 +52,9 @@ pub const MAX_ROOT_BYTES: usize = 32_767;
 
 /// `FILE_ATTRIBUTE_REPARSE_POINT` from the Windows file attribute set.
 ///
-/// Defined here rather than taken from `windows-sys` so this adapter stays on
-/// `std` only; the value is part of the documented Win32 file attribute set.
+/// Kept here because it is needed only for the path-based root classification,
+/// which uses `std::fs`; the value is part of the documented Win32 attribute
+/// set. Directory enumeration itself goes through `directory.rs`.
 #[cfg(windows)]
 const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x0000_0400;
 
@@ -196,10 +200,15 @@ impl CancelHandle {
 }
 
 /// One unit of work. `leaf` is precomputed for roots that are not directories.
+///
+/// `expected` is the identity the parent recorded for this directory. It is
+/// compared with the identity read from the handle that is actually opened, so
+/// a directory swapped for another object is never scanned under the old name.
 struct Job {
     path: PathBuf,
     depth: u32,
     leaf: Option<FileEntry>,
+    expected: Option<FileIdentity>,
 }
 
 #[derive(Default)]
@@ -363,7 +372,7 @@ fn walk(shared: &Shared, summary: &mut TraversalSummary) {
         };
         let keep_going = match job.leaf {
             Some(entry) => shared.emit(summary, entry),
-            None => visit_directory(shared, summary, &job.path, job.depth),
+            None => visit_directory(shared, summary, &job.path, job.depth, job.expected),
         };
         if !keep_going {
             break;
@@ -386,10 +395,17 @@ fn seed_root(shared: &Shared, root: PathBuf) {
             );
 
             if kind == EntryKind::Directory {
+                // Record the root's identity now, so the open that follows can
+                // prove it reached the same object. A failed open here is
+                // reported by the visitor, not hidden.
+                let expected = DirectoryHandle::open(&root)
+                    .ok()
+                    .and_then(|opened| opened.identity());
                 shared.queue.push(Job {
                     path: root,
                     depth: 0,
                     leaf: None,
+                    expected,
                 });
                 return;
             }
@@ -415,6 +431,7 @@ fn seed_root(shared: &Shared, root: PathBuf) {
                 path: root,
                 depth: 0,
                 leaf: Some(entry),
+                expected: None,
             });
         }
         Err(error) => {
@@ -430,6 +447,7 @@ fn seed_root(shared: &Shared, root: PathBuf) {
                 path: root,
                 depth: 0,
                 leaf: Some(entry),
+                expected: None,
             });
         }
     }
@@ -440,11 +458,13 @@ fn visit_directory(
     summary: &mut TraversalSummary,
     path: &Path,
     depth: u32,
+    expected: Option<FileIdentity>,
 ) -> bool {
-    // Re-check the path before opening it: a directory can be swapped for a
-    // junction between the parent's stat and this call.
-    let metadata = match fs::symlink_metadata(path) {
-        Ok(metadata) => metadata,
+    // Open once, without following a link in the final component, and use that
+    // one handle for the identity check and for enumeration. Re-opening the
+    // path afterwards is what made the old by-path check meaningless (F-01).
+    let mut handle = match DirectoryHandle::open(path) {
+        Ok(handle) => handle,
         Err(error) => {
             return shared.emit(
                 summary,
@@ -460,57 +480,8 @@ fn visit_directory(
         }
     };
 
-    let reparse = is_reparse_point(&metadata);
-    let kind = classify_kind(
-        metadata.file_type().is_dir(),
-        metadata.file_type().is_file(),
-        reparse,
-    );
-    match kind {
-        EntryKind::ReparsePoint => {
-            return shared.emit(
-                summary,
-                FileEntry {
-                    path: path.to_path_buf(),
-                    depth,
-                    kind,
-                    outcome: EntryOutcome::Skipped(SkipReason::ReparsePoint),
-                    size_bytes: None,
-                    modified_at_ms: modified_at_ms(&metadata),
-                },
-            );
-        }
-        EntryKind::File => {
-            return shared.emit(
-                summary,
-                FileEntry {
-                    path: path.to_path_buf(),
-                    depth,
-                    kind,
-                    outcome: EntryOutcome::Ok,
-                    size_bytes: Some(metadata.len()),
-                    modified_at_ms: modified_at_ms(&metadata),
-                },
-            );
-        }
-        EntryKind::Other => {
-            return shared.emit(
-                summary,
-                FileEntry {
-                    path: path.to_path_buf(),
-                    depth,
-                    kind,
-                    outcome: EntryOutcome::Unsupported,
-                    size_bytes: None,
-                    modified_at_ms: modified_at_ms(&metadata),
-                },
-            );
-        }
-        EntryKind::Directory => {}
-    }
-
-    let reader = match fs::read_dir(path) {
-        Ok(reader) => reader,
+    let info = match handle.info() {
+        Ok(info) => info,
         Err(error) => {
             return shared.emit(
                 summary,
@@ -520,11 +491,43 @@ fn visit_directory(
                     kind: EntryKind::Directory,
                     outcome: classify_io_error(error.kind()),
                     size_bytes: None,
-                    modified_at_ms: modified_at_ms(&metadata),
+                    modified_at_ms: None,
                 },
             );
         }
     };
+
+    // Defence in depth: the open asked for the reparse point itself, so this
+    // attribute describes the object the handle is bound to.
+    if info.is_reparse_point {
+        return shared.emit(
+            summary,
+            FileEntry {
+                path: path.to_path_buf(),
+                depth,
+                kind: EntryKind::ReparsePoint,
+                outcome: EntryOutcome::Skipped(SkipReason::ReparsePoint),
+                size_bytes: None,
+                modified_at_ms: info.modified_at_ms,
+            },
+        );
+    }
+
+    if compare_identity(expected, handle.identity()) == IdentityCheck::Changed {
+        // The path now resolves to a different object than the one the parent
+        // recorded, so its contents are not the recorded directory's contents.
+        return shared.emit(
+            summary,
+            FileEntry {
+                path: path.to_path_buf(),
+                depth,
+                kind: EntryKind::Directory,
+                outcome: EntryOutcome::Disappeared,
+                size_bytes: None,
+                modified_at_ms: info.modified_at_ms,
+            },
+        );
+    }
 
     if !shared.emit(
         summary,
@@ -534,63 +537,47 @@ fn visit_directory(
             kind: EntryKind::Directory,
             outcome: EntryOutcome::Ok,
             size_bytes: None,
-            modified_at_ms: modified_at_ms(&metadata),
+            modified_at_ms: info.modified_at_ms,
         },
     ) {
         return false;
     }
 
-    for item in reader {
-        if shared.queue.is_stopping() {
-            return false;
-        }
-        let item = match item {
-            Ok(item) => item,
+    loop {
+        let batch = match handle.read_batch() {
+            Ok(batch) => batch,
             Err(_) => {
-                // The directory stream itself failed; there is no path to
-                // attribute. Count it honestly and keep the rest.
+                // The directory stream failed mid-walk; there is no child path
+                // to attribute. Count it honestly and keep the rest.
                 summary.failed = summary.failed.saturating_add(1);
-                continue;
+                return true;
             }
         };
-        if !visit_child(shared, summary, depth, item.path()) {
-            return false;
+        if batch.is_empty() {
+            return true;
+        }
+
+        for entry in batch {
+            if shared.queue.is_stopping() {
+                return false;
+            }
+            if !visit_child(shared, summary, depth, path, entry) {
+                return false;
+            }
         }
     }
-
-    true
 }
 
 fn visit_child(
     shared: &Shared,
     summary: &mut TraversalSummary,
     parent_depth: u32,
-    path: PathBuf,
+    parent: &Path,
+    entry: DirectoryEntry,
 ) -> bool {
     let depth = parent_depth.saturating_add(1);
-    let metadata = match fs::symlink_metadata(&path) {
-        Ok(metadata) => metadata,
-        Err(error) => {
-            return shared.emit(
-                summary,
-                FileEntry {
-                    path,
-                    depth,
-                    kind: EntryKind::Other,
-                    outcome: classify_io_error(error.kind()),
-                    size_bytes: None,
-                    modified_at_ms: None,
-                },
-            );
-        }
-    };
-
-    let reparse = is_reparse_point(&metadata);
-    let kind = classify_kind(
-        metadata.file_type().is_dir(),
-        metadata.file_type().is_file(),
-        reparse,
-    );
+    let path = parent.join(&entry.name);
+    let kind = classify_kind(entry.is_dir, entry.is_file, entry.is_reparse_point);
 
     if kind == EntryKind::ReparsePoint {
         return shared.emit(
@@ -601,7 +588,7 @@ fn visit_child(
                 kind,
                 outcome: EntryOutcome::Skipped(SkipReason::ReparsePoint),
                 size_bytes: None,
-                modified_at_ms: modified_at_ms(&metadata),
+                modified_at_ms: entry.modified_at_ms,
             },
         );
     }
@@ -616,7 +603,7 @@ fn visit_child(
                     kind,
                     outcome: EntryOutcome::Skipped(SkipReason::DepthLimit),
                     size_bytes: None,
-                    modified_at_ms: modified_at_ms(&metadata),
+                    modified_at_ms: entry.modified_at_ms,
                 },
             );
         }
@@ -624,18 +611,24 @@ fn visit_child(
             path,
             depth,
             leaf: None,
+            expected: entry.identity,
         });
         return true;
     }
 
-    let outcome = match kind {
-        EntryKind::File => EntryOutcome::Ok,
-        _ => EntryOutcome::Unsupported,
-    };
-    let size = match kind {
-        EntryKind::File => Some(metadata.len()),
-        _ => None,
-    };
+    if kind == EntryKind::Other {
+        return shared.emit(
+            summary,
+            FileEntry {
+                path,
+                depth,
+                kind,
+                outcome: EntryOutcome::Unsupported,
+                size_bytes: None,
+                modified_at_ms: entry.modified_at_ms,
+            },
+        );
+    }
 
     shared.emit(
         summary,
@@ -643,9 +636,9 @@ fn visit_child(
             path,
             depth,
             kind,
-            outcome,
-            size_bytes: size,
-            modified_at_ms: modified_at_ms(&metadata),
+            outcome: EntryOutcome::Ok,
+            size_bytes: Some(entry.size_bytes),
+            modified_at_ms: entry.modified_at_ms,
         },
     )
 }
@@ -772,6 +765,59 @@ mod tests {
                 .iter()
                 .any(|entry| entry.path == root.join("zero.dat") && entry.size_bytes == Some(0))
         );
+    }
+
+    #[test]
+    fn a_directory_larger_than_one_enumeration_buffer_is_walked_completely() {
+        let temp = TempDir::new("large-directory");
+        let root = temp.0.join("root");
+        fs::create_dir_all(&root).expect("fixture dir");
+        for index in 0..1500 {
+            write_file(&root.join(format!("file-{index:04}.bin")), 1);
+        }
+
+        let (entries, summary) =
+            collect(Traversal::start(request(&root)).expect("start must succeed"));
+
+        assert_eq!(summary.files, 1500, "every file must be reported");
+        assert_eq!(summary.entries, 1501, "the root directory and its files");
+        assert_eq!(summary.bytes, 1500);
+        assert_eq!(entries.len() as u64, summary.entries);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn a_junction_root_is_reported_and_never_enumerated() {
+        let temp = TempDir::new("junction-root");
+        let target = temp.0.join("target");
+        let root = temp.0.join("root-link");
+        fs::create_dir_all(&target).expect("fixture dir");
+        write_file(&target.join("hidden.bin"), 5);
+        let output = std::process::Command::new("cmd")
+            .args(["/C", "mklink", "/J"])
+            .arg(&root)
+            .arg(&target)
+            .output()
+            .expect("cmd must be available");
+        assert!(
+            output.status.success(),
+            "junction fixture must be created: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+
+        let (entries, summary) =
+            collect(Traversal::start(request(&root)).expect("start must succeed"));
+
+        assert_eq!(entries.len(), 1, "the link is reported once");
+        assert_eq!(entries[0].kind, EntryKind::ReparsePoint);
+        assert_eq!(
+            entries[0].outcome,
+            EntryOutcome::Skipped(SkipReason::ReparsePoint)
+        );
+        assert_eq!(summary.files, 0, "content behind the link is not scanned");
+        assert_eq!(summary.bytes, 0);
+
+        fs::remove_dir(&root).expect("junction must be removable");
     }
 
     #[test]

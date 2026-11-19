@@ -4,7 +4,7 @@
 > decision, consequences, revisit trigger.
 >
 > Status: `Accepted`, `Proposed`, `Superseded`, `Rejected`.
-> **Last updated:** 2026-11-06
+> **Last updated:** 2026-11-19
 
 ---
 
@@ -835,6 +835,47 @@ migration (v1, v2) is purely additive, so today the cost of loss is zero.
 **Revisit if:** the database grows enough that the copy meaningfully delays
 startup, a daily/rolling backup is added (retention and scheduling then need one
 owner), or a non-additive migration is scheduled.
+
+## ADR-025 — Directory open, identity, and enumeration bind to one handle
+
+**Status:** Accepted · 2026-11-19
+
+**Context.** Threat-model finding F-01 (KI-055) recorded that the walker checked
+a directory with `symlink_metadata` and then opened it again with `fs::read_dir`
+**by path**. Both calls name a path, so a directory swapped for a junction between
+them was followed, and the reparse check did not bind the object enumerated. The
+threat model made closing this a precondition for any content read or write.
+
+**Options.**
+
+1. Keep the path-based pair. Smallest change, leaves the race open.
+2. Open a handle, verify it, then still enumerate by path. Narrows the window but
+   does not close it: the enumeration opens a different object.
+3. Open once with `FILE_FLAG_OPEN_REPARSE_POINT | FILE_FLAG_BACKUP_SEMANTICS`,
+   read identity from that handle, and enumerate through that handle.
+
+**Decision.** Option 3, in `adapters/filesystem/directory.rs`.
+
+- Identity is volume serial + 128-bit file id from `FileIdInfo`, because the
+  enumeration record (`FileIdExtdDirectoryInfo`) carries the same 128-bit id, so
+  parent-recorded and opened values compare exactly.
+- Enumeration through the handle also yields each child's attributes, size,
+  timestamps, and id, so the previous per-child `symlink_metadata` call is gone.
+- Batches are fixed at 16 KiB of entry records, keeping memory flat.
+- Paths are prefixed with `\\?\` (or `\\?\UNC\`) so paths beyond `MAX_PATH` open
+  without requiring `LongPathsEnabled`.
+- A mismatch is reported as `disappeared`; an unavailable id is unverifiable and
+  is never treated as a match (KI-056).
+
+**Consequences.** The filesystem adapter is no longer std-only on Windows; it uses
+`windows-sys` (`Win32_Storage_FileSystem`), which was already a Windows-only
+dependency with that feature enabled, so no dependency or feature was added.
+`unsafe` is confined to that module with `SAFETY:` comments. Cost is two property
+reads per directory plus one per batch; children no longer cost a stat each. The
+non-Windows fallback records no identity and remains unverifiable.
+
+**Revisit trigger.** Any content read or write (the write path must reuse this
+handle, not copy the old pattern), or a need for deterministic entry order.
 
 ---
 

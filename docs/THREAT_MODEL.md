@@ -2,7 +2,7 @@
 
 > **Status:** Reviewed for the **implemented read-only file surface** (B-040,
 > 2026-11-17, §11). Destructive, privileged, and networked operations remain
-> **unreviewed** and must not ship. **Last updated:** 2026-11-17
+> **unreviewed** and must not ship. **Last updated:** 2026-11-19
 
 ---
 
@@ -67,7 +67,7 @@ SQLite store, quarantine directory, NSIS installer.
 | ID | Abuse case | Impact | Mitigation | Residual risk |
 |---|---|---|---|---|
 | T-01 | Malicious filename injects SQL/log/HTML | Injection, spoofed UI | Parameterized queries; escape output; never `dangerouslySetInnerHTML` | Low |
-| T-02 | Junction/symlink redirects a write to a protected path | System file destroyed | Do not follow reparse points for writes; verify volume + file ID | Medium — design-time; no write path exists (F-01) |
+| T-02 | Junction/symlink redirects a write to a protected path | System file destroyed | Do not follow reparse points for writes; verify volume + file ID | Medium — design-time; no write path exists (identity check now available) |
 | T-03 | TOCTOU: file replaced between scan and quarantine | Wrong file quarantined/deleted | Open by handle, re-verify identity/hash, operate on handle | Medium — F-01 is the concrete window to close |
 | T-04 | Crafted IPC payload (huge limit, `..\` path) | DoS, path escape | Clamp limits, canonicalize, reject traversal, bound payload size | Low |
 | T-05 | Compromised renderer invokes privileged command | Unauthorized system change | Capability gating + Rust-side policy + confirmation nonce | Low |
@@ -79,7 +79,7 @@ SQLite store, quarantine directory, NSIS installer.
 | T-11 | Dependency compromise | Code execution | Lockfiles, review, advisory gate, signing | Medium |
 | T-12 | Unsigned installer replaced in transit | Malware install | Sign + checksums + HTTPS distribution | High until signing |
 | T-13 | Support bundle leaks paths/usernames | Privacy breach | Redaction by construction, preview before share | Low |
-| T-14 | A directory is swapped for a junction between the reparse check and `read_dir` | Read outside the selected root (today); wrong file read/written later | Handle-based open + identity check (not implemented; see F-01) | Medium — read-only today |
+| T-14 | A directory is swapped for a junction between the reparse check and `read_dir` | Read outside the selected root (today); wrong file read/written later | Handle-based open + identity check (implemented 2026-11-19; F-01 closed, §11.8) | Low — mismatch reported; unverifiable volumes remain (KI-056) |
 
 ## 6. STRIDE summary
 
@@ -194,8 +194,18 @@ hypothetical.
   re-opening by path;
 - report an identity change as `disappeared`/`skipped`, never as success.
 
-Tracked under B-041. The write path must not copy this pattern (see
-`SECURITY.md` §7.6).
+**Status: closed 2026-11-19 (see §11.8).** All three requirements are met for
+directories: `adapters/filesystem/directory.rs` opens once with both flags, reads
+the volume serial and 128-bit file id from that handle (`FileIdInfo`), enumerates
+children through the same handle (`FileIdExtdDirectoryInfo`, fixed-size batches),
+and the walker compares the parent-recorded id with the opened id before
+descending. A mismatch is reported as `disappeared`.
+
+Residual: a volume that cannot supply a file id yields an *unverifiable* check,
+which is not treated as a match but also cannot prove one (KI-056). A root that
+is a plain file is still classified by path; that is read-only classification and
+there is no handle to bind while nothing is read. The write path must not copy
+this pattern (see `SECURITY.md` §7.6).
 
 #### F-02 — Arbitrary absolute roots, including UNC and removable media (open decision)
 
@@ -273,7 +283,8 @@ policy; neither exists.
 
 | Risk | Today | Must close before | Owner |
 |---|---|---|---|
-| F-01 check-then-open race | Read-only; counters only | Any content read, hash, move, or delete | B-041 + write-path design |
+| F-01 check-then-open race | **Closed 2026-11-19** for directories (§11.8) | — | — |
+| F-01 residual: volume supplies no file id | Check reports unverifiable and continues; nothing is read (§11.8) | Any content read or write on such a volume | B-041, KI-056 |
 | F-02 UNC/network/removable roots | Accepted, bounded, can stall a worker | Public release, or any claim about network scanning | Open product decision; enforcement would extend B-041 |
 | No per-I/O timeout | UI responsive; a scan can stall on a dead share | Network roots allowed by policy | Not scheduled |
 | No audit of scans | Read-only; no accountability need yet | First state-changing action | B-046 |
@@ -286,7 +297,7 @@ pre-alpha use**. It is not a release claim: no destructive operation exists to
 threat-model, and none may be added by copying the current walker. Before the
 first content read, hash, or write (B-041 onward):
 
-1. close F-01 with handle-based identity checks;
+1. ~~close F-01 with handle-based identity checks~~ — done 2026-11-19 (§11.8);
 2. decide F-02 (network/removable policy) and implement it in Rust;
 3. extend this section for the new operation, including audit and recovery.
 
@@ -295,5 +306,30 @@ first content read, hash, or write (B-041 onward):
 1. Are UNC/network shares scanned, warned about, or refused — and is a root
    allow-list tied to a folder picker the mechanism?
 2. Are removable volumes scanned by default or only after confirmation?
+
+### 11.8 Update 2026-11-19 — F-01 closed by handle-based directory access
+
+> **Status:** Implemented and tested on Windows; read-only behavior unchanged.
+
+- New `adapters/filesystem/directory.rs`: `DirectoryHandle::open` uses
+  `CreateFileW` with `FILE_FLAG_OPEN_REPARSE_POINT | FILE_FLAG_BACKUP_SEMANTICS`
+  and `FILE_SHARE_READ | WRITE | DELETE`, and prefixes `\\?\` so paths beyond
+  `MAX_PATH` open without relying on `LongPathsEnabled`.
+- Identity is the volume serial plus 128-bit file id (`FileIdInfo`) read from the
+  opened handle; children are enumerated through that handle
+  (`FileIdExtdDirectoryInfo`), which also yields each child's id.
+- The walker opens a directory **once**. It compares the identity the parent
+  recorded against the opened identity before emitting the directory as `ok` or
+  queueing it; `IdentityCheck::Changed` becomes `disappeared`, and a reparse
+  attribute seen on the opened handle becomes `skipped`/`reparse_point`.
+  Children are classified from the enumeration record, so the per-child
+  `symlink_metadata` by path is gone too.
+- Bounded memory is unchanged: enumeration is read in 16 KiB batches and at most
+  one batch is held. The `.` and `..` records are skipped.
+- Tests: adapter identity stability, junction report, missing directory, a
+  1,200-entry directory spanning several buffers, and walker-level tests for a
+  1,500-file directory and a junction root (`cargo test`, 134 passing).
+- Still open: a volume without file ids is unverifiable (KI-056); F-02 root
+  policy is a product decision; file roots are classified by path.
 3. Will the walker ever follow reparse points (with a visited set) to reach
    content behind junctions, or is "skip and report" the permanent contract?

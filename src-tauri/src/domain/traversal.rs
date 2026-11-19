@@ -106,6 +106,45 @@ impl Completeness {
     }
 }
 
+/// The identity of one filesystem object, independent of its path.
+///
+/// A path is not an identity: it can be renamed, replaced, or redirected by a
+/// junction between observation and use. The adapter records this value when it
+/// first sees an object and re-reads it after opening, so a swap cannot pass as
+/// the object that was recorded.
+///
+/// The 128-bit id mirrors the Windows file-id layout. Volumes that cannot supply
+/// one yield `None`, which is reported as unverifiable rather than guessed.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct FileIdentity {
+    pub volume_serial: u64,
+    pub file_id: [u8; 16],
+}
+
+/// Result of comparing a recorded identity with the one just opened.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum IdentityCheck {
+    /// The opened object is the recorded object.
+    Same,
+    /// The path now resolves to a different object. The caller must not use it.
+    Changed,
+    /// One side has no identity (volume or platform does not supply one). The
+    /// check is inconclusive; this is not a success claim.
+    Unverifiable,
+}
+
+/// Compare two optional identities without inventing one.
+pub fn compare_identity(
+    recorded: Option<FileIdentity>,
+    observed: Option<FileIdentity>,
+) -> IdentityCheck {
+    match (recorded, observed) {
+        (Some(recorded), Some(observed)) if recorded == observed => IdentityCheck::Same,
+        (Some(_), Some(_)) => IdentityCheck::Changed,
+        _ => IdentityCheck::Unverifiable,
+    }
+}
+
 /// One observed filesystem entry.
 ///
 /// Paths stay in memory for the lifetime of the stream; the prototype does not
@@ -402,6 +441,45 @@ mod tests {
         assert_eq!(summary.completeness(), Completeness::Cancelled);
         assert_eq!(Completeness::Partial.code(), "partial");
         assert_eq!(Completeness::Cancelled.code(), "cancelled");
+    }
+
+    #[test]
+    fn identity_comparison_never_treats_an_unknown_identity_as_a_match() {
+        let identity = FileIdentity {
+            volume_serial: 7,
+            file_id: [1; 16],
+        };
+        let other = FileIdentity {
+            volume_serial: 7,
+            file_id: [2; 16],
+        };
+        let other_volume = FileIdentity {
+            volume_serial: 8,
+            file_id: [1; 16],
+        };
+
+        assert_eq!(
+            compare_identity(Some(identity), Some(identity)),
+            IdentityCheck::Same
+        );
+        assert_eq!(
+            compare_identity(Some(identity), Some(other)),
+            IdentityCheck::Changed
+        );
+        assert_eq!(
+            compare_identity(Some(identity), Some(other_volume)),
+            IdentityCheck::Changed,
+            "a reused file id on another volume is a different object"
+        );
+        assert_eq!(
+            compare_identity(None, Some(identity)),
+            IdentityCheck::Unverifiable
+        );
+        assert_eq!(
+            compare_identity(Some(identity), None),
+            IdentityCheck::Unverifiable
+        );
+        assert_eq!(compare_identity(None, None), IdentityCheck::Unverifiable);
     }
 
     #[test]
