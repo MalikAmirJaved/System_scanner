@@ -80,7 +80,7 @@ cd src-tauri
 cargo check                 # Verified
 cargo fmt --all -- --check  # Verified: 0 diffs (no rustfmt.toml: defaults apply)
 cargo clippy --all-targets -- -D warnings   # Verified: 0 warnings
-cargo test                  # Verified: 78 tests pass
+cargo test                  # Verified: 144 tests pass, 1 ignored baseline
 ```
 
 Application logs (release and dev): Tauri's `app_log_dir()`
@@ -96,9 +96,25 @@ non-fatal and reported on stderr.
 | Frontend format         | `npm run format:check`                      | Available — Prettier 3                            |
 | Rust format             | `cargo fmt --all -- --check`                | Available                                          |
 | Rust lint               | `cargo clippy --all-targets -- -D warnings` | Available                                          |
-| Rust tests              | `cargo test`                                | Available (78 tests)                               |
+| Rust tests              | `cargo test`                                | Available (144 tests + 1 opt-in baseline)          |
 | Dependency audit (JS)   | `npm audit --omit=dev`                      | Available                                          |
 | Dependency audit (Rust) | `cargo audit`                               | **Planned** — `cargo-audit` not installed |
+
+### Baseline benchmark (opt-in)
+
+The traversal baseline harness (B-032) writes a fixture tree to the system temp
+directory, so it is `#[ignore]`d and never part of `cargo test`:
+
+```bash
+cd src-tauri
+cargo test --release -- --ignored --nocapture perf_baseline
+PERF_ENTRIES=1000000 cargo test --release -- --ignored --nocapture perf_baseline
+```
+
+`PERF_WORKERS`, `PERF_CHANNEL`, `PERF_FIXTURE`, and `PERF_CLEAN=1` are accepted.
+The fixture is reused until its size changes; `PERF_CLEAN=1` deletes it. Use
+`--release`: debug numbers are not comparable. Record results in
+`docs/PERFORMANCE.md` §8, not here.
 
 `rustfmt` and `clippy` are `rustup` components, not part of the default toolchain
 install. `rust-toolchain.toml` now declares them, so `rustup` adds them on the

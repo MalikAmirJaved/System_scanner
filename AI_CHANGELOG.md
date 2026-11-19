@@ -25,6 +25,41 @@
 
 ---
 
+## 2026-11-19 — Traversal performance baseline harness (B-032)
+
+- **Agent/tool:** Buffy (DeepSeek V4.1 Flash), Freebuff.
+- **Scope:** `src-tauri/src/adapters/filesystem/baseline.rs` (new, `#[cfg(test)]`),
+  `src-tauri/src/adapters/filesystem/mod.rs`, `docs/PERFORMANCE.md`
+  §1.2/§4.2/§4.3/§8, `build.md` §4, `docs/BACKLOG.md`, `docs/KNOWN_ISSUES.md`
+  (KI-039), `docs/CHANGELOG.md`, `AI_CONTEXT.md`. No production code path changed.
+- **Change:** The walker gained an opt-in measurement harness rather than a
+  production feature: it generates a reusable fixture tree (zero-length files,
+  200 per directory, three levels, parallel creation, stamped and reused), runs
+  the real `Traversal` at default limits with a configurable worker count and
+  channel capacity, and reports entries walked, wall time, entries/s, µs/entry,
+  first-event latency, process peak working set (`K32GetProcessMemoryInfo`), and
+  cancellation latency. It is `#[ignore]`d so the normal gate never writes a
+  fixture, and it asserts the walk covered the whole fixture so a partial walk
+  cannot be reported as a fast one.
+- **Why:** B-032 required 100k/1M fixtures before any throughput or memory budget
+  could be called real. The old text in `docs/PERFORMANCE.md` explicitly said the
+  design was not evidence of a measured budget.
+- **Risk:** The numbers are warm-cache, one-run, on one machine; they say nothing
+  about HDD, cold cache, reparse points, or denied directories. Peak working set is
+  process-wide, so it includes the generator. Subtracting the generator's memory
+  would require sampling, so the figure is documented as an upper bound instead.
+  Debug runs measure the unoptimized walk, which is why the command pins
+  `--release`.
+- **Evidence:** `cargo fmt --all -- --check`, `cargo clippy --all-targets -- -D
+  warnings`: clean. `cargo test`: 144 passed, 1 ignored (the harness). Baseline
+  runs at 3,000 / 100,000 / 1,000,000 entries, release profile, all green; results
+  in `docs/PERFORMANCE.md` §8.
+- **Follow-up:** Repeat five times per §4.3 and record p95; run on an HDD and with
+  a cold cache; add deep/Unicode/long-path and denied-directory fixtures; measure
+  launch, refresh, process list, and DB growth (KI-039).
+
+---
+
 ## 2026-11-19 — Protected-path policy (B-041 policy half)
 
 - **Agent/tool:** Buffy (DeepSeek V4.1 Flash), Freebuff.

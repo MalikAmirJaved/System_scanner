@@ -13,6 +13,25 @@ exists. Until then, `0.x` versions may change behavior without notice.
 
 ## [Unreleased]
 
+### Measured (performance)
+- **First traversal baseline on 100k and 1M entry fixtures (B-032).** An opt-in
+  harness (`src-tauri/src/adapters/filesystem/baseline.rs`, `#[ignore]`d) generates
+  a fixture tree of zero-length files (200 per directory, three levels deep,
+  reused across runs), walks it with the real walker at default limits and 16
+  workers, and reports entries, wall time, entries/s, µs/entry, first-event
+  latency, process peak working set, and cancellation latency. It fails if the
+  walk did not cover the generated fixture. Measured on one 40-thread Xeon
+  workstation (Windows 11 build 26300, warm cache, release build): 100,510 entries
+  in 0.030 s (~3.36M entries/s, 12.7 MiB peak working set, 1.1 ms to first event,
+  1.4 ms to cancel) and 1,005,081 entries in 0.256 s (~3.93M entries/s, 11.5 MiB,
+  1.0 ms, 1.2 ms). Peak working set does not grow with fixture size, which is the
+  flat-memory design holding under measurement rather than an estimate. These are
+  warm-cache, one-run figures: they do not establish the HDD floor, the cold-cache
+  case, or a real tree with denied directories and reparse points. Budgets in
+  `docs/PERFORMANCE.md` are updated with what is and is not supported; launch,
+  refresh, process-list, DB, and UI frame times remain unmeasured (KI-039). No
+  production code path, command, capability, or dependency changed.
+
 ### Added (persistence)
 - **Verified snapshot before a schema migration (B-033).** When an existing
   database reports a schema version below this build's, startup writes a

@@ -100,7 +100,9 @@
   redaction, startup message text, migration ordering/checksums, schema creation,
   WAL mode, schema-version refusal, traversal outcomes/budgets/cancellation/
   identity/batch refills/long and Unicode paths/junction loops, protected-path
-  decisions (component boundaries, case, dot segments, unresolvable shapes), and the five UI
+  decisions (component boundaries, case, dot segments, unresolvable shapes), the
+  opt-in walker baseline harness (fixture generation, throughput, cancellation
+  latency), and the five UI
   panels plus the error
   boundary, plus the scan job, session rows, and the scan panel against mocked IPC.
   File-record persistence is untested because it does not exist, and no test runs

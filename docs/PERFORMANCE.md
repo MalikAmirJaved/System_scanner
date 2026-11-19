@@ -1,12 +1,15 @@
 # Performance
 
-> **Status:** No performance work has been measured beyond build artifact sizes.
-> All targets below are **proposed** and must be replaced with measurements from
-> a documented baseline machine. **Last updated:** 2026-11-06
+> **Status:** The traversal walker has a first measured baseline (B-032,
+> 2026-11-19) on one machine with a **hot-cache** fixture. Every other target
+> below is still **proposed**: launch, refresh, process list, DB, hashing, and UI
+> frame times have not been measured. **Last updated:** 2026-11-19
 
 ---
 
-## 1. Measured facts (2026-11-06)
+## 1. Measured facts
+
+### 1.1 Build artifacts (2026-11-06)
 
 | Metric | Value | Source |
 |---|---|---|
@@ -16,8 +19,33 @@
 | Runtime JS dependencies | 3 | `package.json` |
 | Rust direct dependencies | 1 (`tauri`) | `Cargo.toml` |
 
-No launch time, refresh time, scan throughput, or memory figures exist because
-those features do not exist.
+### 1.2 Walker baseline (2026-11-19, B-032)
+
+Fixture: generated trees of zero-length files, 200 files per directory, three
+levels deep, on the system temp volume. Release build, default limits (depth 64,
+no entry cap), 16 workers, 4,096-entry channel. One run per size; the table in
+§8 records the numbers.
+
+| Fixture | Entries walked | Wall time | Throughput | Peak working set | First event | Cancellation |
+|---|---|---|---|---|---|---|
+| 100,000 files | 100,510 | 0.030 s | ~3.36M entries/s | 12.7 MiB | 1.1 ms | 1.4 ms |
+| 1,000,000 files | 1,005,081 | 0.256 s | ~3.93M entries/s | 11.5 MiB | 1.0 ms | 1.2 ms |
+
+Reading these numbers honestly:
+
+- The fixture was **just written**, so all metadata was in the OS cache. This is
+  the warm-cache case, not a cold start and not an HDD.
+- Peak working set is process-wide (`K32GetProcessMemoryInfo`), so it includes the
+  test harness and the fixture generator; it is an upper bound on the walk, and it
+  did **not** grow with fixture size (11.5 MiB at 1M vs 12.7 MiB at 100k), which is
+  the flat-memory claim holding up rather than an estimate.
+- One run per size, not the five runs §4.3 asks for. Treat the figures as an
+  order-of-magnitude baseline, not a p95.
+- Zero-length files measure **metadata traversal**, which is what a counters-only
+  scan does. Nothing here says anything about content read or hashing.
+
+No launch time, refresh time, process-list, hashing, or UI frame figures exist
+because those paths are not measured (KI-039).
 
 ## 2. Why budgets matter here
 
@@ -54,10 +82,14 @@ Toolhelp snapshot once (capped at 8192 entries) and opens each process only
 long enough to read its start time and working set. Neither duration has been
 measured on the baseline machines above (KI-039).
 
-**Traversal prototype:** the B-022 walker is designed for flat memory (per-entry
-streaming through a fixed-capacity channel) but has **no benchmark yet**. The
-throughput and RSS targets above apply to a scan once B-032 generates the
-100k/1M fixtures. Do not cite the design as evidence of a measured budget.
+**Traversal walker:** measured once at 100k and 1M entries (§1.2, B-032). The
+20k entries/s floor is met with a wide margin in the warm-cache case (~3.4–3.9M
+entries/s on one 40-thread Xeon workstation under Windows 11 build 26300), and
+peak working set stayed ~12 MiB across both sizes, which supports the flat-memory
+design. Those numbers do **not** establish the HDD floor (2k entries/s), the
+cold-cache case, or a real user tree with denied directories and reparse points:
+none of those were measured. The RSS target of 300 MB is not tested at 5M entries.
+Do not quote these figures as a p95 or as a cold-start budget.
 
 **Startup snapshot:** before a pending migration, startup copies the database once
 with `VACUUM INTO` and verifies it (B-033). The cost is proportional to database
@@ -76,12 +108,12 @@ on every launch.
 
 ### 4.2 Fixtures
 
-- Generated trees: 100k, 1M, 5M entries.
-- Deep nesting (200 levels), long paths, Unicode names.
-- 10k denied directories.
-- Many same-size files (duplicate pipeline).
-- Sparse large files (hashing caps).
-- 100 historical sessions (query latency).
+- **Implemented (B-032):** generated entry trees of any size, 200 zero-length
+  files per directory, three levels deep, created in parallel and reused across
+  runs. 100k and 1M have been generated; 5M has not.
+- Not generated yet: deep nesting (200 levels), long paths, Unicode names, 10k
+  denied directories, same-size duplicates, sparse large files, 100 historical
+  sessions.
 
 ### 4.3 Procedure
 
@@ -92,6 +124,31 @@ on every launch.
 4. Record: wall time, CPU time, peak RSS, DB size delta, cancellation latency.
 5. Store results with commit SHA in this document.
 ```
+
+The walker harness implements steps 3–5 for traversal only, and it is opt-in
+because it writes a large fixture to disk (`src-tauri/src/adapters/filesystem/`
+`baseline.rs`):
+
+```bash
+cd src-tauri
+cargo test --release -- --ignored --nocapture perf_baseline
+
+# sizes and knobs
+PERF_ENTRIES=1000000 cargo test --release -- --ignored --nocapture perf_baseline
+# PERF_WORKERS, PERF_CHANNEL, PERF_FIXTURE, PERF_CLEAN=1
+```
+
+It prints one row per run: entries walked, wall time, entries/s, µs/entry,
+first-event latency, process peak working set, and cancellation latency; it fails if
+the walk did not see the whole fixture. It does **not** implement the reboot and
+AV conditions in steps 1–2, so a run on a busy machine is not a comparable
+measurement. Use `--release`: debug builds measure the unoptimized walk and are
+meaningfully slower.
+
+**Baseline machine A** (the only machine measured so far): Intel Family 6 Model
+85 (Xeon Scalable), 40 logical processors, ~31.7 GiB RAM, Windows 11 build 26300
+(x86_64), NTFS on the system volume treated as SSD/NVMe (the model was not
+captured). The walker used 16 workers, its configured cap, not 40.
 
 Never compare numbers from different machines or fixture sizes.
 
@@ -137,6 +194,8 @@ Ordered by impact:
 | 2026-11-06 | `ab941a1` | installer size | — | 1.41 MB | unsigned |
 | 2026-11-06 | `ab941a1` | JS bundle | — | 222 KB | welcome screen only |
 | 2026-11-16 | — | traversal prototype | ad-hoc temp trees | not run | no 100k/1M fixture; B-032 |
+| 2026-11-19 | `825dacd`+baseline harness | walk 100k entries | 100,000 zero-length files, 3 levels, warm cache | 0.030 s, ~3.36M entries/s, 12.7 MiB peak, 1.1 ms first event, 1.4 ms cancel | baseline machine A, release build, 16 workers, one run |
+| 2026-11-19 | `825dacd`+baseline harness | walk 1M entries | 1,000,000 zero-length files, 3 levels, warm cache | 0.256 s, ~3.93M entries/s, 11.5 MiB peak, 1.0 ms first event, 1.2 ms cancel | same machine; peak does not grow with fixture size |
 
 ## 9. Power and thermals
 
