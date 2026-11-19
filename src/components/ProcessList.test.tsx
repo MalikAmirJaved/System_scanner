@@ -10,7 +10,7 @@ const mockedListProcesses = vi.mocked(listProcesses);
 
 const page: ProcessPage = {
   capturedAt: 1762387200000,
-  schemaVersion: 1,
+  schemaVersion: 2,
   total: 312,
   offset: 0,
   limit: 100,
@@ -20,6 +20,7 @@ const page: ProcessPage = {
       key: "4-1700000000000",
       pid: 4,
       parentPid: 0,
+      depth: 0,
       name: "System",
       threadCount: 120,
       startTime: 1_700_000_000_000,
@@ -30,7 +31,9 @@ const page: ProcessPage = {
       key: "812-1700000001000",
       pid: 812,
       parentPid: 4,
+      depth: 1,
       name: "example.exe",
+      imagePath: "C:\\Program Files\\Example\\example.exe",
       threadCount: 8,
       startTime: 1_700_000_001_000,
       workingSetBytes: 2_097_152,
@@ -50,6 +53,7 @@ describe("ProcessList", () => {
     render(<ProcessPanel />);
 
     expect(await screen.findByText("example.exe")).toBeInTheDocument();
+    expect(screen.getByText("C:\\Program Files\\Example\\example.exe")).toBeInTheDocument();
     expect(screen.getByText("812")).toBeInTheDocument();
     expect(screen.getByRole("caption")).toHaveTextContent(/1–2 of 312/);
     expect(screen.getByRole("button", { name: /previous/i })).toBeDisabled();
@@ -69,7 +73,9 @@ describe("ProcessList", () => {
           key: "pid:4",
           pid: 4,
           parentPid: 0,
+          depth: 0,
           name: "System",
+          imagePath: "C:\\Windows\\System32\\ntoskrnl.exe",
           unavailable: [
             { field: "items[0].startTime", reason: "access_denied" },
             { field: "items[0].workingSetBytes", reason: "access_denied" },

@@ -20,7 +20,7 @@ use windows_sys::Win32::System::Diagnostics::ToolHelp::{
 use windows_sys::Win32::System::ProcessStatus::{K32GetProcessMemoryInfo, PROCESS_MEMORY_COUNTERS};
 use windows_sys::Win32::System::Threading::{
     GetProcessTimes, OpenProcess, PROCESS_ACCESS_RIGHTS, PROCESS_QUERY_LIMITED_INFORMATION,
-    PROCESS_VM_READ,
+    PROCESS_VM_READ, QueryFullProcessImageNameW,
 };
 
 use crate::domain::process::{ProcessInfo, ProcessInventory};
@@ -34,6 +34,13 @@ const MAX_PROCESSES: usize = 8192;
 
 /// Unix milliseconds between 1601-01-01 and 1970-01-01, in 100 ns ticks.
 const FILETIME_EPOCH_OFFSET_MS: u64 = 11_644_473_600_000;
+
+/// Capacity for one image path in UTF-16 units.
+///
+/// A Win32 path can far exceed `MAX_PATH`, and the documented ceiling for an NT
+/// path is 32,767 units. The buffer is heap-allocated per process and released
+/// immediately, so the cost does not scale with the inventory.
+const MAX_IMAGE_PATH_UNITS: usize = 32_768;
 
 /// Read-only process probe. Stateless, so construction is free.
 #[derive(Debug, Default, Clone, Copy)]
@@ -89,15 +96,16 @@ impl ProcessInfoPort for WindowsProcesses {
 
 fn describe(entry: &PROCESSENTRY32W) -> ProcessInfo {
     let pid = entry.th32ProcessID;
-    let (started_at_ms, working_set_bytes) = process_metadata(pid);
+    let metadata = process_metadata(pid);
 
     ProcessInfo {
         pid,
         parent_pid: entry.th32ParentProcessID,
         name: exe_name(&entry.szExeFile),
+        image_path: metadata.image_path,
         thread_count: Availability::Available(entry.cntThreads),
-        started_at_ms,
-        working_set_bytes,
+        started_at_ms: metadata.started_at_ms,
+        working_set_bytes: metadata.working_set_bytes,
     }
 }
 
@@ -116,31 +124,74 @@ fn exe_name(buffer: &[u16]) -> Availability<String> {
     }
 }
 
-/// Reads start time and working set with as few handles as possible.
+/// The per-process fields that need a handle, all from one open when possible.
+struct Metadata {
+    started_at_ms: Availability<u64>,
+    working_set_bytes: Availability<u64>,
+    image_path: Availability<String>,
+}
+
+impl Metadata {
+    fn denied(reason: UnavailableReason) -> Self {
+        Self {
+            started_at_ms: Availability::Unavailable(reason),
+            working_set_bytes: Availability::Unavailable(reason),
+            image_path: Availability::Unavailable(reason),
+        }
+    }
+}
+
+/// Reads start time, working set, and image path with as few handles as possible.
 ///
 /// `K32GetProcessMemoryInfo` needs `PROCESS_VM_READ`, which is denied for
 /// processes owned by another account. Opening with both rights first keeps the
-/// common case to one handle; the fallback still reports the start time and marks
-/// only the working set as denied.
-fn process_metadata(pid: u32) -> (Availability<u64>, Availability<u64>) {
+/// common case to one handle; the fallback still reports the start time and image
+/// path and marks only the working set as denied.
+fn process_metadata(pid: u32) -> Metadata {
     if let Some(handle) =
         ProcessHandle::open(pid, PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_VM_READ)
     {
-        return (start_time(handle.0), working_set(handle.0));
+        return Metadata {
+            started_at_ms: start_time(handle.0),
+            working_set_bytes: working_set(handle.0),
+            image_path: image_path(handle.0),
+        };
     }
 
     if let Some(handle) = ProcessHandle::open(pid, PROCESS_QUERY_LIMITED_INFORMATION) {
-        return (
-            start_time(handle.0),
-            Availability::Unavailable(UnavailableReason::AccessDenied),
-        );
+        return Metadata {
+            started_at_ms: start_time(handle.0),
+            working_set_bytes: Availability::Unavailable(UnavailableReason::AccessDenied),
+            image_path: image_path(handle.0),
+        };
     }
 
-    let reason = last_error_reason();
-    (
-        Availability::Unavailable(reason),
-        Availability::Unavailable(reason),
-    )
+    Metadata::denied(last_error_reason())
+}
+
+/// Full Win32 image path, or why it could not be read.
+///
+/// A truncated path would be a wrong path, so a length that fills the buffer is
+/// reported as `failed` rather than returned.
+fn image_path(handle: HANDLE) -> Availability<String> {
+    let mut buffer = vec![0u16; MAX_IMAGE_PATH_UNITS];
+    let mut len = buffer.len() as u32;
+
+    // SAFETY: `buffer` is live for `len` UTF-16 units, and `len` is its own
+    // length in units, as the API requires.
+    if unsafe { QueryFullProcessImageNameW(handle, 0, buffer.as_mut_ptr(), &mut len) } == 0 {
+        return Availability::Unavailable(last_error_reason());
+    }
+
+    let len = len as usize;
+    if len == 0 || len >= buffer.len() {
+        return Availability::Unavailable(UnavailableReason::Failed);
+    }
+
+    match String::from_utf16(&buffer[..len]) {
+        Ok(path) => Availability::Available(path),
+        Err(_) => Availability::Unavailable(UnavailableReason::Failed),
+    }
 }
 
 fn start_time(handle: HANDLE) -> Availability<u64> {
@@ -266,9 +317,14 @@ mod tests {
         assert!(inventory.processes.len() <= MAX_PROCESSES);
 
         let own = std::process::id();
+        let current = inventory
+            .processes
+            .iter()
+            .find(|item| item.pid == own)
+            .expect("the current process must appear in its own inventory");
         assert!(
-            inventory.processes.iter().any(|item| item.pid == own),
-            "the current process must appear in its own inventory"
+            matches!(current.image_path, Availability::Available(_)),
+            "the current process's image path must be readable"
         );
 
         let mut pids: Vec<u32> = inventory.processes.iter().map(|item| item.pid).collect();
@@ -292,6 +348,12 @@ mod tests {
             }
             if let Availability::Available(bytes) = process.working_set_bytes {
                 assert!(bytes > 0, "a live process must have a working set");
+            }
+            if let Availability::Available(path) = &process.image_path {
+                assert!(
+                    path.len() > 2 && path.as_bytes()[1] == b':',
+                    "an image path must be absolute"
+                );
             }
             assert!(!process.key().is_empty());
         }

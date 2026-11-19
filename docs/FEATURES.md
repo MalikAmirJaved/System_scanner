@@ -61,9 +61,9 @@
 
 | ID | Feature | Status |
 |---|---|---|
-| F-040 | Process list (PID, name, path, memory, CPU) | 🟡 Partial — PID, parent PID, name, threads, working set, and start time implemented; image path and CPU usage are not collected |
+| F-040 | Process list (PID, name, path, memory, CPU) | 🟡 Partial — PID, parent PID, name, image path, threads, working set, and start time implemented (B-042; `imagePath` is optional and paired with `unavailable`, `PROCESS_LIST_SCHEMA_VERSION = 2`); CPU usage is not collected |
 | F-041 | Stable process identity (PID + start time) | ✅ Implemented — `key` is `pid-startTime`, or an explicit `pid:<pid>` when the start time is denied |
-| F-042 | Process hierarchy | 🟡 Partial — parent PID is exposed per row; no tree view |
+| F-042 | Process hierarchy | 🟡 Partial — parent PID is exposed per row and a derived `depth` (ancestors inside the snapshot, cycle- and cap-safe, computed before paging) indents child rows; list order is still PID, so there is no tree ordering or collapsible tree view |
 | F-043 | Access-limited indicator per process | ✅ Implemented — per-row `unavailable[]` with `access_denied` / `failed` |
 | F-044 | Startup entries inventory | ⏳ Not started | |
 | F-045 | Service inventory (read-only) | ⏳ Not started | |

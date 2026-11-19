@@ -73,7 +73,10 @@
 - The snapshot reports unavailable groups and leaf fields with a reason instead
   of fabricating zero or empty values.
 - `list_processes` validates `offset`/`limit` in Rust, orders by PID so pages are
-  stable, and keeps rows Windows refused to open with a per-field reason.
+  stable, and keeps rows Windows refused to open with a per-field reason. Each row
+  carries a derived `depth` (computed over the whole inventory before paging, with
+  missing parents and cycles treated as roots and the walk capped) and an optional
+  `imagePath` that stays on the machine (ADR-027).
 - A failed startup shows a native dialog with a redacted detail and next steps,
   then exits 1; a render failure is caught by a boundary that offers a reload.
 - Opening the database is confined to `adapters/persistence/`. `domain/` still

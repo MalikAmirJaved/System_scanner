@@ -54,7 +54,7 @@ const snapshot = {
 
 const processList = {
   capturedAt: 1_762_387_200_000,
-  schemaVersion: 1,
+  schemaVersion: 2,
   total: 1,
   offset: 0,
   limit: 100,
@@ -64,7 +64,9 @@ const processList = {
       key: "4-1762380000000",
       pid: 4,
       parentPid: 0,
+      depth: 0,
       name: "System",
+      imagePath: "C:\\Windows\\System32\\ntoskrnl.exe",
       threadCount: 210,
       startTime: 1_762_380_000_000,
       workingSetBytes: 1_048_576,
@@ -213,6 +215,7 @@ describe("command response contracts", () => {
       key: "4-1762380000000",
       pid: 4,
       parentPid: 0,
+      depth: 0,
       name: "System",
     };
     invoke.mockResolvedValue(ok({ ...processList, items: [row] }));

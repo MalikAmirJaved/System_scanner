@@ -54,6 +54,13 @@ of a traversal and discarded as entries are counted. They are not logged,
 exported, sent over IPC, or written to the database. IPC returns aggregate
 counters only. Log call sites never receive a path from this module.
 
+**Process inventory (implemented):** `list_processes` returns per-row image paths
+(B-042, ADR-027) alongside PID, parent PID, name, threads, start time, and working
+set. Paths are held in the renderer only while the panel is open: they are not
+logged, not written to the database, and not included in the diagnostics bundle.
+The process inventory is live-only — no process snapshot is stored. Command lines
+are **not** collected.
+
 Everything below beyond those two facts is **proposed**:
 
 | Data | Purpose | Retention default | User can delete |
@@ -77,6 +84,7 @@ decision.
 - File contents.
 - Full directory listings.
 - Process command lines.
+- Process image paths (shown locally in the process panel, never exported).
 - Usernames, SIDs, machine name, IP addresses.
 - Logs, support bundles, database files.
 
@@ -122,6 +130,7 @@ Applied before writing logs or building a support bundle:
 | Machine name | replace |
 | IP / MAC | remove |
 | Process command line | never captured |
+| Process image path | displayed only; dropped before any log or bundle |
 | File hash | keep only if the user opted in to share |
 
 Redaction is applied **at the call site**, not by a later scrubber.

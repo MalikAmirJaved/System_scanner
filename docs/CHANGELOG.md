@@ -13,6 +13,20 @@ exists. Until then, `0.x` versions may change behavior without notice.
 
 ## [Unreleased]
 
+### Added (process inventory)
+- **Process hierarchy and image paths (B-042).** Each `list_processes` row now
+  carries `depth` — the number of ancestors inside the same snapshot, derived in
+  the domain over the whole inventory before paging — and an optional `imagePath`
+  read with `QueryFullProcessImageNameW` over a `PROCESS_QUERY_LIMITED_INFORMATION`
+  handle. A process whose recorded parent is gone, whose parent is itself, or whose
+  parent chain loops (PID reuse) is reported at depth 0 instead of being followed;
+  the walk is capped at 32 links. A denied path is omitted and named in the row's
+  `unavailable` list; a path that would have been truncated is reported as failed
+  rather than returned wrong. `PROCESS_LIST_SCHEMA_VERSION` moves to 2, and the
+  process panel indents child rows (up to 8 levels) and shows the image path under
+  the name. Image paths are local-only: never logged, never in the diagnostics
+  bundle, never stored (ADR-027). No new command, capability, or dependency.
+
 ### Measured (performance)
 - **First traversal baseline on 100k and 1M entry fixtures (B-032).** An opt-in
   harness (`src-tauri/src/adapters/filesystem/baseline.rs`, `#[ignore]`d) generates

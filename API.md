@@ -234,10 +234,10 @@ pub async fn list_processes(
 // request (both optional)
 { "offset": 0, "limit": 100 }
 
-// response data  (src-tauri/src/dto/process_list.rs, PROCESS_LIST_SCHEMA_VERSION = 1)
+// response data  (src-tauri/src/dto/process_list.rs, PROCESS_LIST_SCHEMA_VERSION = 2)
 {
   "capturedAt": 1762387200000,
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "total": 312,
   "offset": 0,
   "limit": 100,
@@ -247,7 +247,9 @@ pub async fn list_processes(
       "key": "4242-1762380000000",
       "pid": 4242,
       "parentPid": 1024,
+      "depth": 1,
       "name": "explorer.exe",
+      "imagePath": "C:\\Windows\\explorer.exe",
       "threadCount": 84,
       "startTime": 1762380000000,
       "workingSetBytes": 104857600,
@@ -257,9 +259,11 @@ pub async fn list_processes(
       "key": "pid:4",
       "pid": 4,
       "parentPid": 0,
+      "depth": 0,
       "name": "System",
       "threadCount": 210,
       "unavailable": [
+        { "field": "items[1].imagePath", "reason": "access_denied" },
         { "field": "items[1].startTime", "reason": "access_denied" },
         { "field": "items[1].workingSetBytes", "reason": "access_denied" }
       ]
@@ -282,13 +286,25 @@ Rules, implemented:
   is readable, because Windows reuses PIDs. When it is not, the key is
   `"pid:<pid>"` — unique within that snapshot only, and deliberately explicit
   about it.
+- **`depth` is derived, not reported by Windows.** It is the number of ancestors
+  this process has inside the same snapshot: `0` for a root, for a process whose
+  recorded parent is gone (PID reuse), and for a chain that cycles. It is
+  computed over the whole inventory *before* paging, so a row's depth never
+  depends on which page it lands on, and the chain walk is capped at 32 links.
+  The UI indents by depth up to 8 levels; the value itself is never altered.
+- **`imagePath` is read-only metadata.** It is the full image path from
+  `QueryFullProcessImageNameW` over a `PROCESS_QUERY_LIMITED_INFORMATION` handle
+  (ADR-027). It stays on the machine: it is not logged, not placed in the
+  diagnostics bundle, and not sent anywhere. A path that would have been
+  truncated is reported as unavailable rather than returned wrong.
 - **Per-row gaps.** A field Windows refused to read is omitted and named by path
   (`items[1].startTime`) in that row's own `unavailable` list. The row is never
   dropped, and no field is reported as `0`.
-- **Not collected.** Image paths, command lines, CPU usage, and session IDs are
-  absent from this response. Paths and command lines are a privacy decision; CPU
-  usage needs sampling; `windows-sys` 0.61 does not bind `ProcessIdToSessionId`,
-  so a session ID would need a hand-written DLL import (ADR-013).
+- **Not collected.** Command lines, CPU usage, and session IDs are absent from
+  this response. Command lines are a privacy decision that has not been made; CPU
+  usage needs sampling over an interval; `windows-sys` 0.61 does not bind
+  `ProcessIdToSessionId`, so a session ID would need a hand-written DLL import
+  (ADR-013).
 - **`truncated`** is `true` when the adapter hit its 8192-process safety cap;
   `total` is then a lower bound.
 - **Enumeration failure is an error.** A failed snapshot returns `access_denied`

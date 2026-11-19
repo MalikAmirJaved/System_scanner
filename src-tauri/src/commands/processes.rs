@@ -91,6 +91,8 @@ mod tests {
         assert_eq!(page.offset, 0);
         assert_eq!(page.schema_version, PROCESS_LIST_SCHEMA_VERSION);
         assert!(page.captured_at > 0);
+        // Depth is derived before paging, so even a one-row page carries it.
+        assert!(page.items[0].depth <= crate::domain::process::MAX_HIERARCHY_DEPTH);
     }
 
     #[cfg(windows)]

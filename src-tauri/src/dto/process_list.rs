@@ -4,7 +4,9 @@ use crate::domain::process as domain;
 use crate::dto::unavailable::{UnavailableFieldDto, take};
 
 /// Bump when a breaking field change is made to this DTO.
-pub const PROCESS_LIST_SCHEMA_VERSION: u32 = 1;
+///
+/// v2 added `depth` (required) and `imagePath` (optional, paired with `unavailable`).
+pub const PROCESS_LIST_SCHEMA_VERSION: u32 = 2;
 
 /// Wire shape of `list_processes` data (see `API.md` §3.3).
 ///
@@ -31,8 +33,15 @@ pub struct ProcessDto {
     pub key: String,
     pub pid: u32,
     pub parent_pid: u32,
+    /// Ancestors above this process in this snapshot; `0` for a root, a process
+    /// whose parent is gone, or a chain that cycles.
+    pub depth: u32,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
+    /// Full image path. Present only when readable; otherwise named in
+    /// `unavailable`. Stays on this machine: never logged, never in a bundle.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub image_path: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub thread_count: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -46,8 +55,8 @@ impl ProcessListDto {
     pub fn from_page(page: &domain::ProcessPage, captured_at: u64) -> Self {
         let mut items = Vec::with_capacity(page.items.len());
 
-        for (index, process) in page.items.iter().enumerate() {
-            items.push(process_from(index, process));
+        for (index, row) in page.items.iter().enumerate() {
+            items.push(process_from(index, row));
         }
 
         Self {
@@ -62,11 +71,17 @@ impl ProcessListDto {
     }
 }
 
-fn process_from(index: usize, process: &domain::ProcessInfo) -> ProcessDto {
+fn process_from(index: usize, row: &domain::ProcessRow) -> ProcessDto {
+    let process = &row.info;
     let prefix = format!("items[{index}]");
     let mut unavailable = Vec::new();
 
     let name = take(&format!("{prefix}.name"), &process.name, &mut unavailable);
+    let image_path = take(
+        &format!("{prefix}.imagePath"),
+        &process.image_path,
+        &mut unavailable,
+    );
     let thread_count = take(
         &format!("{prefix}.threadCount"),
         &process.thread_count,
@@ -87,7 +102,9 @@ fn process_from(index: usize, process: &domain::ProcessInfo) -> ProcessDto {
         key: process.key(),
         pid: process.pid,
         parent_pid: process.parent_pid,
+        depth: row.depth,
         name,
+        image_path,
         thread_count,
         start_time,
         working_set_bytes,
@@ -98,7 +115,7 @@ fn process_from(index: usize, process: &domain::ProcessInfo) -> ProcessDto {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::process::{ProcessInfo, ProcessPage};
+    use crate::domain::process::{ProcessInfo, ProcessPage, ProcessRow};
     use crate::domain::system::{Availability, UnavailableReason};
 
     fn process(pid: u32) -> ProcessInfo {
@@ -106,6 +123,7 @@ mod tests {
             pid,
             parent_pid: 1,
             name: Availability::Available("example.exe".to_owned()),
+            image_path: Availability::Available("C:\\bin\\example.exe".to_owned()),
             thread_count: Availability::Available(4),
             started_at_ms: Availability::Available(1_700_000_000_000),
             working_set_bytes: Availability::Available(1_048_576),
@@ -118,7 +136,10 @@ mod tests {
             offset: 0,
             limit: 100,
             truncated: false,
-            items,
+            items: items
+                .into_iter()
+                .map(|info| ProcessRow { info, depth: 0 })
+                .collect(),
         }
     }
 
@@ -137,7 +158,9 @@ mod tests {
         let item = &value["items"][0];
         assert_eq!(item["pid"], 4);
         assert_eq!(item["parentPid"], 1);
+        assert_eq!(item["depth"], 0);
         assert_eq!(item["name"], "example.exe");
+        assert_eq!(item["imagePath"], "C:\\bin\\example.exe");
         assert_eq!(item["threadCount"], 4);
         assert_eq!(item["startTime"], 1_700_000_000_000u64);
         assert_eq!(item["workingSetBytes"], 1_048_576u64);
@@ -151,12 +174,14 @@ mod tests {
         let mut denied = process(4);
         denied.started_at_ms = Availability::Unavailable(UnavailableReason::AccessDenied);
         denied.working_set_bytes = Availability::Unavailable(UnavailableReason::AccessDenied);
+        denied.image_path = Availability::Unavailable(UnavailableReason::AccessDenied);
 
         let dto = ProcessListDto::from_page(&page(vec![denied]), 0);
         let value = serde_json::to_value(&dto).unwrap();
 
         let item = &value["items"][0];
         assert_eq!(item["name"], "example.exe");
+        assert!(item.get("imagePath").is_none());
         assert!(item.get("startTime").is_none());
         assert!(item.get("workingSetBytes").is_none());
         // Without a start time the key is explicit about being snapshot-local.
@@ -164,6 +189,7 @@ mod tests {
         assert_eq!(
             item["unavailable"],
             serde_json::json!([
+                { "field": "items[0].imagePath", "reason": "access_denied" },
                 { "field": "items[0].startTime", "reason": "access_denied" },
                 { "field": "items[0].workingSetBytes", "reason": "access_denied" }
             ])

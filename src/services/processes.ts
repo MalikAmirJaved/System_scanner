@@ -15,19 +15,23 @@ import { parseUnavailableField, type UnavailableField } from "./unavailable";
 
 /**
  * Mirrors the `list_processes` DTO in
- * `src-tauri/src/dto/process_list.rs` (`PROCESS_LIST_SCHEMA_VERSION = 1`).
+ * `src-tauri/src/dto/process_list.rs` (`PROCESS_LIST_SCHEMA_VERSION = 2`).
  *
  * A missing field is always paired with an entry in the row's `unavailable`
  * list; `undefined` alone never means "could not read".
  */
-export const PROCESS_LIST_SCHEMA_VERSION = 1;
+export const PROCESS_LIST_SCHEMA_VERSION = 2;
 
 export interface ProcessInfo {
   /** Stable across refreshes unless the start time was unreadable (`pid:<pid>`). */
   key: string;
   pid: number;
   parentPid: number;
+  /** Ancestors above this process; `0` for a root or an unresolved parent. */
+  depth: number;
   name?: string;
+  /** Full image path. Local to this machine; never logged or bundled. */
+  imagePath?: string;
   threadCount?: number;
   startTime?: number;
   workingSetBytes?: number;
@@ -64,7 +68,9 @@ const parseProcess: Validator<ProcessInfo> = (value, path) => {
     key: string(raw.key, at(path, "key")),
     pid: count(raw.pid, at(path, "pid")),
     parentPid: count(raw.parentPid, at(path, "parentPid")),
+    depth: count(raw.depth, at(path, "depth")),
     name: optionalString(raw.name, at(path, "name")),
+    imagePath: optionalString(raw.imagePath, at(path, "imagePath")),
     threadCount: optionalCount(raw.threadCount, at(path, "threadCount")),
     startTime: optionalCount(raw.startTime, at(path, "startTime")),
     workingSetBytes: optionalCount(raw.workingSetBytes, at(path, "workingSetBytes")),

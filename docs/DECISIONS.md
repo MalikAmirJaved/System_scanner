@@ -334,11 +334,13 @@ that a PID is an identity — Windows reuses PIDs.
   (~300 processes) and bounded by the cap.
 - Two Win32 features were added (`Win32_System_Diagnostics_ToolHelp`,
   `Win32_System_ProcessStatus`); further fields need their own dependency change.
-- Without paths, the process view cannot answer "which executable is this?".
-  That is a known gap (KI-040), not an accident.
+- Image paths were left out of this decision as a privacy question; ADR-027
+  later added them as local-only display metadata, and the process view can now
+  answer "which executable is this?". Command lines, CPU usage, and session IDs
+  remain open (KI-040).
 
-**Revisit if:** a Rust-side search/sort is needed (B-042), image paths become
-necessary for evidence in a later release, or CPU sampling is designed with a
+**Revisit if:** a Rust-side search/sort is needed (B-042), a support path needs
+paths in a bundle (ADR-027 forbids it today), or CPU sampling is designed with a
 bounded interval.
 
 ---
@@ -931,6 +933,55 @@ an open question (`docs/ACCESS_CONTROL.md` §9 item 4).
 denial before acting), a requirement to configure the list per machine, or a
 decision to follow reparse points — lexical resolution is then no longer enough on
 its own.
+
+---
+
+## ADR-027 — Process image paths are collected locally, never exported
+
+**Status:** Accepted · 2026-11-19
+
+**Context.** B-042 covers "process hierarchy + access-limited metadata", and F-040
+lists the image path as the one missing read-only field. `API.md` §3.3 previously
+called image paths "a privacy decision" and omitted them, which left the process
+panel unable to answer the first question a user asks about an unfamiliar process:
+where is it running from? The constraint is the product's privacy posture (§8 of
+`SECURITY.md`): no telemetry, no upload, no bundle containing paths.
+
+**Options.**
+
+1. Keep paths out. Cheapest, but the panel stays unable to distinguish
+   `C:\Windows\System32\svchost.exe` from a copy in a user-writable directory.
+2. Collect them and include them in the diagnostics bundle when the user copies
+   it. More useful for support, but silently widens what leaves the app and
+   contradicts the redacted-by-default promise.
+3. Collect them for local display only, with no logging and no bundle inclusion.
+
+**Decision.** Option 3.
+
+- `adapters/windows/processes.rs` reads the path with
+  `QueryFullProcessImageNameW` on a `PROCESS_QUERY_LIMITED_INFORMATION` handle —
+  no `PROCESS_VM_READ`, no elevation, no new capability, no new dependency.
+- The field is `imagePath`, optional on the wire, always paired with a per-row
+  `unavailable` entry when it could not be read, so a missing path is never
+  ambiguous.
+- The value is never written to the log (`ipc.rs` logs outcomes, not payloads),
+  never placed in the support bundle (`redact.rs` keeps paths out), and never
+  sent over the network because no network feature exists and ADR-level policy
+  requires consent.
+- A path that would fill the 32,768-unit buffer is reported as `failed` instead
+  of a truncated string; a wrong path is worse than an honest gap.
+- `PROCESS_LIST_SCHEMA_VERSION` becomes `2`, because `depth` is a new required
+  field.
+
+**Consequences.** The renderer now holds machine-local absolute paths in memory.
+That is the same trust level as the scan-root text already typed by the user, and
+the CSP/capability model is unchanged. `docs/FEATURES.md` (F-040/F-042) and
+`docs/DATA_PRIVACY.md` record the field and its disposal rule. Command lines stay
+out: they routinely contain credentials and URLs, which the image path does not.
+
+**Revisit trigger.** A support bundle that must include executable locations, a
+process-detail view that adds command lines, or any feature that would send a path
+off the device.
 
 ---
 

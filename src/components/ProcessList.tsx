@@ -13,6 +13,13 @@ import { Button } from "./ui/button";
 /** Mirrors the default page size in `src-tauri/src/domain/process.rs`. */
 const PAGE_SIZE = 100;
 
+/**
+ * Deepest indent drawn for a child row. Rust reports depth up to 32, but
+ * indenting all of it would push the name out of the column; the depth value
+ * itself is never altered.
+ */
+const MAX_INDENT_DEPTH = 8;
+
 type ListState =
   | { status: "loading" }
   | { status: "ready"; list: ProcessPage }
@@ -204,7 +211,27 @@ function ListBody({ list }: { list: ProcessPage }) {
             {list.items.map((process, index) => (
               <tr key={process.key} className="border-b border-border/60 align-top">
                 <td className="py-2 pr-4 font-medium">
-                  {process.name ? process.name : <Gap reason={gapReason(process, index, "name")} />}
+                  <div
+                    style={{ paddingLeft: `${Math.min(process.depth, MAX_INDENT_DEPTH) * 12}px` }}
+                  >
+                    {process.name ? (
+                      process.name
+                    ) : (
+                      <Gap reason={gapReason(process, index, "name")} />
+                    )}
+                    {process.imagePath ? (
+                      <span
+                        className="mt-0.5 block max-w-[42ch] truncate font-mono text-2xs text-muted-foreground"
+                        title={process.imagePath}
+                      >
+                        {process.imagePath}
+                      </span>
+                    ) : (
+                      <span className="mt-0.5 block text-2xs">
+                        <Gap reason={gapReason(process, index, "imagePath")} />
+                      </span>
+                    )}
+                  </div>
                 </td>
                 <td className="py-2 pr-4 font-mono text-xs">{process.pid}</td>
                 <td className="py-2 pr-4 font-mono text-xs">{process.parentPid}</td>

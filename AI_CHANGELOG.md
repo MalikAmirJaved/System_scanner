@@ -25,6 +25,44 @@
 
 ---
 
+## 2026-11-19 — Process hierarchy depth + image path (B-042)
+
+- **Agent/tool:** Buffy (DeepSeek V4.1 Flash), Freebuff.
+- **Scope:** `src-tauri/src/domain/process.rs`, `src-tauri/src/adapters/windows/processes.rs`,
+  `src-tauri/src/dto/process_list.rs`, `src-tauri/src/commands/processes.rs` (test),
+  `src/services/processes.ts`, `src/components/ProcessList.tsx`, frontend tests,
+  `API.md` §3.3, `docs/DECISIONS.md` (ADR-027), `docs/DATA_PRIVACY.md`,
+  `docs/FEATURES.md`, `docs/BACKLOG.md`, `docs/CHANGELOG.md`, `ARCHITECTURE.md` §1,
+  `AI_CONTEXT.md`, `build.md`. No dependency, command, or capability change.
+- **Change:** `ProcessPage` now carries `ProcessRow { info, depth }`; depth is
+  derived in `domain/process.rs` from PID → parent PID over the whole sorted
+  inventory, treating a missing parent, a self-parent, and a cycle as depth 0 and
+  capping the walk at 32. `ProcessInfo` gained `image_path: Availability<String>`,
+  filled by the Windows adapter from `QueryFullProcessImageNameW` on the same
+  handle already opened for times/working set, with a name-only fallback when
+  `PROCESS_VM_READ` is denied. The DTO adds required `depth` and optional
+  `imagePath` (each denial named in the row's `unavailable` list) and bumps
+  `PROCESS_LIST_SCHEMA_VERSION` to 2; the renderer validator and table follow.
+- **Why:** B-042 is the next unblocked backlog item and F-040/F-042 both list
+  their missing pieces (image path, hierarchy) explicitly. `API.md` had called
+  image paths "a privacy decision", so ADR-027 records the decision rather than
+  letting the code quietly make it.
+- **Risk:** The renderer now holds machine-local absolute paths in memory; the
+  compensating rule is that they are never logged, bundled, or stored. Hierarchy
+  depth is a snapshot-local inference: Windows reuses PIDs, so an unrelated
+  process with the same parent PID can appear as a parent, which is why cycles
+  degrade to 0 and the walk is bounded rather than trusted.
+- **Evidence:** `cargo test` 150 passed, 1 ignored (6 new domain tests: chain,
+  missing parent, self-parent, cycle, paging independence, depth cap). `cargo fmt
+  --all -- --check` and `cargo clippy --all-targets -- -D warnings` clean. `npm
+  test` 76 passed (fixtures moved to schema 2, path rendering asserted). `npm run
+  build` clean.
+- **Follow-up:** A tree-ordered or collapsible view (needs a non-PID order and a
+  decision on how paging interacts with it), CPU sampling (F-040), and the
+  startup/service inventory (B-043) that will reuse the same explanation shape.
+
+---
+
 ## 2026-11-19 — Traversal performance baseline harness (B-032)
 
 - **Agent/tool:** Buffy (DeepSeek V4.1 Flash), Freebuff.

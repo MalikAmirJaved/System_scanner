@@ -3,6 +3,8 @@
 //! Platform-neutral: this module never imports `windows-sys` or Tauri. Win32
 //! enumeration arrives through [`crate::ports::processes::ProcessInfoPort`].
 
+use std::collections::HashMap;
+
 use crate::domain::system::Availability;
 use crate::ports::ProbeError;
 use crate::ports::processes::ProcessInfoPort;
@@ -13,6 +15,11 @@ pub const DEFAULT_PAGE_SIZE: u32 = 100;
 pub const MAX_PAGE_SIZE: u32 = 500;
 /// Highest accepted `offset`. Stops integer games from turning into deep scans.
 pub const MAX_OFFSET: u32 = 1_000_000;
+/// Deepest parent chain followed when deriving hierarchy depth.
+///
+/// A chain longer than this is reported at the cap rather than walked forever;
+/// the process table is untrusted input as far as this module is concerned.
+pub const MAX_HIERARCHY_DEPTH: u32 = 32;
 
 /// One process, as observed during a single enumeration.
 ///
@@ -23,6 +30,9 @@ pub struct ProcessInfo {
     pub pid: u32,
     pub parent_pid: u32,
     pub name: Availability<String>,
+    /// Full image path when it could be read. Local to this machine and never
+    /// logged or placed in a support bundle.
+    pub image_path: Availability<String>,
     pub thread_count: Availability<u32>,
     pub started_at_ms: Availability<u64>,
     pub working_set_bytes: Availability<u64>,
@@ -98,6 +108,15 @@ impl PageRequest {
     }
 }
 
+/// One process plus its derived place in the parent chain.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProcessRow {
+    pub info: ProcessInfo,
+    /// Number of ancestors above this process within the same snapshot; `0` for
+    /// a root, for a process whose parent is absent, and for a chain that cycles.
+    pub depth: u32,
+}
+
 /// One page of the inventory, ordered deterministically by process ID.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProcessPage {
@@ -106,7 +125,7 @@ pub struct ProcessPage {
     pub offset: u32,
     pub limit: u32,
     pub truncated: bool,
-    pub items: Vec<ProcessInfo>,
+    pub items: Vec<ProcessRow>,
 }
 
 /// Enumerates through the port and returns the requested page.
@@ -132,13 +151,16 @@ fn build_page(mut inventory: ProcessInventory, request: PageRequest) -> ProcessP
     });
 
     let total = inventory.processes.len();
+    let depths = hierarchy_depths(&inventory.processes);
     let skip = usize::try_from(request.offset).unwrap_or(usize::MAX);
     let take = usize::try_from(request.limit).unwrap_or(0);
     let items = inventory
         .processes
         .into_iter()
+        .zip(depths)
         .skip(skip)
         .take(take)
+        .map(|(info, depth)| ProcessRow { info, depth })
         .collect();
 
     ProcessPage {
@@ -148,6 +170,55 @@ fn build_page(mut inventory: ProcessInventory, request: PageRequest) -> ProcessP
         truncated: inventory.truncated,
         items,
     }
+}
+
+/// Derives each process's distance from its topmost known ancestor.
+///
+/// Windows reuses process IDs, so a recorded parent may be gone or may now be a
+/// different process; a self-referencing or looping chain is treated as a root
+/// instead of being followed. The result is aligned with `processes` and is
+/// computed over the whole inventory, so a row's depth does not change with the
+/// page it lands on.
+fn hierarchy_depths(processes: &[ProcessInfo]) -> Vec<u32> {
+    // First occurrence wins: a duplicated PID must not make the lookup ambiguous.
+    let mut index_by_pid: HashMap<u32, usize> = HashMap::with_capacity(processes.len());
+    for (index, process) in processes.iter().enumerate() {
+        index_by_pid.entry(process.pid).or_insert(index);
+    }
+
+    (0..processes.len())
+        .map(|start| depth_of(start, processes, &index_by_pid))
+        .collect()
+}
+
+fn depth_of(start: usize, processes: &[ProcessInfo], index_by_pid: &HashMap<u32, usize>) -> u32 {
+    let mut chain: Vec<usize> = Vec::new();
+    let mut current = start;
+
+    loop {
+        if chain.len() as u32 >= MAX_HIERARCHY_DEPTH {
+            return MAX_HIERARCHY_DEPTH;
+        }
+        if chain.contains(&current) {
+            // A cycle: no member of it is meaningfully below another.
+            return 0;
+        }
+        chain.push(current);
+
+        match parent_index(&processes[current], index_by_pid) {
+            Some(parent) => current = parent,
+            None => return (chain.len() - 1) as u32,
+        }
+    }
+}
+
+fn parent_index(process: &ProcessInfo, index_by_pid: &HashMap<u32, usize>) -> Option<usize> {
+    // `0` means "no parent", and a process cannot be its own ancestor.
+    if process.parent_pid == 0 || process.parent_pid == process.pid {
+        return None;
+    }
+
+    index_by_pid.get(&process.parent_pid).copied()
 }
 
 fn started_at(process: &ProcessInfo) -> Option<u64> {
@@ -167,6 +238,7 @@ mod tests {
             pid,
             parent_pid: 0,
             name: Availability::Available(format!("process-{pid}")),
+            image_path: Availability::Available(format!("C:\\bin\\process-{pid}.exe")),
             thread_count: Availability::Available(2),
             started_at_ms: match started_at_ms {
                 Some(value) => Availability::Available(value),
@@ -208,13 +280,20 @@ mod tests {
         assert_eq!(page.total, 3);
         assert_eq!(page.items.len(), 2);
         assert_eq!(
-            page.items.iter().map(|item| item.pid).collect::<Vec<_>>(),
+            page.items
+                .iter()
+                .map(|item| item.info.pid)
+                .collect::<Vec<_>>(),
             vec![10, 20]
         );
 
         let second = collect_page(&port, PageRequest::new(Some(2), Some(2)).unwrap()).unwrap();
         assert_eq!(
-            second.items.iter().map(|item| item.pid).collect::<Vec<_>>(),
+            second
+                .items
+                .iter()
+                .map(|item| item.info.pid)
+                .collect::<Vec<_>>(),
             vec![30]
         );
     }
@@ -264,11 +343,11 @@ mod tests {
 
         assert_eq!(page.items.len(), 1, "a denied field must not drop the row");
         assert_eq!(
-            page.items[0].working_set_bytes,
+            page.items[0].info.working_set_bytes,
             Availability::Unavailable(UnavailableReason::AccessDenied)
         );
         assert!(matches!(
-            page.items[0].name,
+            page.items[0].info.name,
             Availability::Available(ref name) if name == "process-10"
         ));
     }
@@ -297,6 +376,76 @@ mod tests {
         let result = collect_page(&port, PageRequest::new(None, None).unwrap());
 
         assert_eq!(result, Err(ProbeError::AccessDenied));
+    }
+
+    fn tree(edges: &[(u32, u32)]) -> Vec<ProcessInfo> {
+        edges
+            .iter()
+            .map(|&(pid, parent)| {
+                let mut item = process(pid, None);
+                item.parent_pid = parent;
+                item
+            })
+            .collect()
+    }
+
+    fn depths_of(edges: &[(u32, u32)]) -> Vec<u32> {
+        let port = port_with(tree(edges));
+        let page =
+            collect_page(&port, PageRequest::new(None, Some(MAX_PAGE_SIZE)).unwrap()).unwrap();
+        page.items.iter().map(|row| row.depth).collect()
+    }
+
+    #[test]
+    fn depth_counts_known_ancestors() {
+        // 1 <- 2 <- 3, plus an unrelated root.
+        assert_eq!(
+            depths_of(&[(1, 0), (2, 1), (3, 2), (9, 0)]),
+            vec![0, 1, 2, 0]
+        );
+    }
+
+    #[test]
+    fn a_parent_outside_the_snapshot_makes_a_root() {
+        // PID 500 has exited, so 600 is a root in this snapshot, not depth 1.
+        assert_eq!(depths_of(&[(600, 500)]), vec![0]);
+    }
+
+    #[test]
+    fn a_self_parent_is_a_root() {
+        assert_eq!(depths_of(&[(4, 4)]), vec![0]);
+    }
+
+    #[test]
+    fn a_parent_cycle_does_not_hang_and_reports_roots() {
+        // PID reuse can leave two processes pointing at each other.
+        assert_eq!(depths_of(&[(7, 8), (8, 7), (9, 7)]), vec![0, 0, 0]);
+    }
+
+    #[test]
+    fn depth_is_derived_over_the_whole_inventory_not_the_page() {
+        let port = port_with(tree(&[(1, 0), (2, 1), (3, 2)]));
+
+        // PID 3 is on page two, but its depth still reflects PID 1.
+        let page = collect_page(&port, PageRequest::new(Some(2), Some(1)).unwrap()).unwrap();
+
+        assert_eq!(page.items.len(), 1);
+        assert_eq!(page.items[0].info.pid, 3);
+        assert_eq!(page.items[0].depth, 2);
+    }
+
+    #[test]
+    fn depth_is_capped_instead_of_walking_a_pathological_chain() {
+        let mut edges = vec![(1u32, 0u32)];
+        for pid in 2..=(MAX_HIERARCHY_DEPTH + 3) {
+            edges.push((pid, pid - 1));
+        }
+
+        let depths = depths_of(&edges);
+
+        assert_eq!(depths[0], 0);
+        assert_eq!(depths[MAX_HIERARCHY_DEPTH as usize], MAX_HIERARCHY_DEPTH);
+        assert!(depths.iter().all(|depth| *depth <= MAX_HIERARCHY_DEPTH));
     }
 
     #[test]
