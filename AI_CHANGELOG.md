@@ -25,6 +25,40 @@
 
 ---
 
+## 2026-11-19 — Startup and service inventory (B-043)
+
+- **Agent/tool:** Buffy (DeepSeek V4.1 Flash), Freebuff.
+- **Scope:** `src-tauri/src/domain/startup.rs`, `ports/startup.rs`,
+  `adapters/windows/startup.rs`, `dto/startup_inventory.rs`,
+  `commands/startup.rs`, `lib.rs`, `commands/mod.rs`, `domain/mod.rs`,
+  `ports/mod.rs`, `adapters/windows/mod.rs`, `Cargo.toml` (one `windows-sys`
+  feature), `src/services/startup.ts`, `src/components/StartupInventory.tsx`,
+  `src/App.tsx`, frontend tests, `API.md` §3.5, `docs/DECISIONS.md` (ADR-028),
+  `docs/DATA_PRIVACY.md`, `docs/FEATURES.md`, `docs/BACKLOG.md`,
+  `docs/KNOWN_ISSUES.md`, `docs/CHANGELOG.md`, `docs/DEPENDENCIES.md`,
+  `ARCHITECTURE.md` §1, `AI_CONTEXT.md`, `build.md`.
+- **Change:** a new read-only vertical slice. `StartupInventoryPort` returns an
+  infallible `StartupInventory` because failures are per group, not per call. The
+  domain applies the ordering rule and owns the caps. The Windows adapter
+  enumerates `SERVICE_WIN32` services with `EnumServicesStatusExW` (growth
+  follows `pcbBytesNeeded`), reads start type and binary path with a
+  `SERVICE_QUERY_CONFIG` handle per service, enumerates the four `Run`/`RunOnce`
+  keys with `RegEnumValueW`, and lists the two Startup folders with `std::fs`.
+  `get_startup_inventory` maps it to `STARTUP_INVENTORY_SCHEMA_VERSION = 1`;
+  `src/services/startup.ts` validates it and the new panel renders it.
+- **Why:** B-043 (F-044/F-045/F-046) was the next unblocked P2 item; the panel
+  answers "what runs at sign-in" and "what services exist" while every refused
+  source stays visible with a reason.
+- **Risk:** unsafe Win32 code for two new APIs (SCM and registry enumeration) is
+  the main risk; every block has a `SAFETY` note and the slice is read-only. The
+  new IPC command returns up to 4,096 services, so the panel scrolls rather than
+  virtualizes (B-029). Denied fields are always named, never zero-filled.
+- **Evidence:** `cargo test` 166 passed / 1 ignored (16 new), `cargo fmt
+  --all -- --check`, `cargo clippy --all-targets -- -D warnings`, `npm test` 82
+  passed in 13 files, `npm run build`, `npm run lint`, `npm run format:check`.
+- **Follow-up:** KI-058 (scheduled tasks, drivers, 32-bit registry view,
+  shortcut targets), B-049 for any control action, ADR-028 for the privacy rule.
+
 ## 2026-11-19 — Process hierarchy depth + image path (B-042)
 
 - **Agent/tool:** Buffy (DeepSeek V4.1 Flash), Freebuff.

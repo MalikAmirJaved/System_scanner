@@ -1,6 +1,6 @@
 # Architecture
 
-> **Status:** Current state + target design · **Last updated:** 2026-11-13
+> **Status:** Current state + target design · **Last updated:** 2026-11-19
 >
 > The current implementation is a Tauri scaffold with one vertical slice: a
 > read-only system snapshot. The target design below is **proposed** and must be
@@ -17,14 +17,16 @@
 │   src/main.tsx  -> React root                          │
 │   src/App.tsx   -> welcome screen + data panels        │
 │   src/components/ -> BackendStatus, SystemOverview,    │
-│                      ProcessList, Diagnostics          │
+│                      ProcessList, StartupInventory,    │
+│                      ScanPanel, Diagnostics            │
 │   src/services/ -> typed IPC adapters                   │
 │   src/App.css   -> design tokens + styles               │
 │   One invoke call site, no OS access                    │
 └───────────────────────┬─────────────────────────────────┘
                         │ invoke(get_app_info |
                         │   get_system_snapshot | list_processes |
-                        │   get_diagnostics)
+                        │   get_startup_inventory | get_diagnostics |
+                        │   scan commands)
 ┌───────────────────────▼─────────────────────────────────┐
 │ Tauri 2 runtime                                         │
 │   src-tauri/src/lib.rs  -> Builder + handler            │

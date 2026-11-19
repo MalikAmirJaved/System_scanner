@@ -985,6 +985,58 @@ off the device.
 
 ---
 
+## ADR-028 — Startup entries and services are read-only observations with per-source gaps
+
+**Status:** Accepted · 2026-11-19
+
+**Context.** B-043 asks for a "startup/service inventory with limitation
+explanations", covering F-044 (startup entries), F-045 (read-only service
+inventory), and F-046 (explain the source and its limits). Both answers exist in
+Windows, but neither is uniformly readable by a non-elevated user: the SCM can
+enumerate services while refusing each service's own configuration, and a
+registry key or Startup folder can be denied outright. The product rule is that
+unknown is a valid result and nothing may be fabricated (`AI_CONTEXT.md` §6).
+
+**Options.**
+
+1. Shell out to `sc.exe`, `reg.exe`, or `services.msc`. Rejected: ADR-010 bans
+   shell-outs, and parsing localized console output is not a contract.
+2. Use WMI (`Win32_Service`, `Win32_StartupCommand`) through COM. Rejected for
+   this slice: it needs a new dependency or a large hand-written COM surface and
+   a slow first call, for data the SCM and registry already provide.
+3. Read the narrow Win32 surfaces directly: `EnumServicesStatusExW` for the
+   inventory, `QueryServiceConfigW` per service for start type and binary path,
+   the four `Run`/`RunOnce` keys, and the two Startup folders.
+
+**Decision.** Option 3, with these rules:
+
+- Read-only. Services are opened with `SERVICE_QUERY_CONFIG` only; no start, stop,
+  disable, or terminate exists (those wait for B-049's confirmation/audit work).
+- No elevation is requested. Anything denied becomes an `unavailable` reason:
+  per source group (`startup[i].entries`) and per service configuration field.
+- A fixed set of six sources is always reported, including empty and denied ones,
+  so "nothing found" and "could not look" never look the same.
+- Deterministic ordering is applied in `domain/startup.rs`, not in the adapter.
+- Caps: 4,096 services, 512 startup entries, reported through
+  `servicesTruncated` / `startupTruncated`.
+- Collected strings (service binary paths, registry value data, folder item
+  paths) follow ADR-027: local display only, never logged, never bundled, never
+  stored.
+- Only `SERVICE_WIN32` services are enumerated; drivers are out of scope for this
+  slice.
+
+**Consequences.** The inventory cannot see the 32-bit registry view
+(`WOW6432Node`), scheduled tasks, or the target of a Startup shortcut; `KI-058`
+records these. A service whose configuration is denied still appears with its
+state, which is honest but means the panel can show rows with no path. No new
+crate, capability, or elevated code path was added; `windows-sys` gained the
+`Win32_System_Services` feature.
+
+**Revisit trigger.** A scheduled-task view, a driver view, an action on a service
+or startup entry, or a request to include any of these strings in an export.
+
+---
+
 ## Template
 
 ```text

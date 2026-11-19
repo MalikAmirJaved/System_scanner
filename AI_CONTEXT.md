@@ -2,7 +2,7 @@
 
 > **Purpose:** the minimum context an AI agent needs to work correctly in this
 > repository. Read this before touching code.
-> **Last updated:** 2026-11-17
+> **Last updated:** 2026-11-19
 
 ---
 
@@ -19,7 +19,7 @@ Authoritative plan: [`docs/plan.md`](docs/plan.md).
 Product intent: [`PRD.md`](PRD.md).
 Architecture: [`ARCHITECTURE.md`](ARCHITECTURE.md).
 
-## 2. Verified current state (2026-11-16)
+## 2. Verified current state (2026-11-19)
 
 | Fact | Value | Source |
 |---|---|---|
@@ -35,29 +35,34 @@ Architecture: [`ARCHITECTURE.md`](ARCHITECTURE.md).
 | Rust deps | `tauri 2`, `serde`, `serde_json`, `thiserror`, `tracing`/`tracing-subscriber`, `rusqlite 0.43` (bundled SQLite), `windows-sys 0.61` (Windows target) | `Cargo.toml` |
 | Release profile | LTO, `codegen-units=1`, `opt-level=3`, `panic=abort`, `strip` | `Cargo.toml` |
 | Rust files | `main.rs`, `lib.rs`, `ipc.rs`, `error.rs`, `logging.rs`, `redact.rs`, `startup.rs`, `dto/`, `commands/`, `domain/`, `ports/`, `app/`, `adapters/windows/`, `adapters/persistence/`, `adapters/filesystem/` | `src-tauri/src/` |
-| IPC commands | `get_app_info`, `get_system_snapshot`, `list_processes`, `get_diagnostics`, plus `start_scan`, `cancel_scan`, `get_scan_status` (B-025). All read-only; the scan commands are called by `ScanPanel` through `src/services/scan.ts` | `src-tauri/src/commands/` |
+| IPC commands | `get_app_info`, `get_system_snapshot`, `list_processes`, `get_diagnostics`, `get_startup_inventory` (B-043), plus `start_scan`, `cancel_scan`, `get_scan_status` (B-025). All read-only; the scan commands are called by `ScanPanel`, the inventory by `StartupInventory.tsx` | `src-tauri/src/commands/` |
 | IPC events | `scan:progress`, `scan:completed`, `scan:failed`, `scan:cancelled` (aggregate counters only, paced to 10/s) | `API.md` §4.1, `src-tauri/src/app/jobs.rs` |
 | Wire format | envelope `{status, data|error}`; DTO fields camelCase; codes snake_case | `API.md` §1–§2 |
 | Frontend IPC | `src/services/ipc.ts` is the only `invoke` call site; every response and scan event is validated in the renderer by hand-written guards (`src/services/validate.ts`, B-090) | `src/services/` |
 | Database | SQLite schema **v2** (`scan_sessions`) via `rusqlite`; file at `app_data_dir()/system-scanner.db`, opened at startup. One counters-only row is written per scan through the `ScanSessionStore` port (best-effort); leftover open rows become `interrupted` at startup. A verified `VACUUM INTO` snapshot goes to `backups/` before pending migrations (newest five, best-effort; B-033). **No paths stored; no command reads rows back; restore is manual** | `src-tauri/src/adapters/persistence/`, `src-tauri/migrations/` |
 | Traversal | Bounded worker prototype with cancellation, depth/entry budgets, an outcome per entry with stable codes, and a derived `Completeness` verdict (B-023); each directory is opened once without following its final link and enumerated through that handle, with a volume-serial + 128-bit file-ID check against the parent-recorded identity (B-041; mismatch → `disappeared`); driven by an in-memory scan job (B-025) shown in the Storage scan panel; **persisted only as a counters-only session row**. `domain/policy.rs` holds the protected-path policy (B-041): deny-by-default over the system roots with a reason per denial, **implemented but not consulted by any command** (KI-057) | `src-tauri/src/adapters/filesystem/directory.rs`, `src-tauri/src/adapters/filesystem/traversal.rs`, `src-tauri/src/domain/traversal.rs` |
-| Tests | 150 Rust + 1 opt-in baseline (`--ignored`) + 76 frontend (`npm test`, `cargo test`) | `src/**/*.test.ts(x)`, `#[cfg(test)]` |
+| Tests | 166 Rust + 1 opt-in baseline (`--ignored`) + 82 frontend in 13 files (`npm test`, `cargo test`) | `src/**/*.test.ts(x)`, `#[cfg(test)]` |
 | CI | `.github/workflows/ci.yml` (**never run on GitHub**) | `.github/` |
-| Frontend | shell header + backend status + system snapshot + paged process list + storage scan panel (roots text box, start/cancel, live counts, completeness verdict; no folder picker) + on-request diagnostics in a responsive 1/2/3-column grid, inside an `ErrorBoundary` | `src/App.tsx`, `src/components/`, `src/components/ui/button.tsx` |
+| Frontend | shell header + backend status + system snapshot + paged process list + startup/service inventory (six sources, per-field gaps) + storage scan panel (roots text box, start/cancel, live counts, completeness verdict; no folder picker) + on-request diagnostics in a responsive 1/2/3-column grid, inside an `ErrorBoundary` | `src/App.tsx`, `src/components/`, `src/components/ui/button.tsx` |
 
 If any of these change, update this table in the same commit.
 
 ## 3. What does not exist (do not assume it does)
 
 - `get_system_snapshot` reads OS, CPU, memory, disks, and network adapters.
-- `list_processes` reads PID, parent PID, name, thread count, start time, and
-  working set. It does **not** read image paths, command lines, CPU usage, or
-  session IDs (ADR-013), and it is not sortable or searchable.
-- Neither command reads services, startup entries, files, or event logs.
+- `list_processes` reads PID, parent PID, name, image path (ADR-027), a derived
+  `depth`, thread count, start time, and working set. It does **not** read command
+  lines, CPU usage, or session IDs (ADR-013), and it is not sortable or searchable.
+- `get_startup_inventory` reads the six autostart sources (current-user and
+  all-user `Run`/`RunOnce` values, both Startup folders) and the `SERVICE_WIN32`
+  service list with per-service start type and binary path (B-043, ADR-028). It
+  does not read scheduled tasks, drivers, the 32-bit registry view, or resolved
+  shortcut targets, and it cannot start, stop, or disable anything (KI-058).
+- No command reads files or event logs.
 - Jobs exist only for the scan: one at a time. Live state is in memory; the final
   counters are also written as one session row. No generic job registry, no
   history view, and no resumption.
-- No startup/service collectors and no storage views. The Storage scan panel
+- No storage views. The Storage scan panel
   starts, cancels, and shows aggregate counters from `scan:*` events, but there
   is no folder picker (roots are typed), no file list or treemap, and file-level
   data is neither persisted nor queryable (`get_scan_summary`, `query_files` do
@@ -71,8 +76,9 @@ If any of these change, update this table in the same commit.
 - No saved-file diagnostics export and no log viewer or level filter. The
   in-app preview/copy of a redacted support bundle exists (B-006); logs remain
   local files.
-- No app shell navigation or routing — one screen with five panels (backend
-  status, system snapshot, process inventory, storage scan, diagnostics).
+- No app shell navigation or routing — one screen with six panels (backend
+  status, system snapshot, process inventory, startup & services, storage scan,
+  diagnostics).
 - No runtime schema generation: the response guards are hand-written and must be
   updated with each DTO change (ADR-022). A renamed field fails as
   `contract_violation`; a new field is invisible until a guard copies it.

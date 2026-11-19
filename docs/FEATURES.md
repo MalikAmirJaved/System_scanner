@@ -65,15 +65,18 @@
 | F-041 | Stable process identity (PID + start time) | ✅ Implemented — `key` is `pid-startTime`, or an explicit `pid:<pid>` when the start time is denied |
 | F-042 | Process hierarchy | 🟡 Partial — parent PID is exposed per row and a derived `depth` (ancestors inside the snapshot, cycle- and cap-safe, computed before paging) indents child rows; list order is still PID, so there is no tree ordering or collapsible tree view |
 | F-043 | Access-limited indicator per process | ✅ Implemented — per-row `unavailable[]` with `access_denied` / `failed` |
-| F-044 | Startup entries inventory | ⏳ Not started | |
-| F-045 | Service inventory (read-only) | ⏳ Not started | |
-| F-046 | Explanation of source/privilege/limits | ⏳ Not started | |
+| F-044 | Startup entries inventory | ✅ Implemented — `get_startup_inventory` reports the current-user and all-user `Run` and `RunOnce` values and both Startup folders; a denied or missing source keeps its group with a reason (B-043, ADR-028, `STARTUP_INVENTORY_SCHEMA_VERSION = 1`); scheduled tasks and resolved shortcut targets are not included |
+| F-045 | Service inventory (read-only) | ✅ Implemented — `EnumServicesStatusExW` over `SERVICE_WIN32` plus a per-service `QueryServiceConfigW` for start type and binary path; state and name always reported, denied configuration named per field (B-043); drivers are not enumerated |
+| F-046 | Explanation of source/privilege/limits | ✅ Implemented — every source group names its scope and source, per-field gaps carry `access_denied` / `unsupported` / `failed`, caps are visible as `servicesTruncated` / `startupTruncated`, and the panel states what is not collected (B-043) |
 | F-047 | Terminate process (gated, confirmed, audited) | 🚫 Not planned until gated | |
 | F-048 | Start/stop service (gated, confirmed, audited) | 🚫 Not planned until gated |
 
 Evidence for the partial and implemented rows: `src-tauri/src/{domain/process.rs,
 ports/processes.rs, adapters/windows/processes.rs, dto/process_list.rs,
-commands/processes.rs}`, `src/components/ProcessList.tsx`, `API.md` §3.3.
+commands/processes.rs}`, `src/components/ProcessList.tsx`, `API.md` §3.3;
+startup and services: `src-tauri/src/{domain/startup.rs, ports/startup.rs,
+adapters/windows/startup.rs, dto/startup_inventory.rs, commands/startup.rs}`,
+`src/components/StartupInventory.tsx`, `API.md` §3.5.
 
 ## 5. Storage (Release 1)
 
@@ -156,15 +159,15 @@ Event Log summaries, crash correlation, and connection features remain Release 4
 
 | Status | Count |
 |---|---|
-| Implemented | 26 (23 features + 3 baseline properties) |
+| Implemented | 29 (26 features + 3 baseline properties) |
 | Partial | 7 (F-009 OS-follow theming; F-020 event channel; F-029 persistence foundation; F-040 process fields; F-042 hierarchy view; F-051 traversal prototype; F-052 outcome reporting) |
-| Not started / planned | 37 |
+| Not started / planned | 34 |
 | Gated (requires security work) | 5 |
 | Research / proposed | 2 |
 
 Implemented since the scaffold: the typed IPC envelope, the error taxonomy with
-correlation IDs, four versioned DTOs, four read-only inspection commands (`get_app_info`,
-`get_system_snapshot`, `list_processes`, `get_diagnostics`), three scan-job
+correlation IDs, six versioned DTOs, five read-only inspection commands (`get_app_info`,
+`get_system_snapshot`, `list_processes`, `get_diagnostics`, `get_startup_inventory`), three scan-job
 commands with `scan:*` events and a Storage scan panel (`start_scan`, `cancel_scan`,
 `get_scan_status`), the
 port/domain/Windows-adapter split for system information, processes, and

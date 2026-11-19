@@ -1,14 +1,14 @@
 # API
 
-> **Status:** **IPC envelope, seven commands, and four scan events implemented;
+> **Status:** **IPC envelope, eight commands, and four scan events implemented;
 > responses are validated at runtime.** The typed envelope (`CommandResult`,
 > `AppError`), the error taxonomy, `get_app_info`, `get_system_snapshot`,
-> `list_processes`, `get_diagnostics`, and the three scan commands exist and are
-> covered by tests, including runtime validation of every response and event
-> payload in the renderer (B-090). Every other command in this document is
-> **proposed** and must not be described as available.
+> `list_processes`, `get_diagnostics`, `get_startup_inventory`, and the three scan
+> commands exist and are covered by tests, including runtime validation of every
+> response and event payload in the renderer (B-090). Every other command in this
+> document is **proposed** and must not be described as available.
 >
-> **Last updated:** 2026-11-17 · **Related:** [`ARCHITECTURE.md`](ARCHITECTURE.md)
+> **Last updated:** 2026-11-19 · **Related:** [`ARCHITECTURE.md`](ARCHITECTURE.md)
 
 ---
 
@@ -373,7 +373,99 @@ Tests: `src-tauri/src/redact.rs` (shape rules and literal secrets),
 `src-tauri/src/dto/diagnostics.rs` (wire shape and gaps),
 `src/components/Diagnostics.test.tsx` (on-demand load, error/retry, copy).
 
-### 3.5 Events (Release 0 events proposed; scan events implemented in §4.1)
+### 3.5 `get_startup_inventory` (implemented, B-043)
+
+Read-only, no elevation, no arguments. Returns the autostart entries Windows would
+run at sign-in and the services registered with the Service Control Manager. It is
+an observation only: nothing can be started, stopped, or terminated from here.
+
+```rust
+// src-tauri/src/commands/startup.rs
+#[tauri::command]
+pub async fn get_startup_inventory() -> CommandResult<StartupInventoryDto>
+```
+
+```jsonc
+// response data (src-tauri/src/dto/startup_inventory.rs,
+// STARTUP_INVENTORY_SCHEMA_VERSION = 1)
+{
+  "capturedAt": 1762387200000,
+  "schemaVersion": 1,
+  "services": [
+    {
+      "name": "Dhcp",
+      "displayName": "DHCP Client",
+      "state": "running",
+      "startType": "automatic",
+      "binaryPath": "C:\\Windows\\System32\\svchost.exe -k LocalServiceNetworkRestricted",
+      "unavailable": []
+    },
+    {
+      "name": "RestrictedService",
+      "state": "stopped",
+      "unavailable": [
+        { "field": "services[1].displayName", "reason": "failed" },
+        { "field": "services[1].startType", "reason": "access_denied" },
+        { "field": "services[1].binaryPath", "reason": "access_denied" }
+      ]
+    }
+  ],
+  "startup": [
+    {
+      "scope": "current_user",
+      "source": "registry_run",
+      "entries": [{ "name": "Update", "command": "C:\\bin\\update.exe --tray" }]
+    },
+    { "scope": "all_users", "source": "registry_run_once", "entries": [] },
+    { "scope": "all_users", "source": "startup_folder" }
+  ],
+  "servicesTruncated": false,
+  "startupTruncated": false,
+  "unavailable": [{ "field": "startup[2].entries", "reason": "access_denied" }]
+}
+```
+
+Rules, implemented:
+
+- **Sources are fixed and always reported.** Six groups are returned in a fixed
+  order: current-user and all-user `Run` and `RunOnce` keys, then the current-user
+  and all-user Startup folders. A group the user may not read stays in the list
+  with `entries` omitted and the reason in the top-level `unavailable` list
+  (`startup[2].entries`). A missing folder is an empty list, not a denial.
+- **Per-row gaps.** A service configuration the user may not query (a second
+  handle with `SERVICE_QUERY_CONFIG`) keeps its SCM name and state, and names
+  `services[i].displayName`, `.startType`, and `.binaryPath` in its own
+  `unavailable` list. The service is never dropped and no field is reported as
+  `""` or `0`.
+- **`state` and `startType` are stable codes.** `state` is one of `running`,
+  `stopped`, `start_pending`, `stop_pending`, `continue_pending`,
+  `pause_pending`, `paused`, `unknown`; `startType` is one of `boot`, `system`,
+  `automatic`, `manual`, `disabled`, `unknown` (absent when denied).
+- **`binaryPath` and `command` are local metadata.** They are shown in the panel
+  and stay on the machine: never logged, never in the diagnostics bundle, never
+  sent anywhere (ADR-028). A startup-folder `command` is the item's own path; its
+  shortcut target is not resolved.
+- **Deterministic order.** Services are sorted by name and startup entries by name
+  within their group; the ordering is applied in `domain/startup.rs`, not in the
+  adapter.
+- **Caps.** At most 4,096 services and 512 startup entries. `servicesTruncated` /
+  `startupTruncated` say when a cap stopped enumeration, making the lists
+  prefixes of the machine.
+- **No destructive surface.** There is no start, stop, disable, or terminate
+  command; service control is gated behind the confirmation/audit work (B-049).
+
+Not collected: service dependencies, service accounts, drivers (only
+`SERVICE_WIN32` is enumerated), the 32-bit registry view (`WOW6432Node`), the
+scheduled-task store, and the resolved target of a Startup shortcut.
+
+Frontend: `src/services/startup.ts` → `getStartupInventory()`; UI:
+`src/components/StartupInventory.tsx`. Tests: `src-tauri/src/domain/startup.rs`
+(ordering and gaps), `src-tauri/src/dto/startup_inventory.rs` (wire shape),
+`src-tauri/src/adapters/windows/startup.rs` (decoding plus a native structural
+smoke test), `src-tauri/src/commands/startup.rs`, `src/services/contracts.test.ts`,
+`src/components/StartupInventory.test.tsx`.
+
+### 3.6 Events (Release 0 events proposed; scan events implemented in §4.1)
 
 Proposed events for Release 0 (none emitted today):
 

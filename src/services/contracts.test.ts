@@ -8,6 +8,7 @@ import { getAppInfo } from "./app";
 import { getDiagnostics } from "./diagnostics";
 import { listProcesses } from "./processes";
 import { cancelScan, getScanStatus, startScan } from "./scan";
+import { getStartupInventory } from "./startup";
 import { getSystemSnapshot } from "./system";
 import { IpcContractError } from "./validate";
 
@@ -75,6 +76,31 @@ const processList = {
   ],
 };
 
+const startupInventory = {
+  capturedAt: 1_762_387_200_000,
+  schemaVersion: 1,
+  services: [
+    {
+      name: "Dhcp",
+      displayName: "DHCP Client",
+      state: "running",
+      startType: "automatic",
+      binaryPath: "C:\\Windows\\System32\\svchost.exe -k LocalServiceNetworkRestricted",
+      unavailable: [],
+    },
+  ],
+  startup: [
+    {
+      scope: "current_user",
+      source: "registry_run",
+      entries: [{ name: "Update", command: "C:\\bin\\update.exe --tray" }],
+    },
+  ],
+  servicesTruncated: false,
+  startupTruncated: false,
+  unavailable: [],
+};
+
 const diagnostics = {
   generatedAt: 1_763_000_000_000,
   schemaVersion: 1,
@@ -115,6 +141,9 @@ describe("command response contracts", () => {
 
     invoke.mockResolvedValueOnce(ok(processList));
     await expect(listProcesses()).resolves.toEqual(processList);
+
+    invoke.mockResolvedValueOnce(ok(startupInventory));
+    await expect(getStartupInventory()).resolves.toEqual(startupInventory);
 
     invoke.mockResolvedValueOnce(ok(diagnostics));
     await expect(getDiagnostics()).resolves.toEqual(diagnostics);
@@ -160,6 +189,15 @@ describe("command response contracts", () => {
       call: () => listProcesses(),
       drifted: { ...processList, items: [{ ...processList.items[0], pid: -1 }] },
       problem: /items\[0\]\.pid is not a non-negative integer/,
+    },
+    {
+      command: "get_startup_inventory",
+      call: () => getStartupInventory(),
+      drifted: {
+        ...startupInventory,
+        services: [{ ...startupInventory.services[0], state: "crashed" }],
+      },
+      problem: /services\[0\]\.state is not one of/,
     },
     {
       command: "get_diagnostics",

@@ -61,6 +61,14 @@ logged, not written to the database, and not included in the diagnostics bundle.
 The process inventory is live-only — no process snapshot is stored. Command lines
 are **not** collected.
 
+**Startup and services (implemented):** `get_startup_inventory` returns service
+names, display names, state, start type, and configured binary paths, plus the
+autostart entries from the current-user and all-user `Run`/`RunOnce` keys and
+Startup folders (ADR-028). Registry value data and folder item paths are shown
+locally and are never logged, written to the database, or included in the
+diagnostics bundle. The inventory is live-only. Scheduled tasks, driver services,
+and resolved shortcut targets are not collected.
+
 Everything below beyond those two facts is **proposed**:
 
 | Data | Purpose | Retention default | User can delete |
@@ -85,6 +93,7 @@ decision.
 - Full directory listings.
 - Process command lines.
 - Process image paths (shown locally in the process panel, never exported).
+- Service binary paths and startup-entry commands (shown locally, never exported).
 - Usernames, SIDs, machine name, IP addresses.
 - Logs, support bundles, database files.
 
@@ -131,6 +140,7 @@ Applied before writing logs or building a support bundle:
 | IP / MAC | remove |
 | Process command line | never captured |
 | Process image path | displayed only; dropped before any log or bundle |
+| Service binary path, startup command | displayed only; dropped before any log or bundle |
 | File hash | keep only if the user opted in to share |
 
 Redaction is applied **at the call site**, not by a later scrubber.

@@ -7,5 +7,6 @@ pub mod job;
 #[allow(dead_code)]
 pub mod policy;
 pub mod process;
+pub mod startup;
 pub mod system;
 pub mod traversal;

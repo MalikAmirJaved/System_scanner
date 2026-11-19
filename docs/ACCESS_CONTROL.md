@@ -60,12 +60,18 @@ policy. This defends against a capability misconfiguration.
 
 | Class | Examples | Who may invoke | Requirements |
 |---|---|---|---|
-| Read-only collection | system snapshot, process list | Any standard user | None beyond capability |
+| Read-only collection | system snapshot, process list, startup/service inventory | Any standard user | None beyond capability |
 | Read-only privileged data | some service/process metadata | Standard user, partial | Report access-limited fields |
 | Local persistence | save session, read history | Any user | Data in the user's profile |
 | Reversible system change | quarantine, restore | User, explicit confirmation | Audit + integrity + recovery |
 | Irreversible system change | permanent delete | User, explicit confirmation | Audit + backup + strongest warning |
 | Privileged change | stop service, terminate protected process | Elevated user, explicit confirmation | Elevation + audit |
+
+The startup/service inventory (`get_startup_inventory`, B-043) is read-only
+collection and needs no elevation: the SCM enumeration and the `Run`/`RunOnce`
+keys are readable by a standard user, and anything refused is reported through
+`unavailable` instead of being retried with more privilege (ADR-028). There is
+no command to change a service or a startup entry.
 
 The filesystem traversal is read-only collection. Since B-025 it **is reachable
 over IPC** through `start_scan`, which accepts caller-supplied roots. No new

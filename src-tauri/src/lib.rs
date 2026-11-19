@@ -85,6 +85,7 @@ pub fn run() {
             commands::scan::cancel_scan,
             commands::scan::get_scan_status,
             commands::scan::start_scan,
+            commands::startup::get_startup_inventory,
             commands::system::get_system_snapshot
         ])
         .run(tauri::generate_context!())

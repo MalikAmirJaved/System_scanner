@@ -62,17 +62,18 @@ See [`KNOWN_ISSUES.md`](KNOWN_ISSUES.md) KI-036.
 | `tracing` | `0.1` | `0.1.44` | MIT | Structured events (already transitive via Tauri; now declared directly) |
 | `tracing-subscriber` | `0.3` (`default-features = false`, `fmt`, `std`) | `0.3.23` | MIT | File subscriber for `tracing` |
 | `rusqlite` | `0.43.0` (`bundled`) | `0.43.0` | MIT | SQLite access layer for `adapters/persistence` (ADR-018) |
-| `windows-sys` (Windows target only) | `0.61.2` | `0.61.2` | MIT OR Apache-2.0 | Win32 registry, memory, volume, adapter, process, diagnostics, and last-resort dialog bindings for `adapters/windows` (B-002, B-003, B-006, B-012) |
+| `windows-sys` (Windows target only) | `0.61.2` | `0.61.2` | MIT OR Apache-2.0 | Win32 registry, SCM/service, memory, volume, adapter, process, diagnostics, and last-resort dialog bindings for `adapters/windows` (B-002, B-003, B-006, B-012, B-043) |
 
 `windows-sys` features enabled: `Win32_Foundation`,
 `Win32_NetworkManagement_IpHelper`, `Win32_NetworkManagement_Ndis`,
 `Win32_Networking_WinSock`, `Win32_Security`, `Win32_Storage_FileSystem`,
 `Win32_System_Diagnostics_ToolHelp`, `Win32_System_ProcessStatus`,
 `Win32_System_Registry`, `Win32_System_SystemInformation`,
-`Win32_System_Threading`, `Win32_System_WindowsProgramming`,
+`Win32_System_Services`, `Win32_System_Threading`, `Win32_System_WindowsProgramming`,
 `Win32_UI_WindowsAndMessaging`. The security feature adds token-elevation reads for
-diagnostics and the UI feature adds the `MessageBoxW` startup dialog; neither adds
-a crate. The dependency is target-scoped so `domain/` and its tests still build on
+diagnostics, `Win32_System_Services` adds the read-only SCM enumeration and
+per-service configuration queries for B-043, and the UI feature adds the
+`MessageBoxW` startup dialog; none adds a crate. The dependency is target-scoped so `domain/` and its tests still build on
 non-Windows hosts.
 
 - `Cargo.lock` currently resolves **420 packages** (full transitive tree).

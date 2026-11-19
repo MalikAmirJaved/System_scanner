@@ -13,6 +13,25 @@ exists. Until then, `0.x` versions may change behavior without notice.
 
 ## [Unreleased]
 
+### Added (startup and services)
+- **Read-only startup and service inventory (B-043).** A new
+  `get_startup_inventory` command returns six autostart sources — current-user
+  and all-user `Run` and `RunOnce` values, and both Startup folders — and the
+  `SERVICE_WIN32` services from `EnumServicesStatusExW`, with start type and
+  configured binary path from a per-service `QueryServiceConfigW` over a
+  `SERVICE_QUERY_CONFIG` handle. Nothing is started, stopped, or disabled, and no
+  elevation is requested. A source the user may not read stays in the response
+  with its entries omitted and the reason in `unavailable`; a service whose
+  configuration is denied keeps its name and state and names the missing fields.
+  Ordering is applied in the domain, and caps (4,096 services, 512 startup
+  entries) are visible as `servicesTruncated` / `startupTruncated`.
+  `STARTUP_INVENTORY_SCHEMA_VERSION` is 1. Registry value data, service binary
+  paths, and Startup folder paths are local-only: never logged, never in the
+  diagnostics bundle, never stored (ADR-028). Scheduled tasks, driver services,
+  the 32-bit registry view, and resolved shortcut targets are not collected
+  (KI-058). No new crate or capability; `windows-sys` gained the
+  `Win32_System_Services` feature.
+
 ### Added (process inventory)
 - **Process hierarchy and image paths (B-042).** Each `list_processes` row now
   carries `depth` — the number of ancestors inside the same snapshot, derived in
